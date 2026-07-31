@@ -1,6 +1,6 @@
 /* ── Chervie avatar: net-borne AI serpent around screens ─────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -16,6 +16,7 @@ export const DEF: MonsterDef = {
   projSpeed: 5.8,
   projSprite: 0,
   aiFlags: ['netPossessor'],
+  floors: [FloorLevel.MINISTRY, FloorLevel.MAINTENANCE, FloorLevel.VOID],
   counterplay: 'Червие силен только у экранов и серверного аппарата: ломайте линию к экрану, выжигайте или отключайте локальный аппарат, затем добивайте аватар. Энергооружие и GBE решают быстрее обычной очереди.',
   lootHint: 'платы с зеленым текстом, проводка, редкая энергоячейка из локального сервера',
 };

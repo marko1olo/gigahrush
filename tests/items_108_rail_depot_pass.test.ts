@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { DoorState, EntityType, ItemType, RoomType, type Entity } from '../src/core/types';
+import { DoorState, EntityType, FloorLevel, ItemType, RoomType, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { METRO_DEPOT_ROOM_NAME } from '../src/data/metro';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
@@ -62,7 +62,7 @@ test('rail depot pass opens the Ministry N3 document gate as legal access', () =
     x: room.x + 8.5,
     y: room.y + Math.floor(room.h / 2) + 0.5,
   });
-  const state = makeGameState({ currentZ: 34, time: 108 });
+  const state = makeGameState({ currentFloor: FloorLevel.MINISTRY, time: 108 });
 
   assert.equal(addItem(player, PASS_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter предъявить');

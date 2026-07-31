@@ -6,7 +6,7 @@ import { ITEMS } from '../src/data/catalog';
 import { ITEM_TAGS, getStack } from '../src/data/items';
 import { resourceForItem } from '../src/data/resources';
 import { PHYS_WEAPON_ROLE_TIERS, PHYS_WEAPON_STATS } from '../src/data/weapons';
-import { generateDarknessDesignFloor } from '../src/gen/darkness';
+import { generateDarknessDesignFloor } from '../src/gen/design_floors/darkness';
 import { addItem, consumeAmmo, countAmmo, getWeaponReadiness } from '../src/systems/inventory';
 
 function makePlayer(): Entity {

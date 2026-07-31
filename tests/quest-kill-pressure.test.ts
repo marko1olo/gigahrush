@@ -1,5 +1,3 @@
-import { getPlotNpcCount } from '../src/data/npc_packages';
-import { getPlotNpcNumericId } from '../src/data/npc_packages';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -8,7 +6,6 @@ import { World } from '../src/core/world';
 import { PLOT_CHAIN } from '../src/data/plot';
 import { updateKillQuestPressure } from '../src/systems/quests';
 import { makeGameState } from './helpers';
-import '../src/data/npc_plot_packages';
 
 function pressureStepIndex(): number {
   const index = PLOT_CHAIN.findIndex(step => step.killPressure?.anchor.plotNpcId === 'major_grom');
@@ -28,7 +25,7 @@ function floorWorld(): World {
 
 function major(): Entity {
   return {
-    id: getPlotNpcNumericId('major_grom') ?? 10,
+    id: 10,
     type: EntityType.NPC,
     x: 20.5,
     y: 20.5,
@@ -43,6 +40,7 @@ function major(): Entity {
     hp: 100,
     maxHp: 100,
     ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+    plotNpcId: 'major_grom',
   };
 }
 
@@ -61,7 +59,7 @@ test('authored kill pressure waits for its interval and spawns from plot data', 
   state.quests = [quest];
   const world = floorWorld();
   const entities: Entity[] = [major()];
-  const nextId = { v: getPlotNpcCount() + 1000 }
+  const nextId = { v: 1000 };
 
   assert.equal(updateKillQuestPressure(world, entities, state, state.msgs, nextId), false);
   assert.equal(entities.some(entity => entity.type === EntityType.MONSTER), false);

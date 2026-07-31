@@ -1,7 +1,6 @@
 /* ── Бабка Зина — side quest content module ───────────────────── */
 /* Старушка раздаёт пирожки в обмен на бинты для соседей.          */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   W, Cell,
   type Entity, Faction, Occupation, QuestType,
@@ -9,7 +8,6 @@ import {
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng } from '../../core/rand';
 
 const NPC_DEF: PlotNpcDef = {
   name: 'Бабка Зина',
@@ -39,7 +37,7 @@ const NPC_DEF: PlotNpcDef = {
 registerSideQuest('babka_zina', NPC_DEF, [
   {
     id: 'zina_bandages',
-    giverId: getPlotNpcNumericId('babka_zina')!,
+    giverNpcId: 'babka_zina',
     type: QuestType.FETCH,
     desc: 'Бабка Зина: «Принеси три бинтика, голубчик. Соседушкам надо.»',
     targetItem: 'bandage', targetCount: 3,
@@ -53,11 +51,11 @@ export function spawnBabkaZina(
   world: World, entities: Entity[], nextId: { v: number },
 ): void {
   for (let i = 0; i < 2000; i++) {
-    const x = Math.floor(rng() * W);
-    const y = Math.floor(rng() * W);
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
     if (world.cells[world.idx(x, y)] !== Cell.FLOOR) continue;
     requireSpawnedPlotNpcFromPackage(entities, nextId, 'babka_zina', x + 0.5, y + 0.5, {
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       canGiveQuest: true,
       isTraveler: true,
     });

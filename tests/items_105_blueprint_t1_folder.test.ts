@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ContainerKind, ItemType, RoomType } from '../src/core/types';
+import { ContainerKind, FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { CONTAINER_DEFS } from '../src/data/container_defs';
 import { FACTORIES } from '../src/data/factories';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
@@ -47,7 +47,7 @@ test('blueprint t1 folder unlocks a reusable metal shop recipe', () => {
 
 test('blueprint t1 folder can be sold instead of saved for production', () => {
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 105 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 105 });
 
   assert.equal(addItem(player, ITEM_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter проверить');

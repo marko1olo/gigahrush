@@ -56,7 +56,6 @@ import {
   type NpcUtilityTargetCandidate,
   type NpcUtilityThreatSnapshot,
 } from './npc_utility';
-import { rng } from '../../core/rand';
 
 export type NpcAiProfile = 'default' | 'ministry';
 
@@ -236,7 +235,6 @@ function stateForIntent(intent: NpcUtilityIntentId, e: Entity, profile: NpcAiPro
       return profile === 'ministry' ? NpcState.MEETING : NpcState.FREE_TIME;
     case 'combat':
     case 'patrol':
-    case 'faction_assault':
       return NpcState.PATROL;
     case 'wander':
       return usesTravelerRoutine(e) ? NpcState.TRAVELING : NpcState.FREE_TIME;
@@ -256,7 +254,6 @@ function goalForIntent(intent: NpcUtilityIntentId): AIGoal {
     case 'work': return AIGoal.WORK;
     case 'heal': return AIGoal.GOTO;
     case 'combat': return AIGoal.HUNT;
-    case 'faction_assault': return AIGoal.GOTO;
     case 'social':
     case 'patrol':
     case 'wander':
@@ -329,7 +326,25 @@ export function updateNPC(
   }
 
   if (state) {
-    processUrinationEvents(world, e, ai, state, _barkMsgs, time);
+    const sinceId = ai.lastSeenUrinationId ?? 0;
+    const events = getRecentEvents(state, { type: 'player_urinated', sinceId, limit: 1 });
+    if (events.length > 0) {
+      const event = events[0];
+      if (event.id > sinceId) {
+        ai.lastSeenUrinationId = event.id;
+        if (event.x !== undefined && event.y !== undefined) {
+          const dist2 = world.dist2(e.x, e.y, event.x, event.y);
+          if (dist2 <= 64 && e.faction !== Faction.WILD) {
+            const isBathroom = event.roomId !== undefined && world.rooms[event.roomId]?.type === RoomType.BATHROOM;
+            if (!isBathroom) {
+              e.playerRelation = (e.playerRelation ?? 0) - 15;
+            }
+          }
+        }
+      }
+    } else if (state.worldEvents) {
+      ai.lastSeenUrinationId = Math.max(sinceId, state.worldEvents.nextId - 1);
+    }
   }
   if (special.held) {
     return;
@@ -344,7 +359,7 @@ export function updateNPC(
     enterUtilityIntent(e, initialIntentForNpc(e, samosborActive, profile), 0, profile);
   }
 
-  const decision = selectAndEnterUtilityIntent(world, entities, e, clock, samosborActive, profile, state);
+  const decision = selectAndEnterUtilityIntent(world, entities, e, clock, samosborActive, profile);
   const intent = decision.intent;
 
   ai.timer -= dt;
@@ -390,9 +405,6 @@ export function updateNPC(
     case 'patrol':
       handlePatrol(world, e, dt);
       break;
-    case 'faction_assault':
-      handleFactionAssault(world, e, dt, state);
-      break;
     case 'wander':
       handleWander(world, e, dt);
       break;
@@ -410,7 +422,6 @@ function selectAndEnterUtilityIntent(
   clock: GameClock,
   samosborActive: boolean,
   profile: NpcAiProfile,
-  state?: import('../../core/types').GameState,
 ): { intent: NpcUtilityIntentId; rescored: boolean } {
   const currentIntent = utilityIntentByNpc.get(e);
   const now = _barkTime;
@@ -437,7 +448,6 @@ function selectAndEnterUtilityIntent(
       isTraveler: usesTravelerRoutine(e),
     },
     local: buildLocalUtilityScores(world, e, samosborActive, profile),
-    factionGoals: state?.factionGoals,
   }, utilityScoreBuffer);
   const selected = selectNpcUtilityIntent(scores, currentIntent, {
     switchMargin: UTILITY_SWITCH_MARGIN,
@@ -454,33 +464,6 @@ function selectAndEnterUtilityIntent(
   enterUtilityIntent(e, selected.intent, selected.score, profile);
   utilityNextDecisionAtByNpc.set(e, now + utilityRethinkInterval(e));
   return { intent: selected.intent, rescored: true };
-}
-
-export function processUrinationEvents(world: World, e: Entity, ai: import('../../core/types').AIState, state: import('../../core/types').GameState, msgs: import('../../core/types').Msg[], time: number): void {
-  const sinceId = ai.lastSeenUrinationId ?? 0;
-  const events = getRecentEvents(state, { type: 'player_urinated', sinceId, limit: 1 });
-  if (events.length > 0) {
-    const event = events[0];
-    if (event.id > sinceId) {
-      ai.lastSeenUrinationId = event.id;
-      if (event.x !== undefined && event.y !== undefined) {
-        const dist2 = world.dist2(e.x, e.y, event.x, event.y);
-        if (dist2 <= 64 && e.faction !== Faction.WILD) {
-          const isBathroom = event.roomId !== undefined && world.rooms[event.roomId]?.type === RoomType.BATHROOM;
-          if (!isBathroom) {
-            e.playerRelation = (e.playerRelation ?? 0) - 15;
-            if (e.playerRelation <= -30 && event.actorId !== undefined) {
-              ai.goal = AIGoal.HUNT;
-              ai.combatTargetId = event.actorId;
-              emitMarkovBark(e, msgs, time, 'combat', 'Извращенец!', 1.0, '#fa8');
-            }
-          }
-        }
-      }
-    }
-  } else if (state.worldEvents) {
-    ai.lastSeenUrinationId = Math.max(sinceId, state.worldEvents.nextId - 1);
-  }
 }
 
 function buildLocalUtilityScores(
@@ -628,10 +611,10 @@ function applyRoomRestoration(world: World, e: Entity, dt: number, time: number,
 
 function tryAmbientBark(e: Entity, dt: number, samosborActive: boolean): void {
   const ai = e.ai!;
-  ai.ambientBarkCd = Math.max(0, (ai.ambientBarkCd ?? (10 + rng() * 12)) - dt);
+  ai.ambientBarkCd = Math.max(0, (ai.ambientBarkCd ?? (10 + Math.random() * 12)) - dt);
   if (ai.ambientBarkCd > 0) return;
 
-  ai.ambientBarkCd = 18 + rng() * 28;
+  ai.ambientBarkCd = 18 + Math.random() * 28;
   if (samosborActive) return;
   if (ai.npcState === NpcState.SLEEPING || ai.npcState === NpcState.HIDING) return;
   if (ai.goal === AIGoal.FLEE || ai.goal === AIGoal.HIDE || ai.goal === AIGoal.HUNT) return;
@@ -655,7 +638,7 @@ function handleSleeping(world: World, e: Entity, dt: number, profile: NpcAiProfi
         wanderNearby(world, e);
       }
     }
-    ai.timer = ai.path.length > 0 ? stableTimer(e, 'sleep_rethink', 8, 5) : 2.0;
+    ai.timer = stableTimer(e, 'sleep_rethink', 8, 5);
   }
 
   if (ai.goal === AIGoal.SLEEP && ai.path.length === 0) {
@@ -713,7 +696,7 @@ function handleToilet(world: World, e: Entity, dt: number, time: number): void {
   if (ai.timer <= 0 || ai.goal === AIGoal.IDLE) {
     ai.goal = AIGoal.TOILET;
     if (!gotoRoutineRoomOfTypes(world, e, [RoomType.BATHROOM], 'toilet', { allowTrespassFallback: true })) wanderNearby(world, e);
-    ai.timer = ai.path.length > 0 ? stableTimer(e, 'toilet_rethink', 7, 5) : 2.0;
+    ai.timer = stableTimer(e, 'toilet_rethink', 7, 5);
   }
   if (n) {
     const cr = world.roomAt(e.x, e.y);
@@ -740,7 +723,7 @@ function handleDrink(world: World, e: Entity, dt: number): void {
   if (ai.timer <= 0 || ai.goal === AIGoal.IDLE) {
     ai.goal = AIGoal.DRINK;
     if (!gotoRoutineRoomOfTypes(world, e, [RoomType.KITCHEN, RoomType.BATHROOM], 'drink', { allowTrespassFallback: true })) wanderNearby(world, e);
-    ai.timer = ai.path.length > 0 ? stableTimer(e, 'drink_rethink', 8, 6) : 2.0;
+    ai.timer = stableTimer(e, 'drink_rethink', 8, 6);
   }
   if (n) {
     const cr = world.roomAt(e.x, e.y);
@@ -765,7 +748,7 @@ function handleEat(world: World, e: Entity, dt: number): void {
   const ai = e.ai!;
   const n = e.needs;
   
-  if (n && n.food < 15 && (e.faction === Faction.WILD || e.faction === Faction.CULTIST || rng() < 0.05)) {
+  if (n && n.food < 15 && (e.faction === Faction.WILD || e.faction === Faction.CULTIST || Math.random() < 0.05)) {
     const chunkCell = findMeatChunkCell(world, e.x, e.y, 16);
     if (chunkCell) {
       ai.goal = AIGoal.EAT;
@@ -789,7 +772,7 @@ function handleEat(world: World, e: Entity, dt: number): void {
   if (ai.timer <= 0 || ai.goal === AIGoal.IDLE) {
     ai.goal = AIGoal.EAT;
     if (!gotoRoutineRoomOfTypes(world, e, [RoomType.KITCHEN, RoomType.COMMON], 'eat', { allowTrespassFallback: true })) wanderNearby(world, e);
-    ai.timer = ai.path.length > 0 ? stableTimer(e, 'eat_rethink', 10, 8) : 2.0;
+    ai.timer = stableTimer(e, 'eat_rethink', 10, 8);
   }
   if (n) {
     const cr = world.roomAt(e.x, e.y);
@@ -823,7 +806,7 @@ function handleWorking(world: World, e: Entity, dt: number, profile: NpcAiProfil
       const types = occupationWorkRoomTypes(e.occupation);
       if (!gotoRoutineRoomOfTypes(world, e, types, 'work')) wanderNearby(world, e);
     }
-    ai.timer = ai.path.length > 0 ? stableTimer(e, 'work_rethink', 14, 18) : 2.0;
+    ai.timer = stableTimer(e, 'work_rethink', 14, 18);
   }
 
   if (ai.goal === AIGoal.WORK && ai.path.length === 0) {
@@ -870,7 +853,7 @@ function handleHeal(world: World, e: Entity, dt: number): void {
   if (ai.timer <= 0 || ai.goal === AIGoal.IDLE) {
     ai.goal = AIGoal.GOTO;
     if (!gotoRoutineRoomOfTypes(world, e, [RoomType.MEDICAL], 'heal', { allowTrespassFallback: true })) wanderNearby(world, e);
-    ai.timer = ai.path.length > 0 ? stableTimer(e, 'heal_rethink', 9, 8) : 2.0;
+    ai.timer = stableTimer(e, 'heal_rethink', 9, 8);
   }
 
   if (ai.goal === AIGoal.GOTO && ai.path.length === 0) {
@@ -892,7 +875,7 @@ function handleSocial(world: World, e: Entity, dt: number, profile: NpcAiProfile
       ? [RoomType.COMMON, RoomType.HQ, RoomType.OFFICE] as const
       : [RoomType.COMMON, RoomType.SMOKING, RoomType.KITCHEN] as const;
     if (!gotoRoutineRoomOfTypes(world, e, types, 'social')) wanderNearby(world, e);
-    ai.timer = ai.path.length > 0 ? stableTimer(e, 'social_rethink', 8, 12) : 2.0;
+    ai.timer = stableTimer(e, 'social_rethink', 8, 12);
   }
   if (ai.path.length === 0) {
     const cr = world.roomAt(e.x, e.y);
@@ -904,35 +887,12 @@ function handleSocial(world: World, e: Entity, dt: number, profile: NpcAiProfile
   followPath(world, e, dt);
 }
 
-function handleFactionAssault(world: World, e: Entity, dt: number, state?: import('../../core/types').GameState): void {
-  const ai = e.ai!;
-
-  if (ai.timer <= 0 || ai.goal === AIGoal.IDLE) {
-    ai.goal = AIGoal.GOTO;
-    ai.timer = 5;
-
-    if (state?.factionGoals) {
-      for (const goal of state.factionGoals) {
-        if (goal.type === 'attack' && goal.members.includes(e.id)) {
-          const zone = world.zones[goal.targetZone];
-          if (zone) {
-            tryAssignPathToCell(world, e, zone.cx, zone.cy);
-          }
-          break;
-        }
-      }
-    }
-  }
-
-  followPath(world, e, dt);
-}
-
 function handlePatrol(world: World, e: Entity, dt: number): void {
   const ai = e.ai!;
   if (ai.timer <= 0 || ai.goal === AIGoal.IDLE) {
     ai.goal = AIGoal.WANDER;
     patrolCorridor(world, e);
-    ai.timer = ai.path.length > 0 ? stableTimer(e, 'patrol_rethink', 9, 14) : 2.0;
+    ai.timer = stableTimer(e, 'patrol_rethink', 9, 14);
   }
   followPath(world, e, dt);
 }
@@ -943,14 +903,14 @@ function handleWander(world: World, e: Entity, dt: number): void {
     ai.goal = AIGoal.WANDER;
     if (usesTravelerRoutine(e)) {
       wanderFar(world, e);
-      ai.timer = ai.path.length > 0 ? stableTimer(e, 'traveler_rethink', 10, 20) : 2.0;
+      ai.timer = stableTimer(e, 'traveler_rethink', 10, 20);
     } else {
       const roll = stableUnit(e, `wander:${Math.floor((ai.stateTimer ?? 0) / 15)}`);
       const routed = roll < 0.68 && gotoRoutineRoomOfTypes(world, e, [RoomType.COMMON, RoomType.KITCHEN, RoomType.HQ], 'wander');
       if (!routed) {
         wanderNearby(world, e);
       }
-      ai.timer = ai.path.length > 0 ? stableTimer(e, 'wander_rethink', 7, 12) : 2.0;
+      ai.timer = stableTimer(e, 'wander_rethink', 7, 12);
     }
   }
   followPath(world, e, dt);
@@ -1046,7 +1006,7 @@ function routineRoomTargetCandidate(
     utility: assignedBonus + preferredBonus + territoryUtility,
     distance,
     factionPenalty: friendly ? 0 : 18,
-    danger: world.dangerField[world.idx(Math.floor(room.x + room.w/2), Math.floor(room.y + room.h/2))] / 255,
+    danger: world.dangerField[Math.floor(room.y + room.h/2) * 1024 + Math.floor(room.x + room.w/2)] / 255,
   }, {
     identity: npcUtilityIdentityFromEntity(e),
     intent,

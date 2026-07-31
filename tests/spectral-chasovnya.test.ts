@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
 import { auditReachability } from '../src/core/world';
-import { Cell, EntityType, Feature, LiftDirection, MonsterKind, Occupation, RoomType, W, ZoneFaction } from '../src/core/types';
+import { Cell, EntityType, Feature, FloorLevel, LiftDirection, MonsterKind, Occupation, RoomType, W, ZoneFaction } from '../src/core/types';
 import { designFloorAtZ, designFloorById } from '../src/data/design_floors';
 import { designFloorPopulationProfile } from '../src/data/design_floor_population';
 import { HUMAN_TERRITORY_OWNERS, factionToTerritoryOwner } from '../src/data/factions';
@@ -17,7 +17,7 @@ import {
   getSpectralChasovnyaState,
   ringSpectralChasovnyaBell,
   type SpectralChasovnyaGeneration,
-} from '../src/gen/spectral_chasovnya';
+} from '../src/gen/design_floors/spectral_chasovnya';
 import { getRecentNoiseRecords } from '../src/systems/noise';
 import { getRecentEvents } from '../src/systems/events';
 import { findInteractionTarget, activateInteraction } from '../src/systems/interactions';
@@ -73,7 +73,9 @@ test('spectral_chasovnya is registered as a Hell-band authored sound route', () 
   const route = designFloorById(SPECTRAL_CHASOVNYA_ROUTE_ID);
 
   assert.equal(route?.z, SPECTRAL_CHASOVNYA_Z);
-      assert.equal(route?.displayName, 'Спектральная часовня');
+  assert.equal(route?.baseFloor, SPECTRAL_CHASOVNYA_BASE_FLOOR);
+  assert.equal(route?.baseFloor, FloorLevel.HELL);
+  assert.equal(route?.displayName, 'Спектральная часовня');
   assert.equal(designFloorAtZ(SPECTRAL_CHASOVNYA_Z)?.id, SPECTRAL_CHASOVNYA_ROUTE_ID);
   assert.equal(PROCEDURAL_FLOOR_ZS.includes(SPECTRAL_CHASOVNYA_Z), false);
 });
@@ -83,8 +85,8 @@ test('spectral_chasovnya population profile favors cult listeners and sound-focu
   assert.ok(route);
   const profile = designFloorPopulationProfile(route);
 
-  assert.ok(profile.npcTarget >= 18 && profile.npcTarget <= 1800, 'npcTarget in bounds');
-  assert.ok(profile.monsterTarget >= 391 && profile.monsterTarget <= 39160, 'monsterTarget in bounds');
+  assert.equal(profile.npcTarget, 180);
+  assert.equal(profile.monsterTarget, 3916);
   assert.equal(profile.npcNoun, 'слушатель');
   assert.equal(profile.npcOccupations.some(entry => entry.value === Occupation.PRIEST && entry.weight >= 30), true);
   assert.equal(profile.monsterBiasKinds.includes(MonsterKind.SLEPOGLAZ), true);
@@ -122,7 +124,7 @@ test('spectral_chasovnya exposes standing waves, shadows, bells and reachable ex
 
   const mainBell = gen.spectralState.bellNodes[0];
   assert.equal(gen.world.features[gen.world.idx(Math.floor(mainBell.x), Math.floor(mainBell.y))], Feature.APPARATUS);
-  assert.equal(gen.entities.some(entity => entity.type === EntityType.NPC && (entity as any).npcPackageId === 'spectral_bellwarden_miron'), true);
+  assert.equal(gen.entities.some(entity => entity.type === EntityType.NPC && entity.plotNpcId === 'spectral_bellwarden_miron'), true);
   assert.equal(gen.entities.some(entity => entity.type === EntityType.MONSTER && entity.monsterKind === MonsterKind.SLEPOGLAZ), true);
   assert.equal(gen.entities.some(entity => entity.type === EntityType.MONSTER && entity.monsterKind === MonsterKind.TUMANNIK), true);
   assert.equal(gen.world.containers.some(container => container.tags.includes('spectral_chasovnya') && container.tags.includes('hearing_boost')), true);
@@ -202,7 +204,7 @@ test('spectral_chasovnya bell interaction publishes a bounded sound bait pulse',
   const gen = spectralGen();
   const node = gen.spectralState.bellNodes[0];
   const player = makeTestPlayer({ id: 9001, x: node.x + 1, y: node.y, angle: Math.PI });
-  const state = makeGameState({ currentZ: -36, time: 10 });
+  const state = makeGameState({ currentFloor: FloorLevel.HELL, time: 10 });
   const target = findInteractionTarget({
     world: gen.world,
     state,
@@ -227,7 +229,7 @@ test('spectral_chasovnya bell interaction publishes a bounded sound bait pulse',
   assert.equal(result.handled, true);
   assert.equal(ringSpectralChasovnyaBell(gen.world, state, player, gen.entities, 'missing_node'), false);
   assert.equal(gen.spectralState.rungBellNodeIds.includes(node.id), true);
-  const noise = getRecentNoiseRecords(state, { z: -36, source: 'siren', minSeverity: 4, limit: 1 })[0];
+  const noise = getRecentNoiseRecords(state, { floor: FloorLevel.HELL, source: 'siren', minSeverity: 4, limit: 1 })[0];
   assert.ok(noise);
   assert.equal(noise.tags.includes('spectral_chasovnya'), true);
   assert.equal(noise.radius <= 48, true);

@@ -1,6 +1,6 @@
 /* -- Tumannik: fog-pocket ambusher with displaced silhouette ----- */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 0.72,
   sprite: 0,
   aiFlags: ['fogOffset'],
+  floors: [FloorLevel.LIVING, FloorLevel.HELL],
   counterplay: 'Не гонитесь за силуэтом в тумане: держите угол и слушайте боковой шаг, а свет, огонь или выход из fog-пятна возвращают удар к настоящему телу.',
   lootHint: 'серый влажный след, холодная пыль, редкий фильтрующий слой',
 };

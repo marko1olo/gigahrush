@@ -1,11 +1,12 @@
 /* ── AI system — orchestrator ─────────────────────────────────── */
 
 export { forceHide } from './npc_fsm';
+export { getNpcStateText } from './npc_state_text';
 export { tryMonsterProjectileStagger } from './monster';
 
 import {
   type Entity, type GameState, type Msg, type GameClock,
-  EntityType, MonsterKind, AIGoal, NpcRole,
+  EntityType, FloorLevel, MonsterKind, AIGoal,
   setMsgLocationProvider,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -21,8 +22,6 @@ import { hearingRadiusMetersForActor } from '../hearing';
 import { unstuckActorFromBlockers } from '../movement_collision';
 import { isPlayerEntity } from '../player_actor';
 import { updateSwarmNests } from '../swarm_nests';
-import { designFloorAtZ } from '../../data/design_floors';
-import { isPlotNpc } from '../../data/plot';
 
 export interface AiStats {
   frame: number;
@@ -105,7 +104,7 @@ function fillProjectileOwners(entities: readonly Entity[]): void {
   }
 }
 
-export function updateAI(world: World, entities: Entity[], dt: number, time: number, msgs: Msg[], playerId: number, clock: GameClock, samosborActive: boolean, nextId: { v: number }, currentZ?: number, state?: GameState): void {
+export function updateAI(world: World, entities: Entity[], dt: number, time: number, msgs: Msg[], playerId: number, clock: GameClock, samosborActive: boolean, nextId: { v: number }, currentFloor?: FloorLevel, state?: GameState): void {
   // Push per-frame refs into sub-modules
   setPathContext(msgs, time, samosborActive);
   setCombatContext(msgs, time);
@@ -117,9 +116,7 @@ export function updateAI(world: World, entities: Entity[], dt: number, time: num
   setEntityMap(entityIndex.byId);
   fillProjectileOwners(entityIndex.projectiles);
 
-  const designFloor = currentZ !== undefined ? designFloorAtZ(currentZ) : undefined;
-  // @ts-ignore
-  const isMinistry = designFloor ? designFloor.themeTags?.includes('ministry') : false;
+  const isMinistry = currentFloor === FloorLevel.MINISTRY;
   const player = entityIndex.byId.get(playerId);
   setNpcBarkLogContext({
     listener: player,
@@ -137,7 +134,7 @@ export function updateAI(world: World, entities: Entity[], dt: number, time: num
     const ci = world.idx(Math.floor(actor.x), Math.floor(actor.y));
     const roomId = world.roomMap[ci];
     return {
-      z: currentZ,
+      floor: currentFloor,
       x: actor.x,
       y: actor.y,
       actorId: actor.id,
@@ -152,14 +149,7 @@ export function updateAI(world: World, entities: Entity[], dt: number, time: num
         aiStats.skipped++;
         continue;
       }
-      if (e.peerSlot !== undefined) {
-        aiStats.skipped++;
-        continue; // peer actors are controlled by remote players, not AI
-      }
-      if (e.role === NpcRole.CINEMATIC_ACTOR) {
-        continue;
-      }
-      unstuckActorFromBlockers(world, e, { radius: 0, rescueFromSolid: true });
+      unstuckActorFromBlockers(world, e);
       if (e.type === EntityType.NPC) {
         if (e.ai.npcState === undefined) {
           primeNpcAlifeState(e, clock, samosborActive, isMinistry ? 'ministry' : 'default');
@@ -167,7 +157,7 @@ export function updateAI(world: World, entities: Entity[], dt: number, time: num
       } else if (e.type === EntityType.MONSTER && e.ai.goal === AIGoal.IDLE && e.ai.combatTargetId === undefined && e.speed > 0) {
         e.ai.goal = AIGoal.WANDER;
       }
-      if (('plotNpcId' in e && e.plotNpcId !== undefined) || isPlotNpc(e)) aiStats.plot++;
+      if (e.plotNpcId !== undefined) aiStats.plot++;
       if (isBossActor(e)) aiStats.bosses++;
       if (isActiveAttacker(e, entityIndex.byId)) aiStats.activeAttackers++;
       if (projectileOwnerIds.has(e.id)) aiStats.projectileOwners++;

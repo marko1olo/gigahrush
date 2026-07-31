@@ -13,7 +13,7 @@ import {
 test('Matka Dokumentov room owns a bounded document-boss puzzle', () => {
   const world = new World();
   const entities: Entity[] = [];
-  const nextId = { v: getPlotNpcCount() + 1 }
+  const nextId = { v: 1 };
 
   const result = generateMatkaDokumentovRoom(world, 0, entities, nextId, 512, 512);
   const room = world.rooms.find(r => r.name === MATKA_DOKUMENTOV_ROOM);

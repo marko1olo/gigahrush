@@ -1,19 +1,21 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { MonsterKind } from '../src/core/types';
+import { FloorLevel, MonsterKind } from '../src/core/types';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { DEF, generateSprite } from '../src/entities/betonoed';
+import { MONSTERS, MONSTER_SPRITES, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 
 test('betonoed is a standalone weak-wall monster package', () => {
   assert.equal(DEF.kind, MonsterKind.BETONOED);
   assert.equal(DEF.name, 'Бетоноед');
   assert.equal(MONSTERS[MonsterKind.BETONOED], DEF);
   assert.equal(MONSTER_SPRITES[MonsterKind.BETONOED], generateSprite);
+  assert.deepEqual(DEF.floors, [FloorLevel.MAINTENANCE]);
   assert.equal(DEF.aiFlags?.includes('weakWallBreach'), true);
   assert.equal(DEF.aiFlags?.includes('wallBias'), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.MAINTENANCE].includes(MonsterKind.BETONOED), true);
 
   assert.notEqual(DEF.hp, MONSTERS[MonsterKind.BETONNIK].hp);
   assert.equal(DEF.speed > MONSTERS[MonsterKind.BETONNIK].speed, true);

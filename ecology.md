@@ -144,17 +144,6 @@ Use these archetypes before inventing bespoke behavior:
 
 Archetypes can map to existing `AIGoal`, `monsterStage`, `ai.*` scalar fields, `aiFlags`, cell hazards, room memory, marks, events and tactic facts. They do not require a new enum per monster state.
 
-## Spawn Pack Shape
-
-Distinct from the runtime `pack_hunter` archetype (target sharing between already-placed monsters), each kind also carries an optional **spawn distribution** shape that makes an active floor anisotropic — clusters of danger next to peaceful gaps — instead of an even scatter. Data lives in the monster ecology context as `pack?: MonsterPackShape` (`{ mode, size:[min,max], spread }`); `monsterPackShape(kind)` resolves it, falling back to tag inference (`swarm`/`crowd`/`pack` → crowd sizes) then a solo `loner`. Modes:
-
-- `crowd`: dense homogeneous cluster (dead swarming in, hive spillover).
-- `loner`: single spawn (concrete solitaries).
-- `territorial`: small group pinned to a home room; the AI leashes it back (`ai.homeRoomId`).
-- `roamer`: small group that patrols wide (`wanderFar`).
-
-The design-floor populate (`src/gen/design_floors/population.ts`) consumes it: pack centers come from the field-weighted placement sampler (so per-kind `zoneWeights` keep peaceful CITIZEN zones sparse), each center grows one homogeneous pack up to the shared active-actor budget. Two tiny generic hooks in the WANDER branch of `src/systems/ai/monster.ts` read `monsterPackMode` for the roamer/territorial motion — no per-monster brain, all placement-time and baked-nav only.
-
 ## Implementation Lanes
 
 Prefer the cheapest lane that produces a real decision:

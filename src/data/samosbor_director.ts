@@ -1,4 +1,4 @@
-import { type WorldEventSeverity } from '../core/types';
+import { FloorLevel, type WorldEventSeverity } from '../core/types';
 import { type SamosborVariantId } from './samosbor_variants';
 
 export type SamosborBeatPhase = 'warning' | 'active' | 'aftermath';
@@ -16,7 +16,7 @@ export type SamosborBeatEffectId =
 export interface SamosborBeatDef {
   id: string;
   phase: SamosborBeatPhase;
-  floors: readonly number[];
+  floors: readonly FloorLevel[];
   variants: readonly SamosborVariantId[];
   weight: number;
   cooldown: number;
@@ -43,13 +43,20 @@ export const SAMOSBOR_DIRECTOR_MIN_INTERVAL: Record<SamosborBeatPhase, number> =
 
 export const SAMOSBOR_DIRECTOR_EFFECT_FAIL_COOLDOWN = 20;
 
-const ALL_FLOORS = [34, 2, -6, -14, -40, -48] as const;
+const ALL_FLOORS = [
+  FloorLevel.MINISTRY,
+  FloorLevel.KVARTIRY,
+  FloorLevel.LIVING,
+  FloorLevel.MAINTENANCE,
+  FloorLevel.HELL,
+  FloorLevel.VOID,
+] as const;
 
-const CIVIL_FLOORS = [34, 2, -6] as const;
-const SERVICE_FLOORS = [2, -6, -14] as const;
-const MAINTENANCE_FLOORS = [-14] as const;
-const HELL_FLOORS = [-40] as const;
-const VOID_FLOORS = [-48] as const;
+const CIVIL_FLOORS = [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING] as const;
+const SERVICE_FLOORS = [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE] as const;
+const MAINTENANCE_FLOORS = [FloorLevel.MAINTENANCE] as const;
+const HELL_FLOORS = [FloorLevel.HELL] as const;
+const VOID_FLOORS = [FloorLevel.VOID] as const;
 const ALL_VARIANTS = ['classic', 'wet', 'electric', 'meat', 'maronary', 'istotit', 'veretar'] as const;
 
 const registry: SamosborBeatDef[] = [];
@@ -68,7 +75,7 @@ export function getSamosborBeatDefs(): readonly SamosborBeatDef[] {
   return registry;
 }
 
-const WARNING_BEATS: readonly SamosborBeatDef[] = [
+const BASELINE_BEATS: readonly SamosborBeatDef[] = [
   {
     id: 'pre_airlock_warning',
     phase: 'warning',
@@ -237,9 +244,6 @@ const WARNING_BEATS: readonly SamosborBeatDef[] = [
     color: '#d6a64b',
     severity: 4,
   },
-];
-
-const ACTIVE_BEATS: readonly SamosborBeatDef[] = [
   {
     id: 'active_floor_fog_residue',
     phase: 'active',
@@ -424,9 +428,6 @@ const ACTIVE_BEATS: readonly SamosborBeatDef[] = [
     color: '#58c',
     severity: 3,
   },
-];
-
-const AFTERMATH_BEATS: readonly SamosborBeatDef[] = [
   {
     id: 'after_food_shortage',
     phase: 'aftermath',
@@ -540,12 +541,6 @@ const AFTERMATH_BEATS: readonly SamosborBeatDef[] = [
     color: '#f4f1df',
     severity: 3,
   },
-];
-
-const BASELINE_BEATS: readonly SamosborBeatDef[] = [
-  ...WARNING_BEATS,
-  ...ACTIVE_BEATS,
-  ...AFTERMATH_BEATS,
 ];
 
 for (const beat of BASELINE_BEATS) registerSamosborBeat(beat);

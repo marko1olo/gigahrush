@@ -25,13 +25,12 @@ function statLine(
   w: number,
   valueOffset: number,
   tint = '#8cf',
-  options?: { skipTranslate?: boolean },
 ): void {
   const valueX = x + valueOffset;
   ctx.fillStyle = '#6f7d88';
   ctx.fillText(fitText(ctx, label, valueOffset - 4), x, y);
   ctx.fillStyle = tint;
-  ctx.fillText(fitText(ctx, value, w - valueOffset, options), valueX, y);
+  ctx.fillText(fitText(ctx, value, w - valueOffset), valueX, y);
 }
 
 type ChatVisualLine = {
@@ -93,13 +92,12 @@ export function drawNetSphereMenu(
   ctx.rect(leftX, ly - 2 * s, Math.max(1, leftW), Math.max(1, commandY + 22 * s - ly));
   ctx.clip();
   ctx.font = `${8 * s}px monospace`;
-  statLine(ctx, 'НЕТ-ИМЯ', net.nickname, leftX, ly, leftW, valueOffset, '#d8f6ff', { skipTranslate: true }); ly += 12 * s;
+  statLine(ctx, 'НЕТ-ИМЯ', net.nickname, leftX, ly, leftW, valueOffset, '#d8f6ff'); ly += 12 * s;
   statLine(ctx, 'НЕТ-ГЕН', net.netGen, leftX, ly, leftW, valueOffset, '#7da3ad'); ly += 10 * s;
   statLine(ctx, 'СЕССИЯ', net.sessionId, leftX, ly, leftW, valueOffset, '#6f8792'); ly += 14 * s;
 
   const stats = net.stats;
   statLine(ctx, 'онлайн', String(stats?.onlineUsers ?? '-'), leftX, ly, leftW, valueOffset, '#7f8'); ly += 10 * s;
-  statLine(ctx, 'сессий', String(stats?.totalSessions ?? '-'), leftX, ly, leftW, valueOffset, '#8cf'); ly += 10 * s;
   statLine(ctx, 'всего', String(stats?.totalPlayers ?? '-'), leftX, ly, leftW, valueOffset, '#8cf'); ly += 10 * s;
   statLine(ctx, 'самосборов', String(stats?.totalSamosbors ?? '-'), leftX, ly, leftW, valueOffset, '#f6c'); ly += 10 * s;
   statLine(ctx, 'смертей', String(stats?.totalDeaths ?? '-'), leftX, ly, leftW, valueOffset, '#f86'); ly += 16 * s;
@@ -134,7 +132,9 @@ export function drawNetSphereMenu(
   }
 
   ctx.fillStyle = '#607080';
-  ctx.fillText(fitText(ctx, '/help все команды', leftW), leftX, commandY);
+  ctx.fillText(fitText(ctx, '/netgen NET-...  /new  /clear', leftW), leftX, commandY);
+  ctx.fillStyle = '#607080';
+  ctx.fillText(fitText(ctx, `${controlHint('netSphere')} открыть/закрыть  ПКМ/${controlHint('netClose')} закрыть  ${controlHint('netSubmit')} чат/отправить  ${controlHint('netErase')} стереть`, leftW), leftX, commandY + 10 * s);
   ctx.restore();
 
   ctx.strokeStyle = 'rgba(92,246,255,0.34)';
@@ -164,17 +164,17 @@ export function drawNetSphereMenu(
     const stamp = timeLabel(line.createdAt);
     const name = line.nickname || 'Жилец';
     const nameW = Math.max(24 * s, Math.min(96 * s, chatW * 0.3));
-    const label = `[${stamp} ${fitText(ctx, name, nameW, { skipTranslate: true })}]`;
+    const label = `[${stamp} ${fitText(ctx, name, nameW)}]`;
     const labelW = ctx.measureText(label).width;
     if (compactChat) {
       const bodyW = Math.max(20 * s, chatW - 16 * s);
-      vlines.push({ kind: 'compact_label', label: fitText(ctx, label, chatW - 12 * s, { skipTranslate: true }), labelW, body: '' });
-      for (const body of wrapTextLines(ctx, line.body, bodyW, 3, { skipTranslate: true })) {
+      vlines.push({ kind: 'compact_label', label: fitText(ctx, label, chatW - 12 * s), labelW, body: '' });
+      for (const body of wrapTextLines(ctx, line.body, bodyW, 3)) {
         vlines.push({ kind: 'compact_body', label: '', labelW: 0, body });
       }
     } else {
       const bodyW = Math.max(20 * s, chatW - 16 * s - labelW);
-      const wrapped = wrapTextLines(ctx, line.body, bodyW, 3, { skipTranslate: true });
+      const wrapped = wrapTextLines(ctx, line.body, bodyW, 3);
       for (let j = 0; j < wrapped.length; j++) {
         vlines.push({ kind: 'line', label: j === 0 ? label : '', labelW, body: wrapped[j] });
       }

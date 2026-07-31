@@ -5,7 +5,7 @@ import { ItemType, RoomType } from '../src/core/types';
 import { FACTORY_BY_ID, productionOutputResourceIds, productionRouteGoals } from '../src/data/factories';
 import { ITEM_TAGS, ITEMS, getStack } from '../src/data/items';
 import { resourceForItem } from '../src/data/resources';
-import { generateSlimeNiiDesignFloor } from '../src/gen/slime_nii';
+import { generateSlimeNiiDesignFloor } from '../src/gen/design_floors/slime_nii';
 
 const CHIP_ID = 'slime_calcified_chip';
 

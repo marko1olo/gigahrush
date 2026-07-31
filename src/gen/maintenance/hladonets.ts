@@ -2,7 +2,7 @@
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
-  AIGoal, Cell, EntityType, Feature, MonsterKind, RoomType, Tex, msg,
+  AIGoal, Cell, EntityType, Feature, FloorLevel, MonsterKind, RoomType, Tex, msg,
   type Entity, type GameState, type Room, type WorldEvent, type WorldEventSeverity,
 } from '../../core/types';
 import type { World } from '../../core/world';
@@ -14,7 +14,6 @@ import {
   type MaintContentCtx, dropItems, findMaintArea, openTile, setFeature, setWater,
   stampMaintRoom,
 } from './content_helpers';
-import { rng } from '../../core/rand';
 
 const HLADON_ROOM_PREFIX = 'Хладон:';
 const SITE_TAG = 'hladonets';
@@ -86,7 +85,7 @@ function publishHladonetsEvent(
   const room = ctx.world.rooms[ctx.roomId];
   publishEvent(state, {
     type: 'rumor_observed',
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     zoneId: source.zoneId,
     roomId: ctx.roomId,
     x: source.x,
@@ -106,7 +105,7 @@ function publishHladonetsEvent(
       system: SITE_TAG,
       sourceEventId: source.id,
       phase,
-      roomDefId: room?.name,
+      roomName: room?.name,
       ...data,
     },
   });
@@ -192,7 +191,7 @@ function spawnHladonets(ctx: MaintContentCtx, room: Room): number {
     type: EntityType.MONSTER,
     x: pos.x + 0.5,
     y: pos.y + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, zoneLevel) * 0.92,

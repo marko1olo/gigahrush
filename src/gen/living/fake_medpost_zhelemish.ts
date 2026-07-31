@@ -1,11 +1,10 @@
 /* -- Липовый медугол желемыша (AG104) -------------------------- */
 /* Counterfeit treatment POI: warn, report, buy in, profit, steal. */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
   Cell, ContainerKind, DoorState, EntityType, Faction, Feature,
-  Occupation, QuestType, RoomType, Tex,
+  FloorLevel, Occupation, QuestType, RoomType, Tex,
   type ContainerAccess, type Entity, type Room, type WorldContainer,
   type WorldEvent, type WorldEventPrivacy, type WorldEventSeverity,
 } from '../../core/types';
@@ -131,7 +130,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
 registerSideQuest(DOCTOR_ID, NPC_DEFS[DOCTOR_ID], [
   {
     id: QUEST_BUY_TREATMENT,
-    giverId: getPlotNpcNumericId(DOCTOR_ID)!,
+    giverNpcId: DOCTOR_ID,
     type: QuestType.FETCH,
     desc: 'Левин Мазник: «Тридцать пять рублей за курс желемышной мази. Не лечение, но очередь до утра вы не выдержите.»',
     targetItem: 'money', targetCount: 35,
@@ -144,7 +143,7 @@ registerSideQuest(DOCTOR_ID, NPC_DEFS[DOCTOR_ID], [
 registerSideQuest(RUNNER_ID, NPC_DEFS[RUNNER_ID], [
   {
     id: QUEST_TAKE_CUT,
-    giverId: getPlotNpcNumericId(RUNNER_ID)!,
+    giverNpcId: RUNNER_ID,
     type: QuestType.FETCH,
     desc: 'Клим Заготовщик: «Принесите зараженный гриб. Левин пустит его в мазь, а я отдам вашу долю без лишних фамилий.»',
     targetItem: 'infected_mushroom', targetCount: 1,
@@ -156,10 +155,10 @@ registerSideQuest(RUNNER_ID, NPC_DEFS[RUNNER_ID], [
 registerSideQuest(RELATIVE_ID, NPC_DEFS[RELATIVE_ID], [
   {
     id: QUEST_WARN_PATIENT,
-    giverId: getPlotNpcNumericId(RELATIVE_ID)!,
+    giverNpcId: RELATIVE_ID,
     type: QuestType.TALK,
     desc: 'Лина Подмарлевая: «Скажите Даше, что мазь желемышная. От меня она слышит только панику.»',
-    targetNpcId: getPlotNpcNumericId(PATIENT_ID)!,
+    targetNpcId: PATIENT_ID,
     rewardItem: 'bandage', rewardCount: 1,
     relationDelta: 12, xpReward: 45, moneyReward: 20,
   },
@@ -168,10 +167,10 @@ registerSideQuest(RELATIVE_ID, NPC_DEFS[RELATIVE_ID], [
 registerSideQuest(PATIENT_ID, NPC_DEFS[PATIENT_ID], [
   {
     id: QUEST_REPORT_MINISTRY,
-    giverId: getPlotNpcNumericId(PATIENT_ID)!,
+    giverNpcId: PATIENT_ID,
     type: QuestType.TALK,
     desc: 'Даша Подмарлевая: «Если справка липовая, отнесите жалобу Вере Пропусковой. Пусть окно хотя бы спросит состав.»',
-    targetNpcId: getPlotNpcNumericId('vera_propuskova')!,
+    targetNpcId: 'vera_propuskova',
     rewardItem: 'official_quarantine_clearance', rewardCount: 1,
     extraRewards: [{ defId: 'bandage', count: 2 }],
     relationDelta: 18, xpReward: 70, moneyReward: 35,
@@ -235,7 +234,7 @@ registerWorldEventObserver((state, event) => {
 
   publishEvent(state, {
     type: outcome.eventType,
-    z: 100,
+    floor: FloorLevel.LIVING,
     actorId: event.actorId,
     actorName: event.actorName,
     actorFaction: event.actorFaction,
@@ -388,7 +387,7 @@ function addFakeMedContainer(
     id: nextContainerId(world),
     x,
     y,
-    z: 100,
+    floor: FloorLevel.LIVING,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(x, y)],
     kind,

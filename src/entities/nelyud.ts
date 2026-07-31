@@ -1,6 +1,6 @@
 /* ── Nelyud: false human, attacks only after close reveal ────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.4,
   sprite: 0,
   aiFlags: ['closeReveal'],
+  floors: [FloorLevel.LIVING, FloorLevel.KVARTIRY, FloorLevel.MINISTRY],
   counterplay: 'Проверяйте дистанцией: молчаливого соседа не подпускайте без света, свидетеля и свободного выхода за спиной.',
   lootHint: 'фальшивый пропуск, слишком ровная бытовая вещь, редкий детектор нелюдей',
 };

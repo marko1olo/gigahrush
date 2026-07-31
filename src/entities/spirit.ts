@@ -2,7 +2,7 @@
 /*   Whitish distorted face with hollow eye sockets.             */
 /*   Floats through walls.                                       */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -15,6 +15,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.5,
   sprite: 0,   // auto-assigned by generateSprites()
   aiFlags: ['flying'],
+  floors: [FloorLevel.MINISTRY, FloorLevel.HELL, FloorLevel.VOID],
   counterplay: 'Двери и стены не держат духа: меняйте позицию до контакта, держите дистанцию и сбивайте темп УФ-светом.',
   lootHint: 'пустая память, холодный сквозняк, редкая ПСИ-пыль',
 };

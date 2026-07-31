@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { MonsterKind } from '../src/core/types';
+import { FloorLevel, MonsterKind } from '../src/core/types';
 import { CLEAR, S } from '../src/render/pixutil';
 import { DEF, generateSprite } from '../src/entities/polzun';
 
@@ -11,6 +11,7 @@ test('polzun remains a slow heavy doorway threat with local guidance', () => {
   assert.ok(DEF.speed >= 0.7 && DEF.speed <= 1.4, 'speed should stay in the heavy band');
   assert.ok(DEF.dmg >= 16 && DEF.dmg <= 30, 'damage should stay in the heavy band');
   assert.ok(DEF.attackRate >= 1.6, 'attack cadence should preserve a planning window');
+  assert.deepEqual(DEF.floors, [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL]);
   assert.deepEqual(DEF.aiFlags, ['foodBait']);
   assert.match(DEF.counterplay ?? '', /двер|ванн|вод|дистанц|говняк/);
   assert.match(DEF.lootHint ?? '', /фильтр|ванн|мокр/);

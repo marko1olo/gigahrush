@@ -1,10 +1,9 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* ── Hell choir tax: capped PSI combat/trade/extraction POI ───── */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
   W, Cell, ContainerKind, DoorState, EntityType, AIGoal, Faction, Feature,
-  MonsterKind, Occupation, QuestType, RoomType, Tex,
+  FloorLevel, MonsterKind, Occupation, QuestType, RoomType, Tex,
   msg,
   type Entity, type GameState, type Room, type WorldContainer, type WorldEvent,
 } from '../../core/types';
@@ -15,11 +14,12 @@ import { MONSTERS } from '../../entities/monster';
 import { monsterSpr, Spr } from '../../render/sprite_index';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
-import { connectProtectedRoom, connectToNetwork, findClearArea, protectRoom, stampRoom } from '../shared';
+import {
+  connectProtectedRoom, connectToNetwork, findClearArea, protectRoom, rng, stampRoom,
+} from '../shared';
 import { genLog } from '../log';
 import { isPlayerEntity } from '../../systems/player_actor';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng, irand } from '../../core/rand';
 
 const ROOM_W = 31;
 const ROOM_H = 25;
@@ -51,7 +51,7 @@ interface ChoirBranchSpec {
 }
 
 interface ChoirSite {
-  z: number;
+  floor: FloorLevel;
   roomId: number;
   zoneId: number;
   x: number;
@@ -179,7 +179,7 @@ const LIQUIDATOR_DEF: PlotNpcDef = {
 registerSideQuest(GUIDE_ID, GUIDE_DEF, [
   {
     id: 'hell18_break_altar_signal',
-    giverId: getPlotNpcNumericId(GUIDE_ID)!,
+    giverNpcId: GUIDE_ID,
     type: QuestType.KILL,
     desc: 'Арсений Обгорелый: «Сломай сигнальный идол мясного хора. Один идол, один выход, без второй волны.»',
     targetMonsterKind: MonsterKind.IDOL,
@@ -196,7 +196,7 @@ registerSideQuest(GUIDE_ID, GUIDE_DEF, [
 registerSideQuest(TAXMAN_ID, TAXMAN_DEF, [
   {
     id: 'hell18_pay_cult_tax',
-    giverId: getPlotNpcNumericId(TAXMAN_ID)!,
+    giverNpcId: TAXMAN_ID,
     type: QuestType.FETCH,
     desc: 'Пахом Мясной Налог: «Три куска сырого мяса в кассу хора. Заплатишь мясом - сбережёшь патроны.»',
     targetItem: 'rawmeat',
@@ -210,7 +210,7 @@ registerSideQuest(TAXMAN_ID, TAXMAN_DEF, [
   },
   {
     id: 'hell18_take_psi_cache',
-    giverId: getPlotNpcNumericId(TAXMAN_ID)!,
+    giverNpcId: TAXMAN_ID,
     type: QuestType.FETCH,
     desc: 'Пахом Мясной Налог: «Принеси голос в банке из кассы. Себе оставишь - будет награда без меня, отдашь - стабилизатор.»',
     targetItem: 'bottled_voice',
@@ -227,10 +227,10 @@ registerSideQuest(TAXMAN_ID, TAXMAN_DEF, [
 registerSideQuest(LIQUIDATOR_ID, LIQUIDATOR_DEF, [
   {
     id: 'hell18_extract_last_liquidator',
-    giverId: getPlotNpcNumericId(LIQUIDATOR_ID)!,
+    giverNpcId: LIQUIDATOR_ID,
     type: QuestType.TALK,
     desc: 'Капрал Шрамко: «Дай Арсению знак на выход. Он {dir}. Не задерживайся: это эвакуация, не зачистка.»',
-    targetNpcId: getPlotNpcNumericId(GUIDE_ID)!,
+    targetNpcId: GUIDE_ID,
     rewardItem: 'liquidator_ration',
     rewardCount: 1,
     extraRewards: [{ defId: 'ammo_762', count: 10 }],
@@ -295,7 +295,7 @@ export function generateHell18ChoirTax(world: World, entities: Entity[], nextId:
   const cx = world.wrap(room.x + (room.w >> 1));
   const cy = world.wrap(room.y + (room.h >> 1));
   activeSite = {
-    z: 180,
+    floor: FloorLevel.HELL,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(cx, cy)],
     x: cx + 0.5,
@@ -334,7 +334,7 @@ function handleHell18QuestOutcome(state: GameState, event: WorldEvent): void {
       if (outcome) {
         publishEvent(state, {
           type: 'quest_completed',
-          z: event.z,
+          floor: event.floor,
           actorId: event.actorId,
           actorName: event.actorName,
           actorFaction: event.actorFaction,
@@ -368,7 +368,7 @@ function branchForHell18Quest(sideQuestId: string): ChoirBranch | null {
 function handleHell18BranchEvent(state: GameState, event: WorldEvent): void {
   const site = activeSite;
   const world = activeWorld;
-  if (!site || !world || state.currentZ !== site.z || event.z !== site.z) return;
+  if (!site || !world || state.currentFloor !== site.floor || event.floor !== site.floor) return;
 
   if (event.type === 'item_deposited' && event.containerId === site.cashboxId && event.itemId === 'rawmeat') {
     applyHell18Branch(state, event, 'pay');
@@ -548,16 +548,16 @@ function findChoirSite(world: World): { x: number; y: number } {
   if (clear) return clear;
 
   for (let attempt = 0; attempt < 2600; attempt++) {
-    const angle = rng() * Math.PI * 2;
-    const dist = irand(150, 380);
+    const angle = Math.random() * Math.PI * 2;
+    const dist = rng(150, 380);
     const x = world.wrap(cx + Math.round(Math.cos(angle) * dist) - (ROOM_W >> 1));
     const y = world.wrap(cy + Math.round(Math.sin(angle) * dist) - (ROOM_H >> 1));
     if (canReserveChoir(world, x, y)) return { x, y };
   }
 
   for (let attempt = 0; attempt < 1800; attempt++) {
-    const x = irand(8, W - ROOM_W - 8);
-    const y = irand(8, W - ROOM_H - 8);
+    const x = rng(8, W - ROOM_W - 8);
+    const y = rng(8, W - ROOM_H - 8);
     if (canReserveChoir(world, x, y)) return { x, y };
   }
 
@@ -775,7 +775,7 @@ function spawnChoirCultists(world: World, room: Room, entities: Entity[], nextId
       type: EntityType.NPC,
       x: x + 0.5,
       y: y + 0.5,
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       pitch: 0,
       alive: true,
       speed: 1.05,
@@ -831,7 +831,7 @@ function spawnChoirMonster(
     type: EntityType.MONSTER,
     x: x + 0.5,
     y: y + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, level),
@@ -864,7 +864,7 @@ function addChoirCache(world: World, room: Room, ownerNpcId: number): number {
     id,
     x,
     y,
-    z: 180,
+    floor: FloorLevel.HELL,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(x, y)],
     kind: ContainerKind.CASHBOX,
@@ -890,7 +890,7 @@ function addChoirRefusalLedger(world: World, room: Room): number {
     id,
     x,
     y,
-    z: 180,
+    floor: FloorLevel.HELL,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(x, y)],
     kind: ContainerKind.FILING_CABINET,

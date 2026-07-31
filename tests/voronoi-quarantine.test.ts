@@ -7,6 +7,7 @@ import {
   DoorState,
   EntityType,
   Faction,
+  FloorLevel,
   LiftDirection,
   MonsterKind,
   Occupation,
@@ -26,10 +27,10 @@ import { generateDesignFloor } from '../src/gen/design_floors/manifest';
 import {
   getVoronoiQuarantineLayout,
   VORONOI_QUARANTINE_BASE_FLOOR,
-  VORONOI_QUARANTINE_ROOM_DEF_IDS,
+  VORONOI_QUARANTINE_ROOM_NAMES,
   VORONOI_QUARANTINE_ROUTE_ID,
   VORONOI_QUARANTINE_Z,
-} from '../src/gen/voronoi_quarantine';
+} from '../src/gen/design_floors/voronoi_quarantine';
 import {
   countTerritoryCells,
   territoryHqAnchors,
@@ -88,7 +89,7 @@ function nearbySupportRooms(world: ReturnType<typeof generateDesignFloor>['world
 
 function isAmbientNpcTemplate(entity: Entity): boolean {
   return entity.type === EntityType.NPC &&
-    !(entity as any).npcPackageId &&
+    !entity.plotNpcId &&
     !entity.persistentNpcId &&
     entity.alifeId === undefined &&
     entity.questId === -1 &&
@@ -110,7 +111,8 @@ function passableRoomCells(world: ReturnType<typeof generateDesignFloor>['world'
 test('voronoi_quarantine is registered as a Kvartiry-band authored quarantine route', () => {
   const route = designFloorById(VORONOI_QUARANTINE_ROUTE_ID);
   assert.equal(route?.z, VORONOI_QUARANTINE_Z);
-    assert.equal(route?.themeTags?.includes('kvartiry'), true);
+  assert.equal(route?.baseFloor, VORONOI_QUARANTINE_BASE_FLOOR);
+  assert.equal(route?.baseFloor, FloorLevel.KVARTIRY);
   assert.equal(route?.displayName, 'Вороной-карантин');
   assert.equal(designFloorAtZ(VORONOI_QUARANTINE_Z)?.id, VORONOI_QUARANTINE_ROUTE_ID);
   assert.equal(PROCEDURAL_FLOOR_ZS.includes(VORONOI_QUARANTINE_Z), false);
@@ -121,8 +123,8 @@ test('voronoi_quarantine population profile targets sanitary staff and infected 
   assert.ok(route);
   const profile = designFloorPopulationProfile(route);
 
-  assert.ok(profile.npcTarget >= 98 && profile.npcTarget <= 9800, 'npcTarget in bounds');
-  assert.ok(profile.monsterTarget >= 142 && profile.monsterTarget <= 14200, 'monsterTarget in bounds');
+  assert.equal(profile.npcTarget, 980);
+  assert.equal(profile.monsterTarget, 1420);
   assert.equal(profile.npcNoun, 'санитар ячейки');
   assert.equal(profile.npcFactions.some(entry => entry.value === Faction.SCIENTIST && entry.weight >= 30), true);
   assert.equal(profile.npcFactions.some(entry => entry.value === Faction.LIQUIDATOR && entry.weight >= 30), true);
@@ -161,7 +163,7 @@ test('voronoi_quarantine generator builds connected Laguerre quarantine cells', 
   assert.equal(microRooms.length >= 10_000, true, `micro rooms ${microRooms.length}`);
   assert.equal(irregularMicroRooms.length >= 9_000, true, `irregular micro rooms ${irregularMicroRooms.length}`);
 
-  for (const roomName of Object.values(VORONOI_QUARANTINE_ROOM_DEF_IDS)) {
+  for (const roomName of Object.values(VORONOI_QUARANTINE_ROOM_NAMES)) {
     assert.equal(gen.world.rooms.some(room => room.name === roomName), true, roomName);
   }
 
@@ -228,7 +230,7 @@ test('voronoi_quarantine exposes pass, border, escort and supply decisions', () 
     'voronoi_quarantine_infected_lev',
     'voronoi_quarantine_quartermaster_marta',
   ]) {
-    assert.equal(npcs.some(entity => (entity as any).npcPackageId === plotNpcId), true, plotNpcId);
+    assert.equal(npcs.some(entity => entity.plotNpcId === plotNpcId), true, plotNpcId);
   }
 
   assert.equal(lockedDoors.some(door => door.keyId === 'official_quarantine_clearance'), true);

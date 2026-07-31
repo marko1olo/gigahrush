@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { DEF, generateSprite } from '../src/entities/slepoglaz';
 import { getMonsterEcology } from '../src/data/monster_ecology';
@@ -13,7 +13,6 @@ import { setListenerPos } from '../src/systems/audio';
 import { monsterSpr } from '../src/render/sprite_index';
 import { S, CLEAR } from '../src/render/pixutil';
 import { makeGameState } from './helpers';
-import { bfsPath } from '../src/systems/ai/pathfinding';
 
 function openWorld(): World {
   const world = new World();
@@ -93,6 +92,7 @@ test('Slepoglaz definition, ecology, and sprite verify attributes and generation
 
   assert.equal(DEF.kind, MonsterKind.SLEPOGLAZ);
   assert.deepEqual(DEF.aiFlags, ['lastSoundBeam']);
+  assert.deepEqual(DEF.floors, [FloorLevel.MAINTENANCE, FloorLevel.HELL]);
   assert.equal(ecology?.rare, false);
   assert.match(DEF.counterplay ?? '', /шум|сторон|после|упор/i);
   assert.equal(sprite.length, S * S);
@@ -116,10 +116,9 @@ test('Slepoglaz definition, ecology, and sprite verify attributes and generation
   assert.equal(darkSeam > 25, true, 'sprite should have a dark sealed central slit');
 });
 
-test('Slepoglaz aims at last sound position if present, and performs windup', { skip: true /* HPA* acoustic distance change — retuning needed */ }, () => {
+test('Slepoglaz aims at last sound position if present, and performs windup', () => {
   resetNoiseRecords();
   const world = openWorld();
-  bfsPath(world, 0, 0, 0, 0); // bake nav tree
   setListenerPos(512, 512, world.dist2.bind(world));
   const target = player(10, 10);
   const monster = slepoglaz(2, 20, 10);
@@ -157,7 +156,6 @@ test('Slepoglaz aims at last sound position if present, and performs windup', { 
 test('Slepoglaz aims at old position via sight if no recent loud noise', () => {
   resetNoiseRecords();
   const world = openWorld();
-  bfsPath(world, 0, 0, 0, 0); // bake nav tree
   setListenerPos(512, 512, world.dist2.bind(world));
   const target = player(10, 10);
   const monster = slepoglaz(2, 20, 10);

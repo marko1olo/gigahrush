@@ -2,7 +2,7 @@
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
-  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, MonsterKind, Occupation,
+  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, FloorLevel, MonsterKind, Occupation,
   RoomType, Tex, msg,
   type Entity, type GameState, type Room, type WorldContainer, type WorldEvent, type WorldEventType,
 } from '../../core/types';
@@ -11,7 +11,6 @@ import { Spr, monsterSpr } from '../../render/sprite_index';
 import { type PlotNpcDef, registerAuthoredNpc, storyNpcFloorKey } from '../../data/plot';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
-import { MAX_INVENTORY_SLOTS } from '../../data/inventory_limits';
 import {
   type MaintContentCtx, dropItems, findMaintArea, setFeature, stampMaintRoom,
 } from './content_helpers';
@@ -49,7 +48,7 @@ const KEEPER_DEF: PlotNpcDef = {
 registerAuthoredNpc({
   id: KEEPER_ID,
   npc: KEEPER_DEF,
-  homeFloorKey: storyNpcFloorKey(140),
+  homeFloorKey: storyNpcFloorKey(FloorLevel.MAINTENANCE),
   tags: ['maintenance', 'filtronos', 'keeper'],
 });
 
@@ -124,7 +123,7 @@ function publishFiltronosEvent(
   const container = contextContainer(ctx);
   publishEvent(state, {
     type: eventType(phase),
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     zoneId: source.zoneId ?? container?.zoneId,
     roomId: ctx.roomId,
     x: source.x ?? container?.x,
@@ -146,7 +145,7 @@ function publishFiltronosEvent(
     data: {
       sourceEventId: source.id,
       containerName: container?.name,
-      roomDefId: ctx.world.rooms[ctx.roomId]?.name,
+      roomName: ctx.world.rooms[ctx.roomId]?.name,
       protected: ctx.protected,
       distracted: ctx.distracted,
       recovered: ctx.recovered,
@@ -159,7 +158,7 @@ function publishFiltronosEvent(
 
 function addContaminatedGloves(container: WorldContainer): boolean {
   if (container.inventory.some(item => item.defId === CONTAMINATED_GLOVES_ITEM)) return false;
-  if (container.inventory.length >= MAX_INVENTORY_SLOTS) return false;
+  if (container.inventory.length >= container.capacitySlots) return false;
   container.inventory.push({ defId: CONTAMINATED_GLOVES_ITEM, count: 1 });
   return true;
 }
@@ -179,7 +178,7 @@ function contaminateContainer(container: WorldContainer): { changed: number; glo
 
 function addRecoveredTrace(container: WorldContainer): boolean {
   const hasTrace = container.inventory.some(item => item.defId === 'filter_layer' || item.defId === 'gasmask_filter');
-  if (hasTrace || container.inventory.length >= MAX_INVENTORY_SLOTS) return false;
+  if (hasTrace || container.inventory.length >= container.capacitySlots) return false;
   container.inventory.push({ defId: 'filter_layer', count: 1 });
   return true;
 }
@@ -364,7 +363,7 @@ function addFilterContainer(ctx: MaintContentCtx, room: Room, owner: Entity): nu
     id: nextContainerId(ctx),
     x,
     y,
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     roomId: room.id,
     zoneId: ctx.world.zoneMap[ctx.world.idx(x, y)],
     kind: ContainerKind.MEDICAL_CABINET,

@@ -1,4 +1,4 @@
-import { SKIP_TRANSLATE_PREFIX, translateText } from '../systems/localization';
+import { translateText } from '../systems/localization';
 
 let uiTextTime = 0;
 const fitTextSeenAt = new Map<string, number>();
@@ -10,10 +10,6 @@ const FIT_TEXT_CHARS_PER_SECOND = 9;
 
 export function setUiTextTime(time: number): void {
   uiTextTime = Number.isFinite(time) ? time : 0;
-}
-
-export function getUiTextTimeForTesting(): number {
-  return uiTextTime;
 }
 
 export function formatUiNumber(value: number | undefined, maxFractionDigits = 1): string {
@@ -104,30 +100,26 @@ export function fitTextStable(
   text: string,
   maxW: number,
   mode: 'ellipsis' | 'clip' = 'ellipsis',
-  options?: { skipTranslate?: boolean },
 ): string {
-  if (!options?.skipTranslate) text = translateText(text);
+  text = translateText(text);
   if (maxW <= 0 || text.length === 0) return '';
   const cacheKey = `${mode}|${fitTextCacheKey(ctx, text, maxW)}`;
   const cached = cachedFitTextStable(cacheKey);
   if (cached !== undefined) return cached;
-  if (ctx.measureText(text).width <= maxW) return rememberFitTextStable(cacheKey, options?.skipTranslate && !text.startsWith(SKIP_TRANSLATE_PREFIX) ? SKIP_TRANSLATE_PREFIX + text : text);
+  if (ctx.measureText(text).width <= maxW) return rememberFitTextStable(cacheKey, text);
   if (mode === 'clip') {
     const count = maxFittingChars(ctx, text, maxW);
-    const result = count <= 0 ? '' : text.slice(0, count);
-    return rememberFitTextStable(cacheKey, options?.skipTranslate && !result.startsWith(SKIP_TRANSLATE_PREFIX) ? SKIP_TRANSLATE_PREFIX + result : result);
+    return rememberFitTextStable(cacheKey, count <= 0 ? '' : text.slice(0, count));
   }
 
   const ellipsis = '...';
   const ellipsisW = ctx.measureText(ellipsis).width;
   if (ellipsisW >= maxW) {
     const count = maxFittingChars(ctx, text, maxW);
-    const result = count <= 0 ? '' : text.slice(0, count);
-    return rememberFitTextStable(cacheKey, options?.skipTranslate && !result.startsWith(SKIP_TRANSLATE_PREFIX) ? SKIP_TRANSLATE_PREFIX + result : result);
+    return rememberFitTextStable(cacheKey, count <= 0 ? '' : text.slice(0, count));
   }
   const count = maxFittingChars(ctx, text, maxW - ellipsisW);
-  const result = count <= 0 ? '' : `${text.slice(0, count)}${ellipsis}`;
-  return rememberFitTextStable(cacheKey, options?.skipTranslate && !result.startsWith(SKIP_TRANSLATE_PREFIX) ? SKIP_TRANSLATE_PREFIX + result : result);
+  return rememberFitTextStable(cacheKey, count <= 0 ? '' : `${text.slice(0, count)}${ellipsis}`);
 }
 
 function maxFittingUnits(ctx: CanvasRenderingContext2D, units: readonly string[], start: number, maxW: number): number {
@@ -154,16 +146,15 @@ function splitOverwideToken(ctx: CanvasRenderingContext2D, token: string, maxW: 
   return lines;
 }
 
-export function fitText(ctx: CanvasRenderingContext2D, text: string, maxW: number, options?: { skipTranslate?: boolean }): string {
-  if (!options?.skipTranslate) text = translateText(text);
+export function fitText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
+  text = translateText(text);
   if (maxW <= 0 || text.length === 0) return '';
-  if (ctx.measureText(text).width <= maxW) return options?.skipTranslate && !text.startsWith(SKIP_TRANSLATE_PREFIX) ? SKIP_TRANSLATE_PREFIX + text : text;
+  if (ctx.measureText(text).width <= maxW) return text;
   const count = maxFittingChars(ctx, text, maxW);
   if (count <= 0) return '';
   const maxStart = text.length - count;
   const elapsed = Math.max(0, uiTextTime - firstSeenTime(ctx, text, maxW));
-  const result = fittingTextSlice(ctx, text, maxW, snakeTextStart(elapsed, maxStart), count);
-  return options?.skipTranslate && !result.startsWith(SKIP_TRANSLATE_PREFIX) ? SKIP_TRANSLATE_PREFIX + result : result;
+  return fittingTextSlice(ctx, text, maxW, snakeTextStart(elapsed, maxStart), count);
 }
 
 export function wrapTextLines(
@@ -171,14 +162,14 @@ export function wrapTextLines(
   text: string,
   maxW: number,
   maxLines = 64,
-  options: { stable?: boolean; mode?: 'ellipsis' | 'clip'; skipTranslate?: boolean } = {},
+  options: { stable?: boolean; mode?: 'ellipsis' | 'clip' } = {},
 ): string[] {
-  if (!options?.skipTranslate) text = translateText(text);
+  text = translateText(text);
   if (maxW <= 0 || maxLines <= 0) return [];
   const lines: string[] = [];
   const pushLine = (line: string): boolean => {
     if (lines.length >= maxLines) return false;
-    lines.push(options.stable ? fitTextStable(ctx, line, maxW, options.mode ?? 'ellipsis', options) : fitText(ctx, line, maxW, options));
+    lines.push(options.stable ? fitTextStable(ctx, line, maxW, options.mode ?? 'ellipsis') : fitText(ctx, line, maxW));
     return lines.length < maxLines;
   };
   const pushOverwideWord = (word: string): boolean => {

@@ -1,6 +1,7 @@
 /* ── Structured world event store: fixed-size ring buffers ────── */
 
 import {
+  FloorLevel,
   WORLD_EVENT_IMPORTANT_CAPACITY,
   WORLD_EVENT_RECENT_CAPACITY,
   WORLD_EVENT_ZONE_CAPACITY,
@@ -31,13 +32,20 @@ const EVENT_PRIVACIES = new Set(['public', 'local', 'witnessed', 'private', 'sec
 const CONTEXT_FACT_KINDS = new Set([
   'danger', 'shortage', 'theft', 'death', 'production', 'need', 'quest_hook', 'social', 'territory',
 ]);
-
+const BASE_FLOORS = [
+  FloorLevel.MINISTRY,
+  FloorLevel.KVARTIRY,
+  FloorLevel.LIVING,
+  FloorLevel.MAINTENANCE,
+  FloorLevel.HELL,
+  FloorLevel.VOID,
+] as const;
 const RESOURCE_SCARCITY_EVENT_COOLDOWN_S = 600;
 const MAX_RESOURCE_SCARCITY_RUMORS = 4;
 const MAX_OBSERVER_ERROR_LOGS = 8;
 
 export interface EventZoneSummary {
-  z: number;
+  floor: FloorLevel;
   zoneId: number;
   count: number;
   maxSeverity: WorldEventSeverity;
@@ -57,11 +65,13 @@ export interface ContextFactFilter {
 
 export type WorldEventObserver = (state: GameState, event: WorldEvent) => void;
 
+const eventObservers: WorldEventObserver[] = [];
+
 export type ResourceScarcityBand = 'normal' | 'strained' | 'shortage' | 'critical';
 export type ResourceScarcityTrend = 'worsened' | 'recovered';
 
 export interface ResourceScarcityEventDraft {
-  z: number;
+  floor: FloorLevel;
   zoneId?: number;
   roomId?: number;
   resourceId: string;
@@ -80,24 +90,19 @@ export interface ResourceScarcityEventDraft {
   rumorIds?: readonly string[];
 }
 
-var _eventObservers: WorldEventObserver[];
-
 export function registerWorldEventObserver(observer: WorldEventObserver): void {
-  if (!_eventObservers) _eventObservers = [];
-  if (!_eventObservers.includes(observer)) _eventObservers.push(observer);
+  if (!eventObservers.includes(observer)) eventObservers.push(observer);
 }
 
 export function unregisterWorldEventObserver(observer: WorldEventObserver): boolean {
-  if (!_eventObservers) return false;
-  const idx = _eventObservers.indexOf(observer);
+  const idx = eventObservers.indexOf(observer);
   if (idx < 0) return false;
-  _eventObservers.splice(idx, 1);
+  eventObservers.splice(idx, 1);
   return true;
 }
 
 function dispatchEventObservers(state: GameState, event: WorldEvent): void {
-  if (!_eventObservers) return;
-  const snapshot = _eventObservers.slice();
+  const snapshot = eventObservers.slice();
   let errorLogs = 0;
   for (const observer of snapshot) {
     try {
@@ -229,8 +234,10 @@ function maxBufferEventId(buffer: WorldEventBuffer): number {
   return maxId;
 }
 
-function normalizeFloor(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+function normalizeFloor(value: unknown): FloorLevel {
+  return typeof value === 'number' && BASE_FLOORS.includes(value as FloorLevel)
+    ? value as FloorLevel
+    : FloorLevel.LIVING;
 }
 
 function normalizePrivacy(value: unknown): WorldEvent['privacy'] {
@@ -246,36 +253,15 @@ function finiteNumber(value: unknown, fallback: number): number {
 function normalizeEvent(raw: unknown, fallbackId: number): WorldEvent | null {
   if (!isRecord(raw) || typeof raw.type !== 'string') return null;
   const event = raw as Partial<WorldEvent>;
-  // Explicit whitelist (mirrors normalizeContextFact below): every WorldEvent field is
-  // finite-guarded or length-capped from untrusted save JSON. No `...event` spread — an
-  // uncapped spread let a tampered save inject multi-MB strings / NaN-Infinity numbers that
-  // then live in the event ring buffers and render unbounded in the log/rumor UI.
   return {
+    ...event,
     id: Math.max(1, Math.floor(Number(event.id) || fallbackId)),
     type: raw.type as WorldEventType,
     time: finiteNumber(event.time, 0),
     day: finiteNumber(event.day, 0),
     hour: finiteNumber(event.hour, 0),
     minute: finiteNumber(event.minute, 0),
-    z: normalizeFloor(event.z),
-    zoneId: Number.isFinite(event.zoneId) ? event.zoneId as number : undefined,
-    roomId: Number.isFinite(event.roomId) ? event.roomId as number : undefined,
-    x: Number.isFinite(event.x) ? event.x as number : undefined,
-    y: Number.isFinite(event.y) ? event.y as number : undefined,
-    actorId: Number.isFinite(event.actorId) ? event.actorId as number : undefined,
-    actorName: typeof event.actorName === 'string' ? event.actorName.slice(0, MAX_EVENT_DATA_STRING_LEN) : undefined,
-    actorFaction: Number.isFinite(event.actorFaction) ? event.actorFaction as WorldEvent['actorFaction'] : undefined,
-    targetId: Number.isFinite(event.targetId) ? event.targetId as number : undefined,
-    targetName: typeof event.targetName === 'string' ? event.targetName.slice(0, MAX_EVENT_DATA_STRING_LEN) : undefined,
-    targetFaction: Number.isFinite(event.targetFaction) ? event.targetFaction as WorldEvent['targetFaction'] : undefined,
-    itemId: typeof event.itemId === 'string' ? event.itemId.slice(0, MAX_EVENT_DATA_STRING_LEN) : undefined,
-    itemName: typeof event.itemName === 'string' ? event.itemName.slice(0, MAX_EVENT_DATA_STRING_LEN) : undefined,
-    itemCount: Number.isFinite(event.itemCount) ? event.itemCount as number : undefined,
-    itemValue: Number.isFinite(event.itemValue) ? event.itemValue as number : undefined,
-    monsterKind: Number.isFinite(event.monsterKind) ? event.monsterKind as WorldEvent['monsterKind'] : undefined,
-    containerId: Number.isFinite(event.containerId) ? event.containerId as number : undefined,
-    containerOwnerId: Number.isFinite(event.containerOwnerId) ? event.containerOwnerId as number : undefined,
-    containerFaction: Number.isFinite(event.containerFaction) ? event.containerFaction as WorldEvent['containerFaction'] : undefined,
+    floor: normalizeFloor(event.floor),
     truth: 'fact',
     severity: clampSeverity(event.severity),
     privacy: normalizePrivacy(event.privacy),
@@ -553,7 +539,7 @@ export function publishEvent(state: GameState, draft: WorldEventDraft): WorldEve
     day: enriched.day ?? Math.floor(state.clock.totalMinutes / 1440),
     hour: enriched.hour ?? state.clock.hour,
     minute: enriched.minute ?? state.clock.minute,
-    z: enriched.z ?? state.currentZ,
+    floor: enriched.floor ?? state.currentFloor,
     truth: 'fact',
     severity: clampSeverity(enriched.severity),
     tags: cleanTags(enriched.tags),
@@ -587,7 +573,7 @@ function recentResourceScarcityEventExists(state: GameState, draft: ResourceScar
     const age = state.time - event.time;
     if (age < 0) continue;
     if (age > RESOURCE_SCARCITY_EVENT_COOLDOWN_S) break;
-    if (event.z !== draft.z) continue;
+    if (event.floor !== draft.floor) continue;
     if ((event.zoneId ?? -1) !== (draft.zoneId ?? -1)) continue;
     if (event.data?.resourceId !== draft.resourceId) continue;
     if (event.data?.band !== draft.band) continue;
@@ -603,7 +589,7 @@ export function publishResourceScarcityEvent(state: GameState, draft: ResourceSc
   const recovered = draft.trend === 'recovered';
   return publishEvent(state, {
     type: recovered ? 'room_produced_items' : 'room_lacked_resources',
-    z: draft.z,
+    floor: draft.floor,
     zoneId: draft.zoneId,
     roomId: draft.roomId,
     targetName: draft.resourceName,
@@ -644,7 +630,7 @@ export function getRecentEvents(state: GameState, filter: EventFilter = {}): Wor
 
   const filterType = filter.type;
   const filterZoneId = filter.zoneId;
-  const filterFloor = filter.z;
+  const filterFloor = filter.floor;
   const filterMinSeverity = filter.minSeverity;
   const filterPrivacy = filter.privacy;
   const filterActorId = filter.actorId;
@@ -666,7 +652,7 @@ export function getRecentEvents(state: GameState, filter: EventFilter = {}): Wor
     if (filterSinceId !== undefined && event.id <= filterSinceId) break;
     if (filterType !== undefined && event.type !== filterType) continue;
     if (filterZoneId !== undefined && event.zoneId !== filterZoneId) continue;
-    if (filterFloor !== undefined && event.z !== filterFloor) continue;
+    if (filterFloor !== undefined && event.floor !== filterFloor) continue;
     if (filterMinSeverity !== undefined && event.severity < filterMinSeverity) continue;
     if (filterPrivacy !== undefined && event.privacy !== filterPrivacy) continue;
     if (filterActorId !== undefined && event.actorId !== filterActorId) continue;
@@ -697,7 +683,7 @@ export function getZoneEvents(state: GameState, zoneId: number, filter: EventFil
   if (limit <= 0 || buffer.count === 0) return out;
 
   const filterType = filter.type;
-  const filterFloor = filter.z;
+  const filterFloor = filter.floor;
   const filterMinSeverity = filter.minSeverity;
   const filterPrivacy = filter.privacy;
   const filterActorId = filter.actorId;
@@ -719,7 +705,7 @@ export function getZoneEvents(state: GameState, zoneId: number, filter: EventFil
     if (filterSinceId !== undefined && event.id <= filterSinceId) break;
     if (event.zoneId !== zoneId) continue;
     if (filterType !== undefined && event.type !== filterType) continue;
-    if (filterFloor !== undefined && event.z !== filterFloor) continue;
+    if (filterFloor !== undefined && event.floor !== filterFloor) continue;
     if (filterMinSeverity !== undefined && event.severity < filterMinSeverity) continue;
     if (filterPrivacy !== undefined && event.privacy !== filterPrivacy) continue;
     if (filterActorId !== undefined && event.actorId !== filterActorId) continue;
@@ -769,11 +755,11 @@ export function summarizeImportantEventsByFloorZone(state: GameState, limit = 12
   const byZone = new Map<string, EventZoneSummary>();
   for (const event of readBuffer(store.importantEvents)) {
     const zoneId = event.zoneId ?? -1;
-    const key = `${event.z}:${zoneId}`;
+    const key = `${event.floor}:${zoneId}`;
     let row = byZone.get(key);
     if (!row) {
       row = {
-        z: event.z,
+        floor: event.floor,
         zoneId,
         count: 0,
         maxSeverity: 0,

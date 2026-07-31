@@ -1,8 +1,8 @@
 /* ── Numbered elevator floor metadata ─────────────────────────── */
 
-import { } from '../core/types';
+import { FloorLevel } from '../core/types';
 
-export type FloorInstanceGeneratorId = 'design_pocket';
+export type FloorInstanceGeneratorId = 'story_pocket';
 export type FloorInstanceExitRuleId = 'next_lift_returns';
 export type FloorInstanceNpcPolicyId = 'none' | 'generator';
 export type FloorInstanceMonsterPolicyId = 'generator' | 'none';
@@ -20,7 +20,7 @@ export interface FloorInstanceDef {
   id: string;
   displayNumber: string;
   title: string;
-  themeTags: readonly string[];
+  baseFloor: FloorLevel;
   seedTag: string;
   generatorId: FloorInstanceGeneratorId;
   exitRule: FloorInstanceExitRuleId;
@@ -42,10 +42,9 @@ export const FLOOR_INSTANCES: readonly FloorInstanceDef[] = [
     id: 'loop_404',
     displayNumber: '404',
     title: 'Не найден',
-    themeTags: ['design'],
-
+    baseFloor: FloorLevel.LIVING,
     seedTag: 'not_found',
-    generatorId: 'design_pocket',
+    generatorId: 'story_pocket',
     exitRule: 'next_lift_returns',
     npcPolicy: 'none',
     monsterPolicy: 'generator',
@@ -62,10 +61,9 @@ export const FLOOR_INSTANCES: readonly FloorInstanceDef[] = [
     id: 'loop_556',
     displayNumber: '556',
     title: 'П-46',
-    themeTags: ['design'],
-
+    baseFloor: FloorLevel.KVARTIRY,
     seedTag: 'p46_protocol',
-    generatorId: 'design_pocket',
+    generatorId: 'story_pocket',
     exitRule: 'next_lift_returns',
     npcPolicy: 'none',
     monsterPolicy: 'generator',
@@ -82,10 +80,9 @@ export const FLOOR_INSTANCES: readonly FloorInstanceDef[] = [
     id: 'loop_777',
     displayNumber: '777',
     title: 'Счастливый',
-    themeTags: ['design'],
-
+    baseFloor: FloorLevel.LIVING,
     seedTag: 'lucky_shelter',
-    generatorId: 'design_pocket',
+    generatorId: 'story_pocket',
     exitRule: 'next_lift_returns',
     npcPolicy: 'none',
     monsterPolicy: 'generator',
@@ -102,10 +99,9 @@ export const FLOOR_INSTANCES: readonly FloorInstanceDef[] = [
     id: 'loop_1337',
     displayNumber: '1337',
     title: 'Элитный',
-    themeTags: ['design'],
-
+    baseFloor: FloorLevel.MAINTENANCE,
     seedTag: 'radio_code',
-    generatorId: 'design_pocket',
+    generatorId: 'story_pocket',
     exitRule: 'next_lift_returns',
     npcPolicy: 'none',
     monsterPolicy: 'generator',
@@ -122,10 +118,9 @@ export const FLOOR_INSTANCES: readonly FloorInstanceDef[] = [
     id: 'loop_013',
     displayNumber: '013',
     title: 'Служебный',
-    themeTags: ['design'],
-
+    baseFloor: FloorLevel.MINISTRY,
     seedTag: 'service_order',
-    generatorId: 'design_pocket',
+    generatorId: 'story_pocket',
     exitRule: 'next_lift_returns',
     npcPolicy: 'none',
     monsterPolicy: 'generator',
@@ -142,10 +137,9 @@ export const FLOOR_INSTANCES: readonly FloorInstanceDef[] = [
     id: 'loop_089',
     displayNumber: '089',
     title: 'Теплый лифт',
-    themeTags: ['design'],
-
+    baseFloor: FloorLevel.MAINTENANCE,
     seedTag: 'warm_shaft',
-    generatorId: 'design_pocket',
+    generatorId: 'story_pocket',
     exitRule: 'next_lift_returns',
     npcPolicy: 'none',
     monsterPolicy: 'generator',
@@ -169,10 +163,9 @@ export const FLOOR_INSTANCES: readonly FloorInstanceDef[] = [
     id: 'loop_000',
     displayNumber: '000',
     title: 'Нулевой список',
-    themeTags: ['design'],
-
+    baseFloor: FloorLevel.VOID,
     seedTag: 'zero_register',
-    generatorId: 'design_pocket',
+    generatorId: 'story_pocket',
     exitRule: 'next_lift_returns',
     npcPolicy: 'none',
     monsterPolicy: 'generator',
@@ -189,10 +182,9 @@ export const FLOOR_INSTANCES: readonly FloorInstanceDef[] = [
     id: 'loop_912',
     displayNumber: '912',
     title: 'Чужая очередь',
-    themeTags: ['design'],
-
+    baseFloor: FloorLevel.KVARTIRY,
     seedTag: 'wrong_queue',
-    generatorId: 'design_pocket',
+    generatorId: 'story_pocket',
     exitRule: 'next_lift_returns',
     npcPolicy: 'none',
     monsterPolicy: 'generator',

@@ -5,6 +5,7 @@ import { auditReachability } from '../src/core/world';
 import {
   Cell,
   EntityType,
+  FloorLevel,
   LiftDirection,
   MonsterKind,
   RoomType,
@@ -20,7 +21,7 @@ import {
   HYPERBOLIC_SWITCHYARD_DESIGN_FLOOR_ID,
   HYPERBOLIC_SWITCHYARD_ROUTE_Z,
   type HyperbolicSwitchyardGeneration,
-} from '../src/gen/hyperbolic_switchyard';
+} from '../src/gen/design_floors/hyperbolic_switchyard';
 import { getEmergencyPanels } from '../src/systems/emergency_panels';
 import { getRouteCueMarkers } from '../src/systems/route_cues';
 import { countTerritoryCells, territoryHqAnchors, territoryOwnerAt, territoryRoomOwner } from '../src/systems/territory';
@@ -49,8 +50,8 @@ test('hyperbolic_switchyard is a maintenance authored route floor', () => {
   const route = designFloorById(HYPERBOLIC_SWITCHYARD_DESIGN_FLOOR_ID);
   assert.ok(route);
   assert.equal(route.z, HYPERBOLIC_SWITCHYARD_ROUTE_Z);
-  //  (removed exact baseFloor check)
-  assert.equal(route.themeTags?.includes('maintenance'), true);
+  assert.equal(route.baseFloor, HYPERBOLIC_SWITCHYARD_BASE_FLOOR);
+  assert.equal(route.baseFloor, FloorLevel.MAINTENANCE);
   assert.equal(route.displayName, 'Гиперболическая стрелочная');
   assert.equal(designFloorAtZ(HYPERBOLIC_SWITCHYARD_ROUTE_Z)?.id, HYPERBOLIC_SWITCHYARD_DESIGN_FLOOR_ID);
 });
@@ -84,7 +85,7 @@ test('hyperbolic_switchyard exposes guide, switch family, shortcut and false-pla
   assert.equal(gen.world.containers.some(container => container.tags.includes('switch_family') && container.tags.includes('repair')), true);
   assert.equal(gen.world.containers.some(container => container.tags.includes('geodesic_shortcut') && container.tags.includes('monster_heavy')), true);
   assert.equal(gen.world.containers.some(container => container.tags.includes('false_platform') && container.tags.includes('sabotage')), true);
-  assert.equal(gen.entities.some(entity => entity.type === EntityType.NPC && (entity as any).npcPackageId === 'hyperbolic_switchyard_guide_zinaida'), true);
+  assert.equal(gen.entities.some(entity => entity.type === EntityType.NPC && entity.plotNpcId === 'hyperbolic_switchyard_guide_zinaida'), true);
   assert.equal(gen.entities.some(entity => entity.type === EntityType.MONSTER && entity.monsterKind === MonsterKind.PSEUDOLIFT), true);
 });
 

@@ -5,6 +5,7 @@ import {
   msg,
   QuestType,
   type Entity,
+  type FloorLevel,
   type GameState,
   type Quest,
   type WorldEventSeverity,
@@ -28,7 +29,7 @@ import {
 } from './procedural_floors';
 import { isPlayerEntity } from './player_actor';
 
-const FLOOR_NAMES: Record<number, string> = {
+const FLOOR_NAMES: Record<FloorLevel, string> = {
   0: 'Министерство',
   1: 'Квартиры',
   2: 'Жилая зона',
@@ -59,7 +60,7 @@ export interface RouteCueMarker {
   y: number;
   targetX: number;
   targetY: number;
-  z: number;
+  floor: FloorLevel;
   label: string;
   hint: string;
   targetName: string;
@@ -81,7 +82,7 @@ export interface RouteCueMarker {
 
 export interface RouteCueHud {
   id: string;
-  z: number;
+  floor: FloorLevel;
   label: string;
   hint: string;
   targetName: string;
@@ -222,7 +223,7 @@ function primaryRouteObjective(state: GameState): Quest | undefined {
     if (q.done || q.failed) continue;
     const kind = objectiveKind(q);
     const rewardPressure = Math.min(90, (q.moneyReward ?? 0) / 4 + (q.xpReward ?? 0) / 8);
-    const routePressure = q.targetFloorZ !== undefined || q.visitFloorZ !== undefined || q.targetRoute !== undefined ? 80 : 0;
+    const routePressure = q.targetFloor !== undefined || q.visitFloor !== undefined || q.targetRoute !== undefined ? 80 : 0;
     const score = OBJECTIVE_PRIORITY[kind] * 1000 + routePressure + rewardPressure - i * 0.01;
     if (score > bestScore) {
       best = q;
@@ -266,9 +267,9 @@ function targetLine(world: World | undefined, player: Entity | undefined, state:
   }
 
   const label = questRouteTargetLabel(q, state);
-  const z = questRouteFloor(q);
+  const floor = questRouteFloor(q);
   if (label) return `Цель: ${label}`;
-  if (z !== undefined) return `Цель: ${FLOOR_NAMES[z]}`;
+  if (floor !== undefined) return `Цель: ${FLOOR_NAMES[floor]}`;
   return 'Цель: другой маршрут';
 }
 
@@ -303,7 +304,7 @@ function fallbackObjectiveForCurrentRoute(state: GameState): ObjectiveRouteHud |
   const current = currentFloorRunEntry(state);
   const def = ROUTE_OBJECTIVE_FALLBACKS.find(hint =>
     (hint.z === undefined || hint.z === current.z) &&
-    (hint.storyFloor === undefined || current.themeTags.includes(String(hint.storyFloor))));
+    (hint.storyFloor === undefined || hint.storyFloor === current.storyFloor));
   if (!def) return undefined;
   return {
     title: def.title,
@@ -378,14 +379,14 @@ function protectedRouteCueMarker(world: World, marker: RouteCueMarker): boolean 
     && protectedRoom(world, marker.targetRoomId);
 }
 
-export function pruneRouteCuesForVolatileRebuild(world: World, z: number): number {
+export function pruneRouteCuesForVolatileRebuild(world: World, floor: FloorLevel): number {
   const state = cueByWorld.get(world);
   if (!state) return 0;
 
   const keptMarkers: RouteCueMarker[] = [];
   const removedMarkerIds = new Set<string>();
   for (const marker of state.markers) {
-    if (marker.z !== z || protectedRouteCueMarker(world, marker)) {
+    if (marker.floor !== floor || protectedRouteCueMarker(world, marker)) {
       keptMarkers.push(marker);
     } else {
       removedMarkerIds.add(marker.id);
@@ -400,7 +401,7 @@ export function pruneRouteCuesForVolatileRebuild(world: World, z: number): numbe
     state.followed.delete(id);
     state.ignored.delete(id);
   }
-  if (activeHud?.z === z && removedMarkerIds.has(activeHud.id)) activeHud = null;
+  if (activeHud?.floor === floor && removedMarkerIds.has(activeHud.id)) activeHud = null;
   return removed;
 }
 
@@ -440,7 +441,7 @@ function triggerPaidRouteAdvice(
     setCueHud(state, marker);
     publishEvent(state, {
       type: 'rumor_observed',
-      z: marker.z,
+      floor: marker.floor,
       zoneId: marker.zoneId,
       roomId: marker.roomId,
       x: marker.x,
@@ -468,7 +469,7 @@ function triggerPaidRouteAdvice(
   state.msgs.push(msg(`${def.sellerName ?? marker.targetName} берёт ${price}₽ и даёт маршрут: ${marker.hint}`, state.time, marker.color));
   publishEvent(state, {
     type: 'player_use_item',
-    z: marker.z,
+    floor: marker.floor,
     zoneId: marker.zoneId,
     roomId: marker.roomId,
     x: marker.x,
@@ -503,7 +504,7 @@ function publishCueEvent(
   const ci = world.idx(px, py);
   publishEvent(state, {
     type: 'rumor_observed',
-    z: marker.z,
+    floor: marker.floor,
     zoneId: marker.zoneId ?? world.zoneMap[ci],
     roomId: action === 'followed' ? marker.targetRoomId : marker.roomId,
     x: player.x,
@@ -545,7 +546,7 @@ function cueMessage(marker: RouteCueMarker, action: string): string {
 function setCueHud(state: GameState, marker: RouteCueMarker): void {
   activeHud = {
     id: marker.id,
-    z: marker.z,
+    floor: marker.floor,
     label: marker.label,
     hint: marker.hint,
     targetName: marker.targetName,
@@ -662,7 +663,7 @@ export function debugTriggerRouteCue(world: World, player: Entity, state: GameSt
     playSoundAt(() => playRouteCueTone(75075, 1.15), player.x, player.y);
     activeHud = {
       id: 'debug_route_cue',
-      z: state.currentZ,
+      floor: state.currentFloor,
       label: 'DEBUG route cue',
       hint: 'local audio/HUD smoke',
       targetName: 'debug marker',
@@ -699,15 +700,7 @@ export function debugTriggerRouteCue(world: World, player: Entity, state: GameSt
   ].filter(Boolean);
 }
 
-export function getActiveRouteCueHud(time: number, z: number): RouteCueHud | null {
-  if (!activeHud || activeHud.expiresAt < time || activeHud.z !== z) return null;
+export function getActiveRouteCueHud(time: number, floor: FloorLevel): RouteCueHud | null {
+  if (!activeHud || activeHud.expiresAt < time || activeHud.floor !== floor) return null;
   return activeHud;
-}
-
-/* New game / restart clears the singleton HUD banner. On a fresh page-load it is
- * already null; on in-session restart it drops a stale run-1 cue that would else
- * survive (state.time resets to 0, so the expiresAt/z guard above cannot evict a
- * floor-0 cue). Mirrors the samosbor-rebuild nulling in replaceRouteCueStateForRebuild. */
-export function resetRouteCueHud(): void {
-  activeHud = null;
 }

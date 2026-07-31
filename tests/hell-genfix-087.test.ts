@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { Cell, EntityType, Faction, RoomType, W, ZoneFaction, type Room, type TerritoryOwner } from '../src/core/types';
+import { Cell, EntityType, Faction, FloorLevel, RoomType, W, ZoneFaction, type Room, type TerritoryOwner } from '../src/core/types';
 import { auditReachability, type World } from '../src/core/world';
 import { HUMAN_TERRITORY_OWNERS, factionToTerritoryOwner, territoryOwnerName } from '../src/data/factions';
 import { generateFloor } from '../src/gen/floor_manifest';
@@ -48,7 +48,7 @@ function hermeticShellCells(world: World, room: Room): number {
 }
 
 test('genfix 087 hell keeps arena macro while adding faction compounds and micro rooms', () => {
-  const gen = generateFloor(-36, 61_061);
+  const gen = generateFloor(FloorLevel.HELL, 61_061);
   const world = gen.world;
   const counts = new Map(countTerritoryCells(world).map(row => [row.owner, row.cells]));
   const shares = new Map([...counts].map(([owner, cells]) => [owner, cells / (W * W)]));

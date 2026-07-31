@@ -1,8 +1,8 @@
-import { currentFloorRunEntry } from '../../systems/procedural_floors';
 /* -- Пломбировщик: local hermodoor route-denial encounter ------- */
 
 import {
-  AIGoal, Cell, ContainerKind, DoorState, EntityType, Feature, MonsterKind, RoomType, Tex, W, msg,
+  AIGoal, Cell, ContainerKind, DoorState, EntityType, Feature, FloorLevel,
+  MonsterKind, RoomType, Tex, W, msg,
   type Entity, type GameState, type Room, type WorldContainer, type WorldEvent,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -24,7 +24,7 @@ const BYPASS_W = 5;
 const ROOM_H = 11;
 const DIVIDER_W = 1;
 const TOTAL_W = MAIN_W + DIVIDER_W + BYPASS_W;
-const ROOM_DEF_ID = 'Пломбировщик: шовная ремонтная';
+const ROOM_NAME = 'Пломбировщик: шовная ремонтная';
 const BYPASS_NAME = 'Пломбировщик: обход пломбы';
 const KILL_AWAY_RADIUS2 = 3.4 * 3.4;
 const SHOT_INTERRUPT_RADIUS2 = 8 * 8;
@@ -97,7 +97,7 @@ function addContainer(
     id,
     x: wx,
     y: wy,
-    z: 100,
+    floor: FloorLevel.LIVING,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(wx, wy)],
     kind: ContainerKind.TOOL_LOCKER,
@@ -180,7 +180,7 @@ function carveRooms(world: World, nextRoomId: number, rx: number, ry: number): {
     h: ROOM_H,
     doors: [],
     sealed: false,
-    name: ROOM_DEF_ID,
+    name: ROOM_NAME,
     apartmentId: -1,
     wallTex: Tex.HERMO_WALL,
     floorTex: Tex.F_CONCRETE,
@@ -307,7 +307,7 @@ function publishPlombEvent(
 ): void {
   publishEvent(state, {
     type,
-    z: 100,
+    floor: FloorLevel.LIVING,
     zoneId: ctx.world.zoneMap[ctx.sealedDoorIdx],
     roomId: ctx.roomId,
     x: doorX(ctx.sealedDoorIdx) + 0.5,
@@ -322,7 +322,7 @@ function publishPlombEvent(
     tags: ['monster', 'plombirovshchik', 'seal', 'hermodoor', 'route_denial', ...tags].slice(0, 8),
     data: {
       contentId: CONTENT_TAG,
-      roomDefId: ROOM_DEF_ID,
+      roomName: ROOM_NAME,
       bypassRoomName: BYPASS_NAME,
       sealedDoorIdx: ctx.sealedDoorIdx,
       alternateDoorIdx: ctx.alternateDoorIdx,
@@ -454,7 +454,7 @@ function handleKillEvent(state: GameState, event: WorldEvent): void {
 }
 
 function handleShotEvent(state: GameState, event: WorldEvent): void {
-  if (event.type !== 'ammo_consumed' || currentFloorRunEntry(state)!.themeTags.includes('living')) return;
+  if (event.type !== 'ammo_consumed' || state.currentFloor !== FloorLevel.LIVING) return;
   const ctx = nearestActiveContextToPlayer();
   if (!ctx) return;
   ctx.shotHandled = true;
@@ -468,7 +468,7 @@ function handleShotEvent(state: GameState, event: WorldEvent): void {
 }
 
 function handlePlombirovshchikEvents(state: GameState, event: WorldEvent): void {
-  if (currentFloorRunEntry(state)!.themeTags.includes('living')) return;
+  if (state.currentFloor !== FloorLevel.LIVING) return;
   handleSealContainerEvent(state, event);
   handleKillEvent(state, event);
   handleShotEvent(state, event);
@@ -531,7 +531,7 @@ export function generatePlombirovshchik(
   });
   world.bakeLights();
 
-  genLog(`[MONSTER_02] ${ROOM_DEF_ID} at (${main.x}, ${main.y}) room #${main.id}, bypass #${bypass.id}, sealed door (${doorX(sealedDoorIdx)}, ${doorY(sealedDoorIdx)})`);
+  genLog(`[MONSTER_02] ${ROOM_NAME} at (${main.x}, ${main.y}) room #${main.id}, bypass #${bypass.id}, sealed door (${doorX(sealedDoorIdx)}, ${doorY(sealedDoorIdx)})`);
   return { nextRoomId: bypass.id + 1 };
 }
 

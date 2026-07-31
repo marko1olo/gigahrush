@@ -1,6 +1,6 @@
 /* ── Markov procedural quest speech adapter ───────────────────── */
 
-import { MonsterKind, QuestType, RoomType, Quest } from '../core/types';
+import { FloorLevel, MonsterKind, QuestType, RoomType, type Quest } from '../core/types';
 import { ITEMS } from '../data/items';
 import type { ContractDef } from '../data/contracts';
 import { monsterTypeName } from '../entities/monster';
@@ -86,8 +86,8 @@ export function renderProceduralQuestSpeech(options: ProceduralQuestSpeechOption
     context: {
       ...snapshotContext,
       targetId: q.targetNpcId,
-      z: q.targetFloorZ ?? q.visitFloorZ ?? options.contractDef?.target.z ?? snapshotContext?.z,
-      roomDefId: q.targetRoomDefId ?? options.contractDef?.target.roomDefId ?? snapshotContext?.roomDefId,
+      floor: q.targetFloor ?? q.visitFloor ?? options.contractDef?.target.floor ?? snapshotContext?.floor,
+      roomName: q.targetRoomName ?? options.contractDef?.target.roomName ?? snapshotContext?.roomName,
       roomType: q.targetRoomType ?? options.contractDef?.target.roomType ?? snapshotContext?.roomType,
       itemId: q.targetItem,
       itemName: q.targetItem ? itemName(q.targetItem) : undefined,
@@ -293,15 +293,15 @@ function questTargetText(q: Quest, contractDef: ContractDef | undefined, questCl
 function roomOrRouteText(q: Quest, contractDef?: ContractDef): string | undefined {
   const route = routeText(q.targetRoute ?? contractDef?.target.route);
   if (route) return route;
-  if (q.targetRoomDefId) return q.targetRoomDefId;
-  if (contractDef?.target.roomDefId) return contractDef.target.roomDefId;
+  if (q.targetRoomName) return q.targetRoomName;
+  if (contractDef?.target.roomName) return contractDef.target.roomName;
   if (q.targetRoomType !== undefined) return roomTypeName(q.targetRoomType);
   if (contractDef?.target.roomType !== undefined) return roomTypeName(contractDef.target.roomType);
   if (q.targetHint) return q.targetHint;
   if (contractDef?.target.hint) return contractDef.target.hint;
-  if (q.targetFloorZ !== undefined) return floorName(q.targetFloorZ);
-  if (q.visitFloorZ !== undefined) return floorName(q.visitFloorZ);
-  if (contractDef?.target.z !== undefined) return floorName(contractDef.target.z);
+  if (q.targetFloor !== undefined) return floorName(q.targetFloor);
+  if (q.visitFloor !== undefined) return floorName(q.visitFloor);
+  if (contractDef?.target.floor !== undefined) return floorName(contractDef.target.floor);
   return undefined;
 }
 
@@ -359,13 +359,15 @@ function result(
   };
 }
 
-function floorName(z: number): string {
-  if (z < 0) return 'Министерство';
-  if (z < 100) return 'Квартиры';
-  if (z < 200) return 'Жилая зона';
-  if (z < 300) return 'Коллекторы';
-  if (z < 400) return 'Ад';
-  return 'Пустота';
+function floorName(floor: FloorLevel): string {
+  switch (floor) {
+    case FloorLevel.MINISTRY: return 'Министерство';
+    case FloorLevel.KVARTIRY: return 'Квартиры';
+    case FloorLevel.LIVING: return 'Жилая зона';
+    case FloorLevel.MAINTENANCE: return 'Коллекторы';
+    case FloorLevel.HELL: return 'Ад';
+    case FloorLevel.VOID: return 'Пустота';
+  }
 }
 
 function roomTypeName(roomType: RoomType): string {

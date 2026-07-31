@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { getRecentEvents } from '../src/systems/events';
@@ -36,7 +36,7 @@ test('using liquidator ration spends a high-nutrition field meal', () => {
     id: 149,
     needs: { food: 20, water: 70, sleep: 80, pee: 0, poo: 0 },
   });
-  const state = makeGameState({ currentZ: -26, time: 149 });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, time: 149 });
 
   assert.equal(addItem(player, ITEM_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter применить');

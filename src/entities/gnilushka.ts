@@ -1,6 +1,6 @@
 /* ── Gnilushka: altered neutral woman, defensive only ───────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.05,
   sprite: 0,
   aiFlags: ['defensiveNeutral'],
+  floors: [FloorLevel.LIVING, FloorLevel.KVARTIRY],
   counterplay: 'Не загоняйте в угол и не начинайте первым: спокойный разговор или тара НИИ закрывают встречу без боя, а раненая Гнилушка делает короткий опасный рывок только в тесноте.',
   lootHint: 'серо-зеленый соскоб, старая записка, редкий мутный образец после добровольной передачи НИИ',
 };

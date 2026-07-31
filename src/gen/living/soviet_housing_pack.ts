@@ -2,7 +2,6 @@
 /* Fixed-zone living POIs: concierge, radio club, lost-and-found,  */
 /* hermodoor repair alcove, and common kitchen argument site.      */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
   Cell, Tex, Feature, RoomType,
@@ -205,7 +204,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
 registerSideQuest('ag03_pasha_concierge', NPC_DEFS.ag03_pasha_concierge, [
   {
     id: 'ag03_pasha_logbook',
-    giverId: getPlotNpcNumericId('ag03_pasha_concierge')!,
+    giverNpcId: 'ag03_pasha_concierge',
     type: QuestType.FETCH,
     desc: 'Дядя Паша: «Принеси любую записку. Я вклею ее в журнал посетителей, пока настоящий журнал не вернулся.»',
     targetItem: 'note', targetCount: 1,
@@ -218,7 +217,7 @@ registerSideQuest('ag03_pasha_concierge', NPC_DEFS.ag03_pasha_concierge, [
 registerSideQuest('ag03_gleb_radio', NPC_DEFS.ag03_gleb_radio, [
   {
     id: 'ag03_gleb_energy_cell',
-    giverId: getPlotNpcNumericId('ag03_gleb_radio')!,
+    giverNpcId: 'ag03_gleb_radio',
     type: QuestType.FETCH,
     desc: 'Глеб Паяльник: «Нужна энергоячейка. Приемник почти поймал конец сообщения.»',
     targetItem: 'ammo_energy', targetCount: 1,
@@ -228,7 +227,7 @@ registerSideQuest('ag03_gleb_radio', NPC_DEFS.ag03_gleb_radio, [
   },
   {
     id: 'ag03_gleb_eye',
-    giverId: getPlotNpcNumericId('ag03_gleb_radio')!,
+    giverNpcId: 'ag03_gleb_radio',
     type: QuestType.KILL,
     desc: 'Глеб Паяльник: «Сбей глаз из радиокружка. Он моргает на моей частоте.»',
     targetMonsterKind: MonsterKind.EYE,
@@ -241,7 +240,7 @@ registerSideQuest('ag03_gleb_radio', NPC_DEFS.ag03_gleb_radio, [
 registerSideQuest('ag03_rita_lostfound', NPC_DEFS.ag03_rita_lostfound, [
   {
     id: 'ag03_rita_food',
-    giverId: getPlotNpcNumericId('ag03_rita_lostfound')!,
+    giverNpcId: 'ag03_rita_lostfound',
     type: QuestType.FETCH,
     desc: 'Рита Находкина: «Принеси хлеб. Потерянные вещи сегодня требуют паек.»',
     targetItem: 'bread', targetCount: 1,
@@ -254,7 +253,7 @@ registerSideQuest('ag03_rita_lostfound', NPC_DEFS.ag03_rita_lostfound, [
 registerSideQuest('ag03_semen_hermo', NPC_DEFS.ag03_semen_hermo, [
   {
     id: 'ag03_semen_medicine',
-    giverId: getPlotNpcNumericId('ag03_semen_hermo')!,
+    giverNpcId: 'ag03_semen_hermo',
     type: QuestType.FETCH,
     desc: 'Семен Гермошов: «Принеси бинт. Дверь прикусила руку, а я прикусил мат.»',
     targetItem: 'bandage', targetCount: 1,
@@ -267,16 +266,16 @@ registerSideQuest('ag03_semen_hermo', NPC_DEFS.ag03_semen_hermo, [
 registerSideQuest('ag03_tamara_kitchen', NPC_DEFS.ag03_tamara_kitchen, [
   {
     id: 'ag03_tamara_to_pasha',
-    giverId: getPlotNpcNumericId('ag03_tamara_kitchen')!,
+    giverNpcId: 'ag03_tamara_kitchen',
     type: QuestType.TALK,
     desc: 'Тамара Кипяток: «Скажи Паше, чтобы не хлопал дверью. Суп летит на журнал и потом все ругаются.»',
-    targetNpcId: getPlotNpcNumericId('ag03_pasha_concierge')!,
+    targetNpcId: 'ag03_pasha_concierge',
     rewardItem: 'kompot', rewardCount: 2,
     relationDelta: 10, xpReward: 20, moneyReward: 10,
   },
   {
     id: 'ag03_tamara_visit_kitchen',
-    giverId: getPlotNpcNumericId('ag03_tamara_kitchen')!,
+    giverNpcId: 'ag03_tamara_kitchen',
     type: QuestType.VISIT,
     desc: 'Тамара Кипяток: «Зайди на общую кухню и посмотри, откуда тянет мокрое пятно у слива.»',
     targetRoomType: RoomType.KITCHEN,
@@ -288,10 +287,10 @@ registerSideQuest('ag03_tamara_kitchen', NPC_DEFS.ag03_tamara_kitchen, [
 registerSideQuest('ag03_kirill_runner', NPC_DEFS.ag03_kirill_runner, [
   {
     id: 'ag03_kirill_message',
-    giverId: getPlotNpcNumericId('ag03_kirill_runner')!,
+    giverNpcId: 'ag03_kirill_runner',
     type: QuestType.TALK,
     desc: 'Кирилл Бегунок: «Передай Рите, что куртка еще на мне. Пусть не оформляет как потерянную.»',
-    targetNpcId: getPlotNpcNumericId('ag03_rita_lostfound')!,
+    targetNpcId: 'ag03_rita_lostfound',
     rewardItem: 'cigs', rewardCount: 2,
     relationDelta: 8, xpReward: 15, moneyReward: 5,
   },
@@ -307,7 +306,7 @@ const NPC_SPAWNS: NpcSpawn[] = [
 ];
 
 function hasPlotNpc(entities: Entity[], plotNpcId: string): boolean {
-  return entities.some(e => e.alive && e.id === getPlotNpcNumericId(plotNpcId)!);
+  return entities.some(e => e.alive && e.plotNpcId === plotNpcId);
 }
 
 function pushNpc(

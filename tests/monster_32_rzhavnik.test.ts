@@ -1,13 +1,13 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
 import {
-  AIGoal, Cell, EntityType, Feature, MonsterKind, RoomType, type Entity, type Msg,
+  AIGoal, Cell, EntityType, Feature, FloorLevel, MonsterKind, RoomType, type Entity, type Msg,
 } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { DEF, generateSprite } from '../src/entities/rzhavnik';
+import { MONSTERS, MONSTER_SPRITES, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { generateRzhavnikShelf } from '../src/gen/maintenance/rzhavnik_shelf';
 import { setEntityMap, updateMonster } from '../src/systems/ai/monster';
 import { rebuildEntityIndex } from '../src/systems/entity_index';
@@ -71,9 +71,12 @@ function syncEntities(entities: Entity[]): void {
 test('rzhavnik is standalone storage ambush content, not rust rebar', () => {
   assert.equal(DEF.kind, MonsterKind.RZHAVNIK);
   assert.deepEqual(DEF.aiFlags, ['scrapWake']);
+  assert.deepEqual(DEF.floors, [FloorLevel.LIVING, FloorLevel.MAINTENANCE]);
   assert.match(DEF.counterplay ?? '', /стопк|дистанц|рывок/);
   assert.equal(MONSTERS[MonsterKind.RZHAVNIK], DEF);
   assert.equal(MONSTER_SPRITES[MonsterKind.RZHAVNIK], generateSprite);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.LIVING].includes(MonsterKind.RZHAVNIK), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.MAINTENANCE].includes(MonsterKind.RZHAVNIK), true);
 
   const ecology = getMonsterEcology(MonsterKind.RZHAVNIK);
   assert.ok(ecology);
@@ -114,7 +117,7 @@ test('dormant rzhavnik idles as scrap, wakes close, leaps once, then becomes fra
   const threat = rzhavnik(14.5, 14.5);
   const entities = [target, threat];
   const msgs: Msg[] = [];
-  const state = makeGameState({ currentZ: -14, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, worldEvents: createWorldEventState() });
   const startMax = threat.maxHp ?? 0;
 
   target.x = 22.5;
@@ -142,7 +145,7 @@ test('loud metal wakes dormant rzhavnik before close approach', () => {
   const target = player(21.5, 14.5);
   const threat = rzhavnik(14.5, 14.5);
   const entities = [target, threat];
-  const state = makeGameState({ currentZ: -14, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, worldEvents: createWorldEventState() });
   const msgs: Msg[] = [];
   state.time = 5;
 
@@ -168,7 +171,7 @@ test('loud metal wakes dormant rzhavnik before close approach', () => {
 test('maintenance rzhavnik shelf creates one dormant shelf ambusher beside real scrap', () => {
   const world = new World();
   const entities: Entity[] = [];
-  const nextId = { v: getPlotNpcCount() + 10 }
+  const nextId = { v: 10 };
 
   generateRzhavnikShelf({ world, entities, nextId, spawnX: 64, spawnY: 64 });
 

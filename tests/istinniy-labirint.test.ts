@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, DoorState, EntityType, LiftDirection, RoomType, W, ZoneFaction, type Room } from '../src/core/types';
+import { Cell, DoorState, EntityType, FloorLevel, LiftDirection, RoomType, W, ZoneFaction, type Room } from '../src/core/types';
 import { auditReachability } from '../src/core/world';
 import { designFloorAtZ, designFloorById } from '../src/data/design_floors';
 import { designFloorPopulationProfile } from '../src/data/design_floor_population';
@@ -13,7 +13,7 @@ import {
   ISTINNIY_LABIRINT_ROUTE_ID,
   ISTINNIY_LABIRINT_Z,
   measureIstinniyLabirintMetrics,
-} from '../src/gen/istinniy_labirint';
+} from '../src/gen/design_floors/istinniy_labirint';
 
 type LabyrinthGeneration = ReturnType<typeof generateDesignFloor>;
 
@@ -38,15 +38,15 @@ function hermeticShellCells(gen: LabyrinthGeneration, room: Room): number {
 test('istinniy_labirint is registered as a Ministry route floor', () => {
   const route = designFloorById(ISTINNIY_LABIRINT_ROUTE_ID);
   assert.equal(route?.z, ISTINNIY_LABIRINT_Z);
-  assert.equal(route?.themeTags?.includes('ministry'), true);
+  assert.equal(route?.baseFloor, FloorLevel.MINISTRY);
   assert.equal(route?.displayName, 'Истинный лабиринт');
   assert.equal(route?.danger, 4);
   assert.equal(designFloorAtZ(ISTINNIY_LABIRINT_Z)?.id, ISTINNIY_LABIRINT_ROUTE_ID);
 
   assert.ok(route);
   const profile = designFloorPopulationProfile(route);
-  assert.ok(profile.npcTarget >= 90 && profile.npcTarget <= 9000, 'npcTarget in bounds');
-  assert.ok(profile.monsterTarget >= 130 && profile.monsterTarget <= 13000, 'monsterTarget in bounds');
+  assert.equal(profile.npcTarget, 900);
+  assert.equal(profile.monsterTarget, 1300);
   assert.equal(profile.npcNoun, 'потерявшийся');
   assert.equal(profile.monsterTags.includes('wayfinding'), true);
 });
@@ -90,8 +90,8 @@ test('istinniy_labirint exposes rescue and document-stash decisions', () => {
   const npcs = gen.entities.filter(entity => entity.type === EntityType.NPC);
   const quests = new Set(getSideQuestRegistrySnapshot().map(quest => quest.id));
 
-  assert.equal(npcs.some(entity => (entity as any).npcPackageId === 'labyrinth_ariadna_zina'), true);
-  assert.equal(npcs.some(entity => (entity as any).npcPackageId === 'labyrinth_lost_pavel'), true);
+  assert.equal(npcs.some(entity => entity.plotNpcId === 'labyrinth_ariadna_zina'), true);
+  assert.equal(npcs.some(entity => entity.plotNpcId === 'labyrinth_lost_pavel'), true);
   assert.equal(quests.has('labyrinth_rechalk_safe_wall'), true);
   assert.equal(quests.has('labyrinth_rescue_lost_pavel'), true);
   assert.equal(gen.world.rooms.some(room => room.type === RoomType.STORAGE && room.name === 'Лабиринт: тупик документного ящика'), true);

@@ -5,7 +5,7 @@ import { Faction, ItemType, RoomType } from '../src/core/types';
 import { World } from '../src/core/world';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { resourceForItem } from '../src/data/resources';
-import { generateSlimeNiiDesignFloor } from '../src/gen/slime_nii';
+import { generateSlimeNiiDesignFloor } from '../src/gen/design_floors/slime_nii';
 import { generateLiquidatorArchive } from '../src/gen/ministry/liquidator_archive';
 
 test('post-samosbor probe kit is high-value NII/liquidator handoff evidence', () => {

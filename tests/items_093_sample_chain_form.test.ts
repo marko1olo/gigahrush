@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { ITEMS } from '../src/data/catalog';
 import { ITEM_TAGS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
-import { generateSlimeNiiDesignFloor } from '../src/gen/slime_nii';
+import { generateSlimeNiiDesignFloor } from '../src/gen/design_floors/slime_nii';
 import { getRecentEvents } from '../src/systems/events';
 import { addItem, getInventorySlotActionInfo, inventoryItemCategory, useItem } from '../src/systems/inventory';
 import { countInventoryItem, makeGameState, makeTestPlayer } from './helpers';
@@ -49,7 +49,7 @@ test('sample chain form is reachable from the slime NII director archive', () =>
 
 test('sample chain form can be sold instead of saved for legal handoff', () => {
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 93 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 93 });
 
   assert.equal(addItem(player, FORM_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter проверить');

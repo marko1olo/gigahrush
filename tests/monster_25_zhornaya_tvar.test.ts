@@ -1,12 +1,12 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { BAIT_ATTRACTED_MONSTER_KINDS, getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
 import { DEF, generateSprite } from '../src/entities/zhornaya_tvar';
+import { MONSTERS, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { S } from '../src/render/pixutil';
 import { setListenerPos } from '../src/systems/audio';
 import { setEntityMap, updateMonster } from '../src/systems/ai/monster';
@@ -80,6 +80,10 @@ test('zhornaya tvar is standalone scent-lunge monster content', () => {
   assert.equal(DEF.kind, MonsterKind.ZHORNAYA_TVAR);
   assert.equal(MONSTERS[MonsterKind.ZHORNAYA_TVAR], DEF);
   assert.deepEqual(DEF.aiFlags, ['foodBait', 'scentOvercommit']);
+  assert.deepEqual(DEF.floors, [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.HELL]);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.KVARTIRY]?.includes(MonsterKind.ZHORNAYA_TVAR), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.LIVING]?.includes(MonsterKind.ZHORNAYA_TVAR), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.HELL]?.includes(MonsterKind.ZHORNAYA_TVAR), true);
   assert.equal(BAIT_ATTRACTED_MONSTER_KINDS.includes(MonsterKind.ZHORNAYA_TVAR), true);
   assert.equal(ecology?.rooms.includes(RoomType.KITCHEN), true);
   assert.equal(ecology?.rooms.includes(RoomType.STORAGE), true);
@@ -96,7 +100,7 @@ test('zhornaya tvar overcommits to side-thrown bait and leaves recovery', () => 
   setListenerPos(512, 512, world.dist2.bind(world));
   const state = makeGameState({
     time: 10,
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
   const player = makeTestPlayer({ id: 1, x: 14.5, y: 10.5, hp: 100, maxHp: 100 });
@@ -124,7 +128,7 @@ test('zhornaya tvar ignores bait thrown directly on the player route', () => {
   setListenerPos(512, 512, world.dist2.bind(world));
   const state = makeGameState({
     time: 20,
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
   const player = makeTestPlayer({ id: 1, x: 14.5, y: 10.5, hp: 100, maxHp: 100 });
@@ -148,7 +152,7 @@ test('zhornaya tvar lunges at a food carrier when no better scent is off-route',
   setListenerPos(512, 512, world.dist2.bind(world));
   const state = makeGameState({
     time: 30,
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
   const player = makeTestPlayer({

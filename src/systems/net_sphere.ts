@@ -1,8 +1,7 @@
-import { type Entity, type GameState } from '../core/types';
+import { FloorLevel, type Entity, type GameState } from '../core/types';
 import { getControlCaptureAction, matchesControlAction } from './controls';
 import { portalAllowsOptionalNetwork } from './platform_bridge';
-import { currentFloorRunEntry, ensureFloorRunState, floorRunEntryMapLabel, floorRunEntryRouteId } from './procedural_floors';
-import { startOnlineHost, joinOnlinePeer, isOnlineHost, getOnlineRoomId, isOnlineConnected, sendOnlineMessage } from './online_client';
+import { currentFloorRunEntry, ensureFloorRunState, floorRunEntryRouteId } from './procedural_floors';
 
 type NetSphereStatus = 'idle' | 'syncing' | 'online' | 'offline';
 export type NetSphereEventType = 'samosbor' | 'death';
@@ -32,10 +31,8 @@ export interface NetMarketSnapshot {
 export interface NetSphereStats {
   onlineUsers: number;
   totalPlayers: number;
-  totalSessions: number;
   totalSamosbors: number;
   totalDeaths: number;
-  randomRoomId: string | null;
   updatedAt: number;
 }
 
@@ -60,7 +57,6 @@ export interface NetSphereChatLine {
   nickname: string;
   body: string;
   createdAt: number;
-  netGen?: string;
 }
 
 export interface NetSphereEventLine {
@@ -109,8 +105,6 @@ interface NetSphereProgress {
   day: number;
   hour: number;
   minute: number;
-  onlineSessions?: number;
-  hostingRoomId?: string;
 }
 
 interface NetSphereRuntime {
@@ -148,9 +142,7 @@ class NetSphereApiError extends Error {
   }
 }
 
-const API_ROOT = (typeof window !== 'undefined' && window.location.hostname === 'gigahrush.github.io')
-  ? 'https://gigahrush.bileter.workers.dev/api/net' 
-  : '/api/net';
+const API_ROOT = '/api/net';
 const NET_GEN_KEY = 'gigahrush_net_gen';
 const SESSION_KEY = 'gigahrush_net_session';
 const NET_GEN_NICK_RE = /^NET-[A-Z0-9-]{4,28}$/;
@@ -161,7 +153,14 @@ const NET_FETCH_TIMEOUT_MS = 10_000;
 const CHAT_LIMIT = 300;
 const DRAFT_LIMIT = 160;
 const MARKET_IMPULSE_LIMIT = 16;
-
+const FLOOR_NAMES: Record<FloorLevel, string> = {
+  [FloorLevel.MINISTRY]: 'Министерство',
+  [FloorLevel.KVARTIRY]: 'Квартиры',
+  [FloorLevel.LIVING]: 'Жилая зона',
+  [FloorLevel.MAINTENANCE]: 'Коллекторы',
+  [FloorLevel.HELL]: 'Мясной низ',
+  [FloorLevel.VOID]: 'Пустота',
+};
 
 const runtime: NetSphereRuntime = {
   open: false,
@@ -211,11 +210,6 @@ function storageSet(storage: Storage, key: string, value: string): void {
   }
 }
 
-export const _test_storage = {
-  storageGet,
-  storageSet,
-};
-
 function randomId(prefix: string, groups: number): string {
   const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
   const bytes = new Uint8Array(groups * 4);
@@ -233,15 +227,6 @@ function cleanNetGen(value: string): string {
   let clean = value.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 32);
   if (clean && !clean.startsWith('NET-')) clean = `NET-${clean}`;
   return /^NET-[A-Z0-9-]{4,28}$/.test(clean) ? clean : '';
-}
-
-export function hashNetGen(value: string): string {
-  let hash = 0xcbf29ce484222325n;
-  for (let i = 0; i < value.length; i++) {
-    hash ^= BigInt(value.charCodeAt(i));
-    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
-  }
-  return hash.toString(36);
 }
 
 function consumeNetSphereKeyboardEvent(e: KeyboardEvent): void {
@@ -431,12 +416,10 @@ function progressFromState(state: GameState, player: Entity): NetSphereProgress 
   const totalMinutes = Math.floor(state.clock.totalMinutes);
   const run = ensureFloorRunState(state);
   const entry = currentFloorRunEntry(state);
-  let nicknameStr = '';
-  try { nicknameStr = localStorage.getItem('gigahrush_player_name') ?? ''; } catch {}
   return {
-    floorId: state.currentZ,
-    nickname: cleanNickname(nicknameStr) || 'Жилец',
-    floorName: floorRunEntryMapLabel(entry),
+    floorId: state.currentFloor,
+    nickname: cleanNickname(player.name ?? '') || 'Жилец',
+    floorName: FLOOR_NAMES[state.currentFloor] ?? `Этаж ${state.currentFloor}`,
     runSeed: run.runSeed,
     routeId: floorRunEntryRouteId(entry),
     floorZ: entry.z,
@@ -451,14 +434,7 @@ function progressFromState(state: GameState, player: Entity): NetSphereProgress 
     day: Math.max(0, Math.floor(totalMinutes / 1440)),
     hour: state.clock.hour,
     minute: state.clock.minute,
-    onlineSessions: parseInt(storageGet(localStorage, 'gigahrush_net_sessions_count') || '0', 10),
-    hostingRoomId: isOnlineHost() ? getOnlineRoomId() || undefined : undefined,
   };
-}
-
-let onChatMessageReceived: ((nickname: string, text: string, netGen?: string, createdAt?: number) => void) | null = null;
-export function setNetSphereChatHandler(cb: (nickname: string, text: string, netGen?: string, createdAt?: number) => void) {
-  onChatMessageReceived = cb;
 }
 
 function applyServerPayload(payload: unknown): void {
@@ -484,17 +460,12 @@ function applyServerPayload(payload: unknown): void {
     for (const line of data.chat) {
       if (!line || typeof line.id !== 'number' || typeof line.body !== 'string') continue;
       if (runtime.chat.some(existing => existing.id === line.id)) continue;
-      const cleanNick = typeof line.nickname === 'string' ? cleanNickname(line.nickname) || 'Жилец' : 'Жилец';
       runtime.chat.push({
         id: line.id,
-        nickname: cleanNick,
+        nickname: typeof line.nickname === 'string' ? cleanNickname(line.nickname) || 'Жилец' : 'Жилец',
         body: line.body,
         createdAt: typeof line.createdAt === 'number' ? line.createdAt : 0,
-        netGen: typeof line.netGen === 'string' ? line.netGen : undefined,
       });
-      if (onChatMessageReceived) {
-        onChatMessageReceived(cleanNick, line.body, typeof line.netGen === 'string' ? line.netGen : undefined, typeof line.createdAt === 'number' ? line.createdAt : 0);
-      }
       runtime.lastChatId = Math.max(runtime.lastChatId, line.id);
       added++;
     }
@@ -656,23 +627,6 @@ async function sendChat(body: string): Promise<void> {
   if (!clean || runtime.chatBusy) return;
   runtime.chatBusy = true;
   runtime.error = '';
-
-  if (onChatMessageReceived) {
-    const cleanNick = typeof runtime.profile?.nickname === 'string' 
-      ? cleanNickname(runtime.profile.nickname) || 'Жилец' 
-      : 'Жилец';
-    onChatMessageReceived(cleanNick, clean, runtime.netGen, Date.now());
-
-    if (isOnlineConnected()) {
-      sendOnlineMessage({
-        type: 'chat_ping',
-        netGen: runtime.netGen,
-        nickname: cleanNick,
-        text: clean,
-      });
-    }
-  }
-
   try {
     const data = await postJson('/chat', {
       netGen: runtime.netGen,
@@ -692,21 +646,6 @@ async function sendChat(body: string): Promise<void> {
   }
 }
 
-function addLocalSystemMessage(body: string): void {
-  runtime.chat.push({
-    // net-identity exception (rand.ts policy): local chat-message id needs collision resistance, not determinism
-    id: Date.now() + Math.random(),
-    nickname: 'СИСТЕМА',
-    body,
-    createdAt: Date.now()
-  });
-  if (runtime.chat.length > CHAT_LIMIT) {
-    const removed = runtime.chat.length - CHAT_LIMIT;
-    runtime.chat.splice(0, removed);
-  }
-  runtime.chatScroll = 0;
-}
-
 function submitDraft(): void {
   const draft = runtime.draft.trim();
   runtime.draft = '';
@@ -714,70 +653,43 @@ function submitDraft(): void {
   if (draft.startsWith('/')) {
     const [command, ...parts] = draft.split(/\s+/);
     const arg = parts.join(' ');
-    
-    switch (command) {
-      case '/netgen':
-      case '/ген': {
-        const next = cleanNetGen(arg);
-        if (!next) {
-          addLocalSystemMessage('Ошибка: нужен NET-XXXX-XXXX-XXXX');
-          return;
-        }
-        runtime.netGen = next;
-        runtime.profile = null;
-        runtime.chat = [];
-        runtime.events = [];
-        runtime.chatScroll = 0;
-        runtime.lastChatId = 0;
-        storageSet(localStorage, NET_GEN_KEY, runtime.netGen);
-        runtime.nextHeartbeatAt = 0;
-        runtime.nextPollAt = 0;
-        addLocalSystemMessage('НЕТ-ГЕН изменен.');
+    if (command === '/netgen' || command === '/ген') {
+      const next = cleanNetGen(arg);
+      if (!next) {
+        runtime.error = 'НЕТ-ГЕН: нужен NET-XXXX-XXXX-XXXX';
         return;
       }
-      case '/new': {
-        runtime.netGen = randomId('NET', 3);
-        runtime.profile = null;
-        runtime.chat = [];
-        runtime.events = [];
-        runtime.chatScroll = 0;
-        runtime.lastChatId = 0;
-        storageSet(localStorage, NET_GEN_KEY, runtime.netGen);
-        runtime.nextHeartbeatAt = 0;
-        runtime.nextPollAt = 0;
-        addLocalSystemMessage('Сгенерирован новый НЕТ-ГЕН.');
-        return;
-      }
-      case '/clear': {
-        runtime.chat = [];
-        runtime.chatScroll = 0;
-        runtime.lastChatId = 0;
-        return;
-      }
-      case '/host': {
-        const roomId = startOnlineHost();
-        addLocalSystemMessage(`Хост запущен. Код комнаты: ${roomId}`);
-        return;
-      }
-      case '/join': {
-        const roomToJoin = arg || runtime.stats?.randomRoomId;
-        if (!roomToJoin) {
-          addLocalSystemMessage('Укажите код комнаты: /join CODE (или подождите пока кто-то откроет хост)');
-          return;
-        }
-        joinOnlinePeer(roomToJoin);
-        addLocalSystemMessage(`Подключение к комнате ${roomToJoin}...`);
-        return;
-      }
-      case '/help': {
-        addLocalSystemMessage('Команды: /host, /join CODE, /netgen, /new, /clear, /help');
-        return;
-      }
-      default: {
-        addLocalSystemMessage('Неизвестная команда. Введите /help');
-        return;
-      }
+      runtime.netGen = next;
+      runtime.profile = null;
+      runtime.chat = [];
+      runtime.events = [];
+      runtime.chatScroll = 0;
+      runtime.lastChatId = 0;
+      storageSet(localStorage, NET_GEN_KEY, runtime.netGen);
+      runtime.nextHeartbeatAt = 0;
+      runtime.nextPollAt = 0;
+      return;
     }
+    if (command === '/new') {
+      runtime.netGen = randomId('NET', 3);
+      runtime.profile = null;
+      runtime.chat = [];
+      runtime.events = [];
+      runtime.chatScroll = 0;
+      runtime.lastChatId = 0;
+      storageSet(localStorage, NET_GEN_KEY, runtime.netGen);
+      runtime.nextHeartbeatAt = 0;
+      runtime.nextPollAt = 0;
+      return;
+    }
+    if (command === '/clear') {
+      runtime.chat = [];
+      runtime.chatScroll = 0;
+      runtime.lastChatId = 0;
+      return;
+    }
+    runtime.error = 'Команды: /netgen, /new, /clear';
+    return;
   }
   void sendChat(draft);
 }

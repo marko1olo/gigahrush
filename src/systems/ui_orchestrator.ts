@@ -29,9 +29,7 @@ export const UI_ELEMENT_DEFS = [
   { id: 'anomaly_hints', group: 'Аномалии', label: 'Смог и аномальные индикаторы', defaultEnabled: false, locked: false },
   { id: 'fps_counter', group: 'Отладка', label: 'FPS в левом углу', defaultEnabled: false, locked: false },
   { id: 'screen_fx', group: 'Экран', label: 'Нейрошум и помехи', defaultEnabled: true, locked: false },
-  { id: 'status_fx', group: 'Экран', label: 'Косметические эффекты', defaultEnabled: true, locked: false },
   { id: 'npc_barks', group: 'Экран', label: 'Реплики NPC (баблы)', defaultEnabled: true, locked: false },
-  { id: 'text_glitch', group: 'Экран', label: 'Глитч текста', defaultEnabled: true, locked: false },
   { id: 'samosbor_text', group: 'Системное', label: 'Текст самосбора', defaultEnabled: true, locked: true },
   { id: 'credits', group: 'Системное', label: 'Титры и финальные экраны', defaultEnabled: true, locked: true },
 ] as const satisfies readonly UiElementDef[];
@@ -123,9 +121,6 @@ type UiSettings = Record<UiElementId, boolean> & {
   visualGeometryMode: VisualGeometryMode;
   lightingQualityMode: LightingQualityMode;
   crittersEnabled: boolean;
-  masterAudioEnabled: boolean;
-  musicVolume: number;
-  sfxVolume: number;
 } & Record<MapLegendToggleId, boolean>;
 
 export type MapLegendRow =
@@ -167,9 +162,7 @@ export const UI_PRESETS = [
       'hazard_warning',
       'minimap',
       'screen_fx',
-      'status_fx',
       'npc_barks',
-      'text_glitch',
     ],
   },
   {
@@ -183,9 +176,7 @@ export const UI_PRESETS = [
       'hazard_warning',
       'minimap',
       'screen_fx',
-      'status_fx',
       'npc_barks',
-      'text_glitch',
     ],
   },
   {
@@ -202,9 +193,7 @@ export const UI_PRESETS = [
       'messages',
       'minimap',
       'screen_fx',
-      'status_fx',
       'npc_barks',
-      'text_glitch',
     ],
   },
   {
@@ -220,9 +209,7 @@ export const UI_PRESETS = [
       'minimap',
       'route_hints',
       'screen_fx',
-      'status_fx',
       'npc_barks',
-      'text_glitch',
     ],
   },
   {
@@ -244,21 +231,14 @@ export const UI_PRESETS = [
       'status_hints',
       'anomaly_hints',
       'screen_fx',
-      'status_fx',
       'npc_barks',
-      'text_glitch',
     ],
   },
 ] as const satisfies readonly UiPresetDef[];
 
 export type UiPresetId = typeof UI_PRESETS[number]['id'];
 export const DEFAULT_UI_PRESET_ID: UiPresetId = 'novice';
-export type UiSettingsView = 'interface' | 'graphics' | 'audio';
-
-export const MASTER_AUDIO_DEFAULT = true;
-export const MUSIC_VOLUME_DEFAULT = 0.5;
-export const SFX_VOLUME_DEFAULT = 1.0;
-export const AUDIO_VOLUME_STEP = 0.1;
+export type UiSettingsView = 'interface' | 'graphics';
 
 const MOBILE_SETTINGS_ROWS = [
   { kind: 'mobile_sensitivity', id: 'mobile_look_sensitivity', group: 'Мобилка', label: 'Чувствительность обзора' },
@@ -278,16 +258,9 @@ const GRAPHICS_SETTINGS_ROWS = [
   { kind: 'critters', id: 'critters', group: 'Графика', label: 'Живность (мухи)' },
 ] as const;
 
-const AUDIO_SETTINGS_ROWS = [
-  { kind: 'master_audio', id: 'master_audio', group: 'Аудио', label: 'ОБЩИЙ ЗВУК' },
-  { kind: 'music_volume', id: 'music_volume', group: 'Аудио', label: 'Музыка и эмбиент' },
-  { kind: 'sfx_volume', id: 'sfx_volume', group: 'Аудио', label: 'Эффекты' },
-] as const;
-
 const UI_RESET_ROWS = {
   interface: { kind: 'reset_interface', id: 'reset_interface', group: 'Сервис', label: 'Сбросить интерфейс' },
   graphics: { kind: 'reset_graphics', id: 'reset_graphics', group: 'Сервис', label: 'Сбросить графику' },
-  audio: { kind: 'reset_audio', id: 'reset_audio', group: 'Сервис', label: 'Сбросить аудио' },
 } as const;
 
 export type UiSettingsRow =
@@ -295,7 +268,6 @@ export type UiSettingsRow =
   | { kind: 'preset'; preset: typeof UI_PRESETS[number] }
   | { kind: 'element'; element: typeof UI_ELEMENT_DEFS[number] }
   | typeof GRAPHICS_SETTINGS_ROWS[number]
-  | typeof AUDIO_SETTINGS_ROWS[number]
   | typeof GAMEPLAY_SETTINGS_ROWS[number]
   | typeof MOBILE_SETTINGS_ROWS[number];
 
@@ -333,9 +305,6 @@ function settingsFromEnabledIds(enabledIds: readonly UiElementId[]): UiSettings 
   out.visualGeometryMode = VISUAL_GEOMETRY_DEFAULT_MODE;
   out.lightingQualityMode = LIGHTING_QUALITY_DEFAULT_MODE;
   out.crittersEnabled = CRITTERS_ENABLED_DEFAULT;
-  out.masterAudioEnabled = MASTER_AUDIO_DEFAULT;
-  out.musicVolume = MUSIC_VOLUME_DEFAULT;
-  out.sfxVolume = SFX_VOLUME_DEFAULT;
   for (const def of MAP_LEGEND_TOGGLE_DEFS) out[def.id] = def.defaultEnabled;
   return out;
 }
@@ -367,9 +336,6 @@ function normalizeUiSettings(raw: unknown): UiSettings {
   out.visualGeometryMode = normalizeVisualGeometryMode(src.visualGeometryMode);
   out.lightingQualityMode = normalizeLightingQualityMode(src.lightingQualityMode);
   out.crittersEnabled = typeof src.crittersEnabled === 'boolean' ? src.crittersEnabled : CRITTERS_ENABLED_DEFAULT;
-  out.masterAudioEnabled = typeof src.masterAudioEnabled === 'boolean' ? src.masterAudioEnabled : MASTER_AUDIO_DEFAULT;
-  out.musicVolume = normalizeVolume(src.musicVolume, MUSIC_VOLUME_DEFAULT);
-  out.sfxVolume = normalizeVolume(src.sfxVolume, SFX_VOLUME_DEFAULT);
   for (const def of MAP_LEGEND_TOGGLE_DEFS) {
     const value = src[def.id];
     if (typeof value === 'boolean') out[def.id] = value;
@@ -430,11 +396,6 @@ function cameraFovStepIndex(value: number): number {
   const steps = Math.round((CAMERA_FOV_MAX_DEGREES - CAMERA_FOV_MIN_DEGREES) / CAMERA_FOV_STEP_DEGREES) + 1;
   const normalized = normalizeCameraFovDegrees(value);
   return Math.max(0, Math.min(steps - 1, Math.round((normalized - CAMERA_FOV_MIN_DEGREES) / CAMERA_FOV_STEP_DEGREES)));
-}
-
-function normalizeVolume(value: unknown, def: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return def;
-  return Math.max(0, Math.min(1, value));
 }
 
 function loadUiSettings(): UiSettings {
@@ -667,50 +628,6 @@ export function resetGraphicsSettings(): void {
   saveUiSettings();
 }
 
-export function masterAudioEnabled(): boolean {
-  if (typeof settings.masterAudioEnabled !== 'boolean') settings.masterAudioEnabled = MASTER_AUDIO_DEFAULT;
-  return settings.masterAudioEnabled;
-}
-
-export function toggleMasterAudioEnabled(): boolean {
-  settings.masterAudioEnabled = !masterAudioEnabled();
-  saveUiSettings();
-  return settings.masterAudioEnabled;
-}
-
-export function musicVolume(): number {
-  if (typeof settings.musicVolume !== 'number') settings.musicVolume = MUSIC_VOLUME_DEFAULT;
-  return settings.musicVolume;
-}
-
-export function adjustMusicVolume(deltaSteps: number): number {
-  const v = musicVolume();
-  const next = Math.max(0, Math.min(1.0, v + deltaSteps * AUDIO_VOLUME_STEP));
-  settings.musicVolume = Math.round(next * 10) / 10;
-  saveUiSettings();
-  return settings.musicVolume;
-}
-
-export function sfxVolume(): number {
-  if (typeof settings.sfxVolume !== 'number') settings.sfxVolume = SFX_VOLUME_DEFAULT;
-  return settings.sfxVolume;
-}
-
-export function adjustSfxVolume(deltaSteps: number): number {
-  const v = sfxVolume();
-  const next = Math.max(0, Math.min(1.0, v + deltaSteps * AUDIO_VOLUME_STEP));
-  settings.sfxVolume = Math.round(next * 10) / 10;
-  saveUiSettings();
-  return settings.sfxVolume;
-}
-
-export function resetAudioSettings(): void {
-  settings.masterAudioEnabled = MASTER_AUDIO_DEFAULT;
-  settings.musicVolume = MUSIC_VOLUME_DEFAULT;
-  settings.sfxVolume = SFX_VOLUME_DEFAULT;
-  saveUiSettings();
-}
-
 
 export function crittersEnabled(): boolean {
   if (typeof settings.crittersEnabled !== 'boolean') settings.crittersEnabled = CRITTERS_ENABLED_DEFAULT;
@@ -828,7 +745,6 @@ export function activeUiPresetId(): UiPresetId | undefined {
 
 export function uiSettingsRowCount(view: UiSettingsView = 'interface'): number {
   if (view === 'graphics') return 1 + GRAPHICS_SETTINGS_ROWS.length;
-  if (view === 'audio') return 1 + AUDIO_SETTINGS_ROWS.length;
   return 1 + UI_PRESETS.length + UI_ELEMENT_DEFS.length + GAMEPLAY_SETTINGS_ROWS.length + MOBILE_SETTINGS_ROWS.length;
 }
 
@@ -837,7 +753,6 @@ export function uiSettingsRowAt(index: number, view: UiSettingsView = 'interface
   if (index === 0) return UI_RESET_ROWS[view];
   const localIndex = index - 1;
   if (view === 'graphics') return GRAPHICS_SETTINGS_ROWS[localIndex];
-  if (view === 'audio') return AUDIO_SETTINGS_ROWS[localIndex];
   if (localIndex < UI_PRESETS.length) return { kind: 'preset', preset: UI_PRESETS[localIndex] };
   const element = UI_ELEMENT_DEFS[localIndex - UI_PRESETS.length];
   if (element) return { kind: 'element', element };

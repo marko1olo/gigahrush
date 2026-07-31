@@ -59,26 +59,24 @@ test('stampBlackHandMark fails on invalid cells like ABYSS', () => {
   assert.equal(stamped, false);
 });
 
-test('stampBlackHandMark enforces the black-hand mark cell cap', () => {
+test('stampBlackHandMark limits to BLACK_HAND_MARK_CELL_CAP capacity', () => {
   const world = new World();
 
-  // Universal cap check: stamp well past any reasonable cap; the system bounds internally.
-  // No hardcoded cap literal — the cap can grow without breaking this test.
-  const attempts = 256;
+  // BLACK_HAND_MARK_CELL_CAP is 48
   let stampedCount = 0;
-  for (let i = 0; i < attempts; i++) {
+  for (let i = 0; i < 60; i++) {
     world.cells[world.idx(i, 0)] = Cell.FLOOR;
-    if (stampBlackHandMark(world, i, 0, 12345)) stampedCount++;
+    if (stampBlackHandMark(world, i, 0, 12345)) {
+      stampedCount++;
+    }
   }
 
+  assert.equal(stampedCount, 48);
   const cells = getBlackHandMarkCells(world);
-  assert.ok(stampedCount > 0 && stampedCount < attempts, `cap must bound stamps below ${attempts} attempts, got ${stampedCount}`);
-  assert.equal(cells.length, stampedCount, 'stored marks must equal successful stamps');
+  assert.equal(cells.length, 48);
 
-  // Once at cap, a further stamp on a fresh valid FLOOR cell must fail (cap, not invalid-cell).
-  const overCapIdx = attempts + 1;
-  world.cells[world.idx(overCapIdx, 0)] = Cell.FLOOR;
-  const overCapStamped = stampBlackHandMark(world, overCapIdx, 0, 12345);
+  // Checking that further stamps fail
+  const overCapStamped = stampBlackHandMark(world, 61, 0, 12345);
   assert.equal(overCapStamped, false);
 });
 

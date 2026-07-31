@@ -29,19 +29,19 @@
 ```bash
 git status --short
 npm run check
-git add -A
-git commit -m "<краткое описание>"
-git push origin HEAD
-git rev-parse HEAD
-git ls-remote origin HEAD
 npm run itch:build
 unzip -l itch/gigahrush-itch.zip | sed -n '1,40p'
 npm run pikabu:build
 unzip -l pikabu/gigahrush-pikabu.zip | sed -n '1,40p'
+npx wrangler whoami
+git add -A
+git status --short
+git commit -m "<краткое описание>"
+git push origin HEAD
+git rev-parse HEAD
+git ls-remote origin HEAD
 npm run cf:deploy
-npm run gh-pages:deploy
 curl -fsSI "https://gigahrush.bileter.workers.dev/?v=$(git rev-parse --short HEAD)"
-curl -fsSI "https://gigahrush.github.io/"
 curl -fsS "https://gigahrush.bileter.workers.dev/api/net/stats" | head -c 500
 ```
 
@@ -247,10 +247,6 @@ git pull --rebase --autostash origin "$(git branch --show-current)"
 npm run cf:deploy
 ```
 
-**Особенности Cloudflare-сборки (Онлайн версия):**
-В онлайн-сборку (режим `cloudflare`) **не включается марковское ядро генерации текста** из-за жестких ограничений Cloudflare Workers на размер ассета (максимум 25 МБ). Вместо него в `vite.config.ts` подставляется пустой стаб `markov_compiled_matrix_stub.ts`. Из-за этого при обычных разговорах NPC отдают заглушку: "в онлайн версии общайся в чате нет сферы через N и играй с друзьями через /host /join". Однако их процедурные занятия (баркоды, описания квестов) продолжат работать корректно.
-В оффлайн/сингл-билдах (`itch:build`, `pikabu:build`, `build`) большое марковское ядро сохраняется в полном объёме.
-
 `cf:deploy` сам запускает `npm run build` и затем `wrangler deploy`, используя `wrangler.jsonc`.
 
 Если проект также подключен к GitHub auto-deploy в Cloudflare, все равно проверяй живой сайт. GitHub push сам по себе не доказывает, что Worker уже обновился.
@@ -262,16 +258,6 @@ git status --short
 ```
 
 Если `npm run cf:deploy` изменил tracked-файл, например `dist/index.html`, значит коммит не совпадает с развернутым состоянием. В таком случае закоммить это изменение, снова push, снова проверь совпадение HEAD с `origin`, затем повтори deploy.
-
-## 6.5. GitHub Pages Deploy
-
-Если пользователь просит обновить GitHub Pages (для тестеров или друзей по бесплатной ссылке), запусти:
-
-```bash
-npm run gh-pages:deploy
-```
-
-Это соберет проект с правильным `base` URL и отправит папку `dist` в отдельную организацию GIGAHRUSH. Игра будет доступна по идеальному адресу `https://gigahrush.github.io/`.
 
 ## 7. Проверка Живого Сайта
 

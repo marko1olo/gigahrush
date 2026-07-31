@@ -24,12 +24,14 @@ import {
 import { World } from '../../core/world';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef } from '../../data/plot';
-import { canPlaceRoom, connectProtectedRoom, connectToNetwork, findClearArea, protectRoom, stampRoom } from '../shared';
+import {
+  canPlaceRoom, connectProtectedRoom, connectToNetwork, findClearArea,
+  protectRoom, rng, stampRoom,
+} from '../shared';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { MONSTERS } from '../../entities/monster';
 import { Spr } from '../../render/sprite_index';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng, irand } from '../../core/rand';
 
 export interface MaintContentCtx {
   world: World;
@@ -57,8 +59,8 @@ export function findMaintArea(
   if (direct) return direct;
 
   for (let i = 0; i < 2400; i++) {
-    const x = irand(8, W - w - 8);
-    const y = irand(8, W - h - 8);
+    const x = rng(8, W - w - 8);
+    const y = rng(8, W - h - 8);
     if (canPlaceRoom(world, x, y, w, h)) return { x, y };
   }
 
@@ -69,8 +71,8 @@ export function findMaintArea(
   }
 
   for (let i = 0; i < 2400; i++) {
-    const a = rng() * Math.PI * 2;
-    const d = irand(minDist, maxDist);
+    const a = Math.random() * Math.PI * 2;
+    const d = rng(minDist, maxDist);
     const x = world.wrap(cx + Math.round(Math.cos(a) * d));
     const y = world.wrap(cy + Math.round(Math.sin(a) * d));
     if (canReserve(x, y)) return { x, y };
@@ -169,8 +171,8 @@ export function setFeature(world: World, x: number, y: number, feature: Feature)
 export function dropItems(ctx: MaintContentCtx, room: Room, itemIds: string[]): void {
   for (const defId of itemIds) {
     for (let attempt = 0; attempt < 40; attempt++) {
-      const x = room.x + irand(1, Math.max(1, room.w - 2));
-      const y = room.y + irand(1, Math.max(1, room.h - 2));
+      const x = room.x + rng(1, Math.max(1, room.w - 2));
+      const y = room.y + rng(1, Math.max(1, room.h - 2));
       const ci = ctx.world.idx(x, y);
       if (ctx.world.cells[ci] !== Cell.FLOOR && ctx.world.cells[ci] !== Cell.WATER) continue;
       ctx.entities.push({
@@ -204,10 +206,10 @@ export function spawnAmbientNpc(
 ): void {
   ctx.entities.push({
     id: ctx.nextId.v++, type: EntityType.NPC,
-    x: x + 0.5, y: y + 0.5, angle: rng() * Math.PI * 2, pitch: 0,
+    x: x + 0.5, y: y + 0.5, angle: Math.random() * Math.PI * 2, pitch: 0,
     alive: true, speed: 1.0, sprite: occupation,
     name, isFemale: name.endsWith('а') || name.endsWith('я'),
-    needs: freshNeeds(), hp: 90, maxHp: 90, money: irand(5, 35),
+    needs: freshNeeds(), hp: 90, maxHp: 90, money: rng(5, 35),
     ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
     inventory,
     faction, occupation, questId: -1,
@@ -224,7 +226,7 @@ export function spawnMonstersNear(
     let my = -1;
     for (let attempt = 0; attempt < 80; attempt++) {
       const a = (Math.PI * 2 * (i + attempt / 13)) / kinds.length;
-      const d = irand(radiusMin, radiusMax);
+      const d = rng(radiusMin, radiusMax);
       const tx = ctx.world.wrap(x + Math.round(Math.cos(a) * d));
       const ty = ctx.world.wrap(y + Math.round(Math.sin(a) * d));
       if (ctx.world.cells[ctx.world.idx(tx, ty)] === Cell.FLOOR) {

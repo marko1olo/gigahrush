@@ -1,9 +1,8 @@
-import { currentFloorRunEntry } from '../../systems/procedural_floors';
 /* -- AG110 Paritel steam bridge: valve-count visibility combat -- */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
-  AIGoal, Cell, EntityType, Feature, MonsterKind, RoomType, Tex, W,
+  AIGoal, Cell, EntityType, Feature, FloorLevel, MonsterKind, RoomType, Tex, W,
   msg,
   type Entity, type GameState, type Room, type WorldEventSeverity,
 } from '../../core/types';
@@ -16,7 +15,6 @@ import {
   type MaintContentCtx, dropItems, findMaintArea, openTile, setFeature, setWater,
   stampMaintRoom,
 } from './content_helpers';
-import { rng } from '../../core/rand';
 
 const ROOM_PREFIX = 'Парителев мост';
 const THREAT_NAME = 'Паритель у счетного пара';
@@ -219,7 +217,7 @@ function publishParitelEvent(
     data: {
       system: 'paritel_steam_bridge',
       pressure: pressureFromRoom(room),
-      roomDefId: room.name,
+      roomName: room.name,
       ...data,
     },
   });
@@ -307,7 +305,7 @@ function spawnBridgeMonster(ctx: MaintContentCtx, kind: MonsterKind, x: number, 
   const monster: Entity = {
     id: ctx.nextId.v++, type: EntityType.MONSTER,
     x: x + 0.5, y: y + 0.5,
-    angle: rng() * Math.PI * 2, pitch: 0,
+    angle: Math.random() * Math.PI * 2, pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, zoneLevel) * (name ? 0.88 : 1),
     sprite: def.sprite,
@@ -336,7 +334,7 @@ export function tryUseParitelSteamBridge(
 ): boolean {
   const room = valveRoomAtLook(world, lookX, lookY);
   if (!room) return false;
-  if (currentFloorRunEntry(state)!.themeTags.includes('maintenance')) return false;
+  if (state.currentFloor !== FloorLevel.MAINTENANCE) return false;
   if (valveCooldownState !== state || nextValveUseAt > state.time + 10) {
     valveCooldownState = state;
     nextValveUseAt = 0;
@@ -373,7 +371,7 @@ export function updateParitelSteamBridge(
   state: GameState,
   dt: number,
 ): void {
-  if (dt <= 0 || currentFloorRunEntry(state)!.themeTags.includes('maintenance')) return;
+  if (dt <= 0 || state.currentFloor !== FloorLevel.MAINTENANCE) return;
   if (steamTickState !== state || nextSteamTickAt > state.time + 10) {
     steamTickState = state;
     nextSteamTickAt = 0;

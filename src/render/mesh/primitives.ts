@@ -5,7 +5,6 @@ import type {
   VisualModelDef,
   VisualModelId,
   VisualModelPart,
-  VisualModelBoxPart,
 } from '../../data/visual_models';
 import { meshMaterialColor } from './materials';
 
@@ -83,48 +82,24 @@ function partColor(part: VisualModelPart, modelId: VisualModelId, partIndex: num
   );
 }
 
-function addBox(draft: MeshDraft, position: MeshVec3, size: MeshVec3, color: Rgba, yaw = 0, pitch = 0, roll = 0): void {
+function addBox(draft: MeshDraft, position: MeshVec3, size: MeshVec3, color: Rgba): void {
   if (!finitePositive(size[0]) || !finitePositive(size[1]) || !finitePositive(size[2])) return;
   const hx = size[0] * 0.5;
   const hy = size[1] * 0.5;
   const hz = size[2] * 0.5;
+  const x0 = position[0] - hx;
+  const x1 = position[0] + hx;
+  const y0 = position[1] - hy;
+  const y1 = position[1] + hy;
+  const z0 = position[2] - hz;
+  const z1 = position[2] + hz;
 
-  const cx = position[0], cy = position[1], cz = position[2];
-  const cyaw = Math.cos(yaw), syaw = Math.sin(yaw);
-  const cp = Math.cos(pitch), sp = Math.sin(pitch);
-  const cr = Math.cos(roll), sr = Math.sin(roll);
-
-  const rot = (dx: number, dy: number, dz: number): MeshVec3 => {
-    let nx = dx, ny = dy, nz = dz;
-    if (roll) {
-      const tx = nx * cr - ny * sr;
-      const ty = nx * sr + ny * cr;
-      nx = tx; ny = ty;
-    }
-    if (pitch) {
-      const ty = ny * cp - nz * sp;
-      const tz = ny * sp + nz * cp;
-      ny = ty; nz = tz;
-    }
-    if (yaw) {
-      const tx = nx * cyaw + nz * syaw;
-      const tz = -nx * syaw + nz * cyaw;
-      nx = tx; nz = tz;
-    }
-    return [cx + nx, cy + ny, cz + nz];
-  };
-
-  const rotN = (nx: number, ny: number, nz: number): MeshVec3 => {
-    const v = rot(nx, ny, nz);
-    return [v[0] - cx, v[1] - cy, v[2] - cz];
-  };
-
-  pushQuad(draft, rot(hx, -hy, -hz), rot(hx, hy, -hz), rot(hx, hy, hz), rot(hx, -hy, hz), rotN(1, 0, 0), color);
-  pushQuad(draft, rot(-hx, hy, -hz), rot(-hx, -hy, -hz), rot(-hx, -hy, hz), rot(-hx, hy, hz), rotN(-1, 0, 0), color);
-  pushQuad(draft, rot(-hx, hy, -hz), rot(hx, hy, -hz), rot(hx, hy, hz), rot(-hx, hy, hz), rotN(0, 1, 0), color);
-  pushQuad(draft, rot(hx, -hy, -hz), rot(-hx, -hy, -hz), rot(-hx, -hy, hz), rot(hx, -hy, hz), rotN(0, -1, 0), color);
-  pushQuad(draft, rot(-hx, -hy, hz), rot(hx, -hy, hz), rot(hx, hy, hz), rot(-hx, hy, hz), rotN(0, 0, 1), color);
-  pushQuad(draft, rot(-hx, hy, -hz), rot(hx, hy, -hz), rot(hx, -hy, -hz), rot(-hx, -hy, -hz), rotN(0, 0, -1), color);
+  pushQuad(draft, [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1], [1, 0, 0], color);
+  pushQuad(draft, [x0, y1, z0], [x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [-1, 0, 0], color);
+  pushQuad(draft, [x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1], [0, 1, 0], color);
+  pushQuad(draft, [x1, y0, z0], [x0, y0, z0], [x0, y0, z1], [x1, y0, z1], [0, -1, 0], color);
+  pushQuad(draft, [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, 0, 1], color);
+  pushQuad(draft, [x0, y1, z0], [x1, y1, z0], [x1, y0, z0], [x0, y0, z0], [0, 0, -1], color);
 }
 
 function cylinderPoint(axis: 'x' | 'y' | 'z', center: MeshVec3, u: number, v: number, t: number): MeshVec3 {
@@ -289,13 +264,9 @@ function addVisualModelPart(draft: MeshDraft, modelId: VisualModelId, part: Visu
   const color = partColor(part, modelId, partIndex, variantSeed);
   switch (part.kind) {
     case 'box':
-    case 'slab': {
-      const yaw = (part as VisualModelBoxPart).yaw ?? 0;
-      const pitch = (part as VisualModelBoxPart).pitch ?? 0;
-      const roll = (part as VisualModelBoxPart).roll ?? 0;
-      addBox(draft, part.position, part.size, color, yaw, pitch, roll);
+    case 'slab':
+      addBox(draft, part.position, part.size, color);
       break;
-    }
     case 'cylinder':
       addCylinder(
         draft,
@@ -348,9 +319,8 @@ function finishTemplate(modelId: VisualModelId, draft: MeshDraft): MeshTemplate 
 export function buildMeshTemplate(def: VisualModelDef, variantSeed = 0): MeshTemplate {
   const draft = emptyDraft();
   const seed = hashSeed(`${def.id}:${def.variantSalt ?? 0}`, variantSeed);
-  const parts = typeof def.parts === 'function' ? def.parts(seed) : def.parts;
-  for (let i = 0; i < parts.length; i++) {
-    addVisualModelPart(draft, def.id, parts[i], i, seed);
+  for (let i = 0; i < def.parts.length; i++) {
+    addVisualModelPart(draft, def.id, def.parts[i], i, seed);
   }
   const template = finishTemplate(def.id, draft);
   if (template.boundsRadius > 0) return template;

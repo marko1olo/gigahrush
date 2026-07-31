@@ -5,6 +5,7 @@ import {
   Cell,
   EntityType,
   Feature,
+  FloorLevel,
   LiftDirection,
   MonsterKind,
   type Entity,
@@ -13,7 +14,7 @@ import {
   msg,
 } from '../core/types';
 import { World } from '../core/world';
-import { rng, hashSeed, randSeed } from '../core/rand';
+import { hashSeed, randSeed } from '../core/rand';
 import { MONSTERS } from '../entities/monster';
 import { monsterSpr } from '../render/sprite_index';
 import { stampMark, MarkType } from './surface_marks';
@@ -31,7 +32,7 @@ export interface LiftArachnaWarningSnapshot {
 
 interface ActiveLiftArachna {
   key: string;
-  z: number;
+  floor: FloorLevel;
   zoneId: number;
   liftX: number;
   liftY: number;
@@ -85,7 +86,7 @@ function normalizeActive(input: Partial<ActiveLiftArachna> | null | undefined): 
   if (!input || typeof input.key !== 'string') return null;
   return {
     key: input.key,
-    z: typeof input.z === 'number' ? input.z : 100,
+    floor: typeof input.floor === 'number' ? input.floor : FloorLevel.LIVING,
     zoneId: typeof input.zoneId === 'number' ? input.zoneId : -1,
     liftX: typeof input.liftX === 'number' ? input.liftX : 0,
     liftY: typeof input.liftY === 'number' ? input.liftY : 0,
@@ -149,7 +150,7 @@ function liftArachnaKey(state: GameState, ctx: LiftArachnaArrivalCtx): string {
   if (ctx.activeInstance) return `instance:${ctx.activeInstance.id}:${ctx.activeInstance.seed}:${dir}`;
   if (ctx.runEntry?.spec) return `proc:${ctx.runEntry.spec.key}:${dir}`;
   if (ctx.runEntry?.designFloorId) return `design:${ctx.runEntry.designFloorId}:${dir}`;
-  return `design:${state.currentZ}:${dir}`;
+  return `story:${state.currentFloor}:${dir}`;
 }
 
 function liftArachnaThreat(ctx: LiftArachnaArrivalCtx): number {
@@ -254,13 +255,13 @@ export function tryStartLiftArachnaEncounter(
 
   const chance = liftArachnaChance(ctx);
   const seed = hashSeed(key, Math.floor(state.time * 1000));
-  if (rng() >= chance) return false;
+  if (Math.random() >= chance) return false;
 
   const secondWarning = store.warnedCount > 0;
   const threatLevel = liftArachnaThreat(ctx);
   const active: ActiveLiftArachna = {
     key,
-    z: state.currentZ,
+    floor: state.currentFloor,
     zoneId: lift.zoneId,
     liftX: lift.x,
     liftY: lift.y,
@@ -450,7 +451,7 @@ export function notifyLiftArachnaNoise(
   weaponId: string,
 ): void {
   const active = ensureLiftArachnaState(state).active;
-  if (!active || active.sprung || active.z !== state.currentZ) return;
+  if (!active || active.sprung || active.floor !== state.currentFloor) return;
   if (!loudWeapon(weaponId)) return;
   if (world.dist2(player.x, player.y, active.liftX + 0.5, active.liftY + 0.5) > RETREAT_DIST2) return;
 
@@ -485,7 +486,7 @@ export function updateLiftArachnaEncounter(
 ): void {
   const active = ensureLiftArachnaState(state).active;
   if (!active) return;
-  if (active.z !== state.currentZ) {
+  if (active.floor !== state.currentFloor) {
     ensureLiftArachnaState(state).active = null;
     return;
   }
@@ -543,7 +544,7 @@ export function updateLiftArachnaEncounter(
 
 export function getLiftArachnaWarningSnapshot(state: GameState): LiftArachnaWarningSnapshot | null {
   const active = ensureLiftArachnaState(state).active;
-  if (!active || active.sprung || active.z !== state.currentZ) return null;
+  if (!active || active.sprung || active.floor !== state.currentFloor) return null;
   return {
     secondsLeft: Math.max(0, Math.ceil(active.dropAt - state.time)),
     zoneId: active.zoneId,

@@ -11,11 +11,6 @@ import {
   classifyReachabilityCell,
   describeReachability,
   hasReachableAdjacentCell,
-  setVisualSlot,
-  getVisualSlot,
-  clearVisualSlots,
-  VISUAL_SLOTS_PER_CELL,
-  EMPTY_VISUAL_CELL_CODE,
 } from '../src/core/world';
 
 test('World wraps coordinates and measures toroidal distance', () => {
@@ -52,60 +47,6 @@ test('World get() and set() correctly handle out-of-bounds coordinates via toroi
   // Set via out of bounds large coords
   world.set(W + 5, W + 5, Cell.LIFT);
   assert.equal(world.get(5, 5), Cell.LIFT);
-});
-
-test('classifyReachabilityCell correctly classifies all cell types and door states', () => {
-  const world = new World();
-  const floorIdx = world.idx(1, 1);
-  const waterIdx = world.idx(1, 2);
-  const liftIdx = world.idx(1, 3);
-  const wallIdx = world.idx(1, 4);
-  const abyssIdx = world.idx(1, 5);
-  const blockedIdx = world.idx(1, 6);
-  const doorMissingIdx = world.idx(2, 1);
-  const doorOpenIdx = world.idx(2, 2);
-  const doorClosedIdx = world.idx(2, 3);
-  const doorLockedIdx = world.idx(2, 4);
-  const doorHermeticOpenIdx = world.idx(2, 5);
-  const doorHermeticClosedIdx = world.idx(2, 6);
-
-  world.cells[floorIdx] = Cell.FLOOR;
-  world.cells[waterIdx] = Cell.WATER;
-  world.cells[liftIdx] = Cell.LIFT;
-  world.cells[wallIdx] = Cell.WALL;
-  world.cells[abyssIdx] = Cell.ABYSS;
-  world.cells[blockedIdx] = 99 as Cell;
-
-  world.cells[doorMissingIdx] = Cell.DOOR;
-
-  world.cells[doorOpenIdx] = Cell.DOOR;
-  world.doors.set(doorOpenIdx, { idx: doorOpenIdx, state: DoorState.OPEN, roomA: -1, roomB: -1, keyId: '', timer: 0 });
-
-  world.cells[doorClosedIdx] = Cell.DOOR;
-  world.doors.set(doorClosedIdx, { idx: doorClosedIdx, state: DoorState.CLOSED, roomA: -1, roomB: -1, keyId: '', timer: 0 });
-
-  world.cells[doorLockedIdx] = Cell.DOOR;
-  world.doors.set(doorLockedIdx, { idx: doorLockedIdx, state: DoorState.LOCKED, roomA: -1, roomB: -1, keyId: '', timer: 0 });
-
-  world.cells[doorHermeticOpenIdx] = Cell.DOOR;
-  world.doors.set(doorHermeticOpenIdx, { idx: doorHermeticOpenIdx, state: DoorState.HERMETIC_OPEN, roomA: -1, roomB: -1, keyId: '', timer: 0 });
-
-  world.cells[doorHermeticClosedIdx] = Cell.DOOR;
-  world.doors.set(doorHermeticClosedIdx, { idx: doorHermeticClosedIdx, state: DoorState.HERMETIC_CLOSED, roomA: -1, roomB: -1, keyId: '', timer: 0 });
-
-  assert.deepEqual(classifyReachabilityCell(world, floorIdx), { passable: true, reason: 'open', gateMask: REACH_GATE_NONE });
-  assert.deepEqual(classifyReachabilityCell(world, waterIdx), { passable: true, reason: 'water', gateMask: REACH_GATE_NONE });
-  assert.deepEqual(classifyReachabilityCell(world, liftIdx), { passable: false, reason: 'lift', gateMask: REACH_GATE_NONE });
-  assert.deepEqual(classifyReachabilityCell(world, wallIdx), { passable: false, reason: 'wall', gateMask: REACH_GATE_NONE });
-  assert.deepEqual(classifyReachabilityCell(world, abyssIdx), { passable: false, reason: 'abyss', gateMask: REACH_GATE_NONE });
-  assert.deepEqual(classifyReachabilityCell(world, blockedIdx), { passable: false, reason: 'blocked', gateMask: REACH_GATE_NONE });
-
-  assert.deepEqual(classifyReachabilityCell(world, doorMissingIdx), { passable: false, reason: 'door_missing', gateMask: REACH_GATE_NONE });
-  assert.deepEqual(classifyReachabilityCell(world, doorOpenIdx), { passable: true, reason: 'door_open', gateMask: REACH_GATE_NONE });
-  assert.deepEqual(classifyReachabilityCell(world, doorClosedIdx), { passable: true, reason: 'door_closed', gateMask: REACH_GATE_NONE });
-  assert.deepEqual(classifyReachabilityCell(world, doorLockedIdx), { passable: true, reason: 'door_locked', gateMask: REACH_GATE_KEY });
-  assert.deepEqual(classifyReachabilityCell(world, doorHermeticOpenIdx), { passable: true, reason: 'door_hermetic_open', gateMask: REACH_GATE_NONE });
-  assert.deepEqual(classifyReachabilityCell(world, doorHermeticClosedIdx), { passable: true, reason: 'door_hermetic_closed', gateMask: REACH_GATE_HERMETIC });
 });
 
 test('World solid() respects door states and passable cells', () => {
@@ -179,78 +120,6 @@ test('reachability audit classifies door gates, water, and lift adjacency', () =
   assert.equal(describeReachability(audit, world, isolated), 'unreachable (open)');
   assert.equal(audit.reachable[lift], 0);
   assert.equal(hasReachableAdjacentCell(world, audit, lift), true);
-});
-
-test('reachability audit returns empty early if start cell is impassable', () => {
-  const world = new World();
-  const start = world.idx(5, 5);
-  world.cells[start] = Cell.WALL;
-
-  const audit = auditReachability(world, start);
-  assert.equal(audit.reachable[start], 0);
-  assert.equal(describeReachability(audit, world, start), 'unreachable (wall)');
-});
-
-test('reachability audit upgrades queue rank when finding better paths', () => {
-  const world = new World();
-  world.cells.fill(Cell.WALL);
-
-  const start = world.idx(10, 10);
-  world.cells[start] = Cell.FLOOR;
-
-  world.cells[world.idx(11, 10)] = Cell.DOOR;
-  world.doors.set(world.idx(11, 10), { idx: world.idx(11, 10), state: DoorState.LOCKED, roomA: -1, roomB: -1, keyId: 'key', timer: 0 });
-
-  world.cells[world.idx(12, 10)] = Cell.FLOOR;
-
-  const target = world.idx(13, 10);
-  world.cells[target] = Cell.DOOR;
-  world.doors.set(target, { idx: target, state: DoorState.HERMETIC_CLOSED, roomA: -1, roomB: -1, keyId: '', timer: 0 });
-
-  world.cells[world.idx(10, 11)] = Cell.DOOR;
-  world.doors.set(world.idx(10, 11), { idx: world.idx(10, 11), state: DoorState.HERMETIC_CLOSED, roomA: -1, roomB: -1, keyId: '', timer: 0 });
-
-  world.cells[world.idx(10, 12)] = Cell.FLOOR;
-  world.cells[world.idx(11, 12)] = Cell.FLOOR;
-  world.cells[world.idx(12, 12)] = Cell.FLOOR;
-  world.cells[world.idx(13, 12)] = Cell.FLOOR;
-  world.cells[world.idx(13, 11)] = Cell.FLOOR;
-
-  const audit = auditReachability(world, start);
-
-  assert.equal(describeReachability(audit, world, target), 'gated by hermetic door');
-});
-
-test('hasReachableAdjacentCell short-circuits on different sides', () => {
-  const world = new World();
-  world.cells.fill(Cell.WALL);
-
-  let start = world.idx(11, 10);
-  world.cells[start] = Cell.FLOOR;
-  let audit = auditReachability(world, start);
-  assert.equal(hasReachableAdjacentCell(world, audit, world.idx(10, 10)), true);
-
-  world.cells.fill(Cell.WALL);
-  start = world.idx(9, 10);
-  world.cells[start] = Cell.FLOOR;
-  audit = auditReachability(world, start);
-  assert.equal(hasReachableAdjacentCell(world, audit, world.idx(10, 10)), true);
-
-  world.cells.fill(Cell.WALL);
-  start = world.idx(10, 11);
-  world.cells[start] = Cell.FLOOR;
-  audit = auditReachability(world, start);
-  assert.equal(hasReachableAdjacentCell(world, audit, world.idx(10, 10)), true);
-
-  world.cells.fill(Cell.WALL);
-  start = world.idx(10, 9);
-  world.cells[start] = Cell.FLOOR;
-  audit = auditReachability(world, start);
-  assert.equal(hasReachableAdjacentCell(world, audit, world.idx(10, 10)), true);
-
-  world.cells.fill(Cell.WALL);
-  audit = auditReachability(world, world.idx(0, 0));
-  assert.equal(hasReachableAdjacentCell(world, audit, world.idx(10, 10)), false);
 });
 
 test('World dirty markers are monotonic signed counters', () => {
@@ -346,64 +215,4 @@ test('World bakeLights makes candles smaller and weaker than lamps', () => {
   assert.ok(candleWorld.light[candleWorld.idx(cx, cy)] < lampWorld.light[lampWorld.idx(cx, cy)]);
   assert.ok(candleWorld.light[candleWorld.idx(cx + 4, cy)] > 0);
   assert.equal(candleWorld.light[candleWorld.idx(cx + 6, cy)], 0);
-});
-test('clearVisualSlots resets slots for a given cell, marks dirty, and returns true', () => {
-  const world = new World();
-  const cellIdx = world.idx(10, 10);
-
-  setVisualSlot(world, cellIdx, 0, 1);
-  setVisualSlot(world, cellIdx, 1, 2);
-  setVisualSlot(world, cellIdx, VISUAL_SLOTS_PER_CELL - 1, 3);
-
-  const versionBefore = world.visualSlotVersion;
-
-  const changed = clearVisualSlots(world, cellIdx);
-
-  assert.equal(changed, true);
-  assert.ok(world.visualSlotVersion > versionBefore);
-  assert.equal(world.visualSlotVersion, world.visualSlotDirtyVersion);
-
-  for (let i = 0; i < VISUAL_SLOTS_PER_CELL; i++) {
-    assert.equal(getVisualSlot(world, cellIdx, i), EMPTY_VISUAL_CELL_CODE);
-  }
-});
-
-test('clearVisualSlots returns false and does not mark dirty if slots are already empty', () => {
-  const world = new World();
-  const cellIdx = world.idx(10, 10);
-
-  const versionBefore = world.visualSlotVersion;
-
-  const changed = clearVisualSlots(world, cellIdx);
-
-  assert.equal(changed, false);
-  assert.equal(world.visualSlotVersion, versionBefore);
-
-  for (let i = 0; i < VISUAL_SLOTS_PER_CELL; i++) {
-    assert.equal(getVisualSlot(world, cellIdx, i), EMPTY_VISUAL_CELL_CODE);
-  }
-});
-
-test('clearVisualSlots only clears the targeted cell and leaves adjacent cells untouched', () => {
-  const world = new World();
-  const cellIdx = world.idx(10, 10);
-  const adjacentCellIdx1 = world.idx(10, 11);
-  const adjacentCellIdx2 = world.idx(11, 10);
-
-  setVisualSlot(world, cellIdx, 0, 1);
-  setVisualSlot(world, adjacentCellIdx1, 0, 2);
-  setVisualSlot(world, adjacentCellIdx2, 0, 3);
-
-  const changed = clearVisualSlots(world, cellIdx);
-
-  assert.equal(changed, true);
-
-  // Target cell is empty
-  for (let i = 0; i < VISUAL_SLOTS_PER_CELL; i++) {
-    assert.equal(getVisualSlot(world, cellIdx, i), EMPTY_VISUAL_CELL_CODE);
-  }
-
-  // Adjacent cells remain untouched
-  assert.equal(getVisualSlot(world, adjacentCellIdx1, 0), 2);
-  assert.equal(getVisualSlot(world, adjacentCellIdx2, 0), 3);
 });

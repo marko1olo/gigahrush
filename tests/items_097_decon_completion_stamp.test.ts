@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { getRecentEvents } from '../src/systems/events';
@@ -32,7 +32,7 @@ test('decon completion stamp is official cleanup paperwork', () => {
 
 test('decon completion stamp can be sold as cleanup proof in the living block', () => {
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 97 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 97 });
 
   assert.equal(addItem(player, STAMP_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter проверить');

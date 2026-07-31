@@ -1,5 +1,3 @@
-import { getPlotNpcCount } from '../src/data/npc_packages';
-import '../src/data/plot';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -9,6 +7,7 @@ import {
   Cell,
   EntityType,
   Faction,
+  FloorLevel,
   LiftDirection,
   Occupation,
   QuestType,
@@ -18,16 +17,15 @@ import {
   type Quest,
 } from '../src/core/types';
 import { ALIFE_POPULATION_CAPACITY } from '../src/data/alife_population_plan';
-import { getPlotNpcNumericId, getPlotNpcStringId,  getNpcPackageByPlotNpcId, npcPackageDisplayName } from '../src/data/npc_packages';
+import { getNpcPackageByPlotNpcId, npcPackageDisplayName } from '../src/data/npc_packages';
 import { PLOT_CHAIN } from '../src/data/plot';
 import { SCRIPTED_ARRIVALS } from '../src/data/scripted_arrivals';
 import { initFactionRelations } from '../src/data/relations';
-import { recordAlifeNpcDeath, setAlifeState, alifeForSave, isPlotNpcDead } from '../src/systems/alife';
+import { recordAlifeNpcDeath, setAlifeState, alifeForSave } from '../src/systems/alife';
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
 import { setFloorRunState } from '../src/systems/procedural_floors';
 import { updateScriptedArrivals } from '../src/systems/scripted_arrivals';
 import { addTestRoom, makeGameState, makeTestPlayer } from './helpers';
-import '../src/data/npc_plot_packages';
 
 function holdoutStepIndex(): number {
   const stepIndex = PLOT_CHAIN.findIndex(step => step.eventTags?.includes('hell_holdout'));
@@ -37,11 +35,11 @@ function holdoutStepIndex(): number {
 
 function makeHellState(overrides: Partial<GameState> = {}): GameState {
   const state = makeGameState({
-    currentZ: -36,
+    currentFloor: FloorLevel.HELL,
     worldEvents: createWorldEventState(),
     ...overrides,
   });
-  state.floorRun!.runSeed = 5;
+  setFloorRunState(state, { runSeed: 5, currentZ: -36, specs: {}, visited: {} }, FloorLevel.HELL);
   setAlifeState(state, { seed: 12345, total: 100_000 });
   return state;
 }
@@ -80,10 +78,9 @@ function makeHellWorld(): World {
   return world;
 }
 
-function plotNpc(id: number): Entity {
+function plotNpc(id: string): Entity {
   return {
-    id,
-    alifeId: id,
+    id: 77,
     type: EntityType.NPC,
     x: 24.5,
     y: 24.5,
@@ -98,6 +95,7 @@ function plotNpc(id: number): Entity {
     hp: 100,
     maxHp: 100,
     ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+    plotNpcId: id,
     questId: -1,
   };
 }
@@ -106,41 +104,25 @@ test('Hell holdout arrivals keep liquidator guards inside A-Life capacity', () =
   initFactionRelations();
   const arrivalDef = SCRIPTED_ARRIVALS.find(def => def.triggerPlotEventTag === 'hell_holdout');
   assert.equal(arrivalDef?.leaderPlotNpcId, 'major_grom');
-  assert.equal(arrivalDef?.sourceFloorKey, 'design:ministry');
+  assert.equal(arrivalDef?.sourceFloorKey, 'story:ministry');
   const state = makeHellState();
   state.quests = [makeHoldoutQuest()];
   const world = makeHellWorld();
   const player = makeTestPlayer({ id: 1, x: 24.5, y: 24.5 });
   const entities: Entity[] = [player];
-  const nextId = { v: getPlotNpcCount() + 1000 };
-  
-  const numericId = getPlotNpcNumericId(arrivalDef!.leaderPlotNpcId)!;
-  const pack = getNpcPackageByPlotNpcId(numericId);
-  console.log({
-    stepIndex: PLOT_CHAIN.findIndex(step => step.eventTags?.includes(arrivalDef!.triggerPlotEventTag)),
-    stateCurrentZ: state.currentZ,
-    defCurrentZ: arrivalDef!.currentZ,
-    quest: state.quests[0],
-    entitiesAlive: entities.some(e => e.type === EntityType.NPC && e.alive && e.id === numericId),
-    dead: isPlotNpcDead(state, numericId),
-    numericId,
-    packId: pack?.id,
-    packPlotNpcId: (pack as any)?.npcPackageId,
-    packPlotNumericId: (pack as any)?.npcPackageId ? getPlotNpcNumericId((pack as any).npcPackageId) : undefined,
-    alifeRecords: state.alife?.npcs.filter(r => r.reservedKind === 'plot').map(r => ({ id: r.id, plotNpcId: (r as any).npcPackageId, reservedKind: r.reservedKind }))
-  });
+  const nextId = { v: 10 };
 
   assert.equal(updateScriptedArrivals(world, entities, player, state, nextId), true);
 
-  const major = entities.find(e => e.id === getPlotNpcNumericId('major_grom'));
-  const majorPackage = getNpcPackageByPlotNpcId(getPlotNpcNumericId('major_grom')!);
+  const major = entities.find(e => e.plotNpcId === 'major_grom');
+  const majorPackage = getNpcPackageByPlotNpcId('major_grom');
   assert.ok(major, 'Major Grom should arrive once as a plot NPC');
   assert.ok(majorPackage);
   assert.equal((major as Entity & { npcPackageId?: string }).npcPackageId, majorPackage.id);
   assert.equal(major.name, npcPackageDisplayName(majorPackage));
   assert.equal(major.alifeId !== undefined, true);
   assert.equal(major.persistentNpcId, `alife:${major.alifeId}`);
-  const guards = entities.filter(e => e.faction === Faction.LIQUIDATOR && getPlotNpcStringId(e.id ?? 0) === undefined && e.id !== major.id);
+  const guards = entities.filter(e => e.faction === Faction.LIQUIDATOR && e.plotNpcId === undefined && e.id !== major.id);
   assert.equal(guards.length > 0, true);
   assert.equal(guards.length <= 5, true);
   assert.equal(guards.every(e => e.alifeId !== undefined && e.persistentNpcId === `alife:${e.alifeId}`), true);
@@ -153,8 +135,8 @@ test('Hell holdout arrivals keep liquidator guards inside A-Life capacity', () =
   const event = getRecentEvents(state, { tags: ['scripted_arrival', 'alife_migration'], limit: 1 })[0];
   assert.ok(event);
   assert.equal(event.data?.arrivalId, arrivalDef?.id);
-  assert.equal(event.data?.fromFloorKey, 'design:ministry');
-  assert.equal(event.data?.toFloorKey, 'design:hell');
+  assert.equal(event.data?.fromFloorKey, 'story:ministry');
+  assert.equal(event.data?.toFloorKey, 'story:hell');
   assert.equal(event.data?.guardCount, guards.length);
 });
 
@@ -164,12 +146,12 @@ test('Hell holdout arrivals do not duplicate or replace dead Major Grom', () => 
   state.quests = [makeHoldoutQuest()];
   const world = makeHellWorld();
   const player = makeTestPlayer({ id: 1, x: 24.5, y: 24.5 });
-  const existing = plotNpc(getPlotNpcNumericId('major_grom')!);
+  const existing = plotNpc('major_grom');
 
   assert.equal(updateScriptedArrivals(world, [player, existing], player, state, { v: 100 }), false);
 
   recordAlifeNpcDeath(state, existing);
   const entities: Entity[] = [player];
   assert.equal(updateScriptedArrivals(world, entities, player, state, { v: 200 }), false);
-  assert.equal(entities.some(e => e.id === getPlotNpcNumericId('major_grom')), false);
+  assert.equal(entities.some(e => e.plotNpcId === 'major_grom'), false);
 });

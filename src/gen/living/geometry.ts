@@ -14,7 +14,7 @@ import { ensureConnectivity, sanitizeDoors } from '../shared';
 
 interface Point { x: number; y: number; }
 interface Bounds { x: number; y: number; w: number; h: number; }
-interface CorridorStyle { z: Tex; wall: Tex; radius: number; }
+interface CorridorStyle { floor: Tex; wall: Tex; radius: number; }
 
 export interface LivingHubGeometryStats {
   carvedCells: number;
@@ -28,11 +28,11 @@ export interface LivingHubGeometryStats {
   shelterShellCells: number;
 }
 
-const PUBLIC: CorridorStyle = { z: Tex.F_TILE, wall: Tex.PANEL, radius: 1 };
-const HOME: CorridorStyle = { z: Tex.F_LINO, wall: Tex.PANEL, radius: 1 };
-const MARKET: CorridorStyle = { z: Tex.F_CONCRETE, wall: Tex.METAL, radius: 1 };
-const SHELTER: CorridorStyle = { z: Tex.F_CONCRETE, wall: Tex.HERMO_WALL, radius: 1 };
-const SERVICE: CorridorStyle = { z: Tex.F_CONCRETE, wall: Tex.PIPE, radius: 1 };
+const PUBLIC: CorridorStyle = { floor: Tex.F_TILE, wall: Tex.PANEL, radius: 1 };
+const HOME: CorridorStyle = { floor: Tex.F_LINO, wall: Tex.PANEL, radius: 1 };
+const MARKET: CorridorStyle = { floor: Tex.F_CONCRETE, wall: Tex.METAL, radius: 1 };
+const SHELTER: CorridorStyle = { floor: Tex.F_CONCRETE, wall: Tex.HERMO_WALL, radius: 1 };
+const SERVICE: CorridorStyle = { floor: Tex.F_CONCRETE, wall: Tex.PIPE, radius: 1 };
 
 export interface LivingShelterShellMetrics {
   roomCount: number;
@@ -491,7 +491,7 @@ function carveCell(world: World, x: number, y: number, style: CorridorStyle): bo
   const wasDoor = world.cells[i] === Cell.DOOR;
   if (!wasDoor) world.cells[i] = Cell.FLOOR;
   world.roomMap[i] = -1;
-  world.floorTex[i] = style.z;
+  world.floorTex[i] = style.floor;
   if (!wasFloor && world.features[i] !== Feature.LIFT_BUTTON) world.features[i] = Feature.NONE;
   return !wasFloor && !wasDoor;
 }

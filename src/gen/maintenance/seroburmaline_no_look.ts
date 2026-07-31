@@ -11,21 +11,6 @@ import {
   type Room,
 } from '../../core/types';
 import { MarkType, stampMark } from '../../systems/surface_marks';
-import { type PlotNpcDef, registerAuthoredNpc } from '../../data/plot';
-import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Лида Серобур',
-  isFemale: false,
-  faction: Faction.SCIENTIST,
-  occupation: Occupation.SCIENTIST,
-  sprite: Occupation.SCIENTIST,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'inspection_mirror', count: 1 }, { defId: 'duct_tape', count: 1 }],
-  talkLines: ['...'],
-  talkLinesPost: ['...']
-};
-registerAuthoredNpc({ id: 'maintenance_ambient_0_tvcyi', npc: AMBIENT_NPC_0 });
 import {
   forSeroburmalineSourceCells,
   SEROBURMALINE_ACTIVE_FEATURE,
@@ -35,7 +20,7 @@ import { placeDoor } from '../shared';
 import { genLog } from '../log';
 import {
   type MaintContentCtx, dropItems, findMaintArea, setFeature,
-  spawnMonstersNear, stampMaintRoom,
+  spawnAmbientNpc, spawnMonstersNear, stampMaintRoom,
 } from './content_helpers';
 
 function setDoorMetal(ctx: MaintContentCtx, rooms: Room[]): void {
@@ -66,7 +51,15 @@ function decoratePost(ctx: MaintContentCtx, room: Room): void {
   setFeature(ctx.world, room.x + 5, room.y + 2, Feature.LAMP);
   setFeature(ctx.world, room.x + 5, room.y + 10, Feature.LAMP);
   dropItems(ctx, room, ['duct_tape', 'sealant_tube', 'inspection_mirror', 'psi_stabilizer']);
-  requireSpawnedPlotNpcFromPackage(ctx.entities, ctx.nextId, 'maintenance_ambient_0_tvcyi', room.x + 4 + 0.5, room.y + 6 + 0.5, { angle: 0});
+  spawnAmbientNpc(
+    ctx,
+    'Лида Серобур',
+    Faction.SCIENTIST,
+    Occupation.SCIENTIST,
+    room.x + 4,
+    room.y + 6,
+    [{ defId: 'inspection_mirror', count: 1 }, { defId: 'duct_tape', count: 1 }],
+  );
 }
 
 function decorateChamber(ctx: MaintContentCtx, room: Room): void {

@@ -1,7 +1,6 @@
 import { type Entity } from '../core/types';
 import { SURFACE_FLAG_CHALK_MAP, type World } from '../core/world';
 import { paintSurfacePixel } from './surface_marks';
-import { mathRng as rng } from '../core/rand';
 
 export const CHALK_ITEM_ID = 'chalk';
 const CHALK_PIXEL_ALPHA = 235;
@@ -18,7 +17,7 @@ function colorByte(value: unknown): number | null {
 }
 
 function randomVisibleByte(): number {
-  return 32 + Math.floor(rng() * 224);
+  return 32 + Math.floor(Math.random() * 224);
 }
 
 export function randomChalkRgb(): [number, number, number] {

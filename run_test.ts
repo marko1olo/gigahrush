@@ -1,6 +1,4 @@
-import { execSync } from 'child_process';
-try {
-  execSync('npx tsx --test tests/alife.test.ts', { stdio: 'inherit' });
-} catch (e) {
-  console.log('Failed');
-}
+console.log("Loading tests...");
+import('./tests/inventory-rpg.test.ts').then(() => {
+  console.log("Loaded!");
+}).catch(e => console.error(e));

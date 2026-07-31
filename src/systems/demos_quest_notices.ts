@@ -2,6 +2,7 @@
 
 import {
   Faction,
+  FloorLevel,
   type GameState,
   type Quest,
   type WorldEvent,
@@ -28,7 +29,7 @@ import { publishEvent } from './events';
 import {
   cleanFloorKey,
   floorKeyBaseFloor,
-  floorKeyForDesign,
+  floorKeyForStory,
   floorKeyKind,
   floorKeyZ,
 } from './floor_keys';
@@ -45,7 +46,7 @@ export interface DemosQuestNoticeContext {
   nowMinutes?: number;
   seed?: number | string;
   floorKey?: string;
-  z?: number;
+  floor?: FloorLevel;
   routeZ?: number;
   sourcePostId?: number;
   sourceEventId?: number;
@@ -110,13 +111,13 @@ const MAX_NOTICE_TAG_LEN = 32;
 const MAX_NOTICE_DETAIL = 132;
 const MAX_FAILED_REASON = 48;
 
-const FLOOR_LABELS_BY_TAG: Record<string, string> = {
-  'ministry': 'Министерство',
-  'kvartiry': 'Квартиры',
-  'living': 'Жилая зона',
-  'maintenance': 'Коллекторы',
-  'hell': 'Ад',
-  'void': 'Пустота',
+const FLOOR_LABELS: Record<FloorLevel, string> = {
+  [FloorLevel.MINISTRY]: 'Министерство',
+  [FloorLevel.KVARTIRY]: 'Квартиры',
+  [FloorLevel.LIVING]: 'Жилая зона',
+  [FloorLevel.MAINTENANCE]: 'Коллекторы',
+  [FloorLevel.HELL]: 'Ад',
+  [FloorLevel.VOID]: 'Пустота',
 };
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
@@ -205,7 +206,7 @@ function currentRouteFloorKey(state: GameState): string {
   try {
     return floorRunEntryFloorKey(currentFloorRunEntry(state));
   } catch {
-    return floorKeyForDesign(String(state.currentZ));
+    return floorKeyForStory(state.currentFloor);
   }
 }
 
@@ -213,23 +214,15 @@ function contextFloorKey(snapshot: AlifeNpcSnapshot, context: DemosQuestNoticeCo
   const explicit = cleanFloorKey(context.floorKey);
   if (explicit) return explicit;
   const source = cleanFloorKey(snapshot.floorKey);
-  return source || floorKeyForDesign(String(context.z ?? snapshot.z));
+  return source || floorKeyForStory(context.floor ?? snapshot.floor);
 }
 
 function floorLabel(state: GameState, floorKey: string): string {
   const host = state as DemosQuestNoticeHost;
   const context = { proceduralSpecs: host.floorRun?.specs as Record<string, never> | undefined };
   const z = floorKeyZ(floorKey, context);
-  const baseTags = floorKeyBaseFloor(floorKey, context);
-  let baseLabel: string | undefined;
-  if (baseTags) {
-    for (const tag of baseTags) {
-      if (FLOOR_LABELS_BY_TAG[tag]) {
-        baseLabel = FLOOR_LABELS_BY_TAG[tag];
-        break;
-      }
-    }
-  }
+  const base = floorKeyBaseFloor(floorKey, context);
+  const baseLabel = base !== undefined ? FLOOR_LABELS[base] : undefined;
   if (z !== undefined && baseLabel) return `Этаж ${Math.trunc(z)}, ${baseLabel}`;
   if (z !== undefined) return `Этаж ${Math.trunc(z)}`;
   if (baseLabel) return `${baseLabel}, маршрут без номера`;
@@ -268,7 +261,7 @@ function contractContextScore(def: ContractDef, snapshot: AlifeNpcSnapshot, cont
   let score = 1;
   if (def.faction === snapshot.faction) score += 8;
   else if (def.faction === Faction.CITIZEN || snapshot.faction === Faction.CITIZEN) score += 1;
-  if (def.target.z === snapshot.z) score += 2;
+  if (def.target.floor === snapshot.floor) score += 2;
   score += contractOccupationScore(def, snapshot);
   const rankBand = Math.max(1, Math.ceil(snapshot.level / 10));
   if (def.rank <= rankBand + 1) score += 2;
@@ -440,11 +433,12 @@ export function getDemosQuestNoticesForProfile(
   alifeId: number,
 ): readonly DemosQuestNoticeView[] {
   const now = nowMinutes(state, {});
+  const acceptFloorKey = currentRouteFloorKey(state);
   return noticeStore(state)
     .filter(notice => notice.giverAlifeId === alifeId && activeNotice(notice, now))
     .sort(sortNotices)
     .slice(0, DEMOS_QUEST_NOTICES_PER_PROFILE)
-    .map(notice => noticeView(state, notice, '')); // Demos profiles don't allow direct acceptance
+    .map(notice => noticeView(state, notice, acceptFloorKey));
 }
 
 export function getDemosQuestBoardView(
@@ -569,7 +563,7 @@ export function renderDemosQuestNoticeSpeech(options: DemosQuestNoticeSpeechOpti
   const context = lowerDemosCandidateContext({
     actorAlifeId: notice.giverAlifeId,
     floorKey: notice.floorKey,
-    z: options.giverSnapshot?.z ?? def?.target.z,
+    floor: options.giverSnapshot?.floor ?? def?.target.floor,
     routeZ: notice.targetRoute?.z,
     faction: options.giverSnapshot?.faction ?? def?.faction,
     relationToPlayer: options.relationToPlayer ?? options.giverSnapshot?.playerRelation,

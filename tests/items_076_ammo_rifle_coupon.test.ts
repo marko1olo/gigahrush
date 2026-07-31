@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { ITEMS } from '../src/data/catalog';
 import { ITEM_TAGS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
@@ -55,7 +55,7 @@ test('ammo rifle coupon is an HQ/office document mapped to ammo scarcity', () =>
 
 test('using ammo rifle coupon spends the paper for a small 7.62 issue', () => {
   const state = makeGameState({
-    currentZ: 34,
+    currentFloor: FloorLevel.MINISTRY,
     time: 30,
     worldEvents: createWorldEventState(),
   });

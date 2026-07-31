@@ -1,4 +1,4 @@
-import { Faction, RoomType } from '../core/types';
+import { Faction, FloorLevel, RoomType } from '../core/types';
 
 export type ZhelemishItemId = 'zhelemish_raw' | 'zhelemish_dried' | 'zhelemish_boiled';
 export type ZhelemishForm = 'raw' | 'dried' | 'boiled';
@@ -17,7 +17,7 @@ export interface ZhelemishDef {
   tags: readonly string[];
   tradeRoles: readonly ZhelemishTradeRole[];
   preferredFactions: readonly Faction[];
-  sourceFloors: readonly number[];
+  sourceFloors: readonly FloorLevel[];
   sourceRooms: readonly RoomType[];
   baseValue: number;
   choices: readonly ZhelemishChoice[];
@@ -37,7 +37,7 @@ export const ZHELEMISH_DEFS: readonly ZhelemishDef[] = [
     tags: ['zhelemish', 'raw', 'unsafe_use', 'folk_food', 'reagent', 'sample'],
     tradeRoles: ['food', 'reagent', 'science_interest', 'cult_interest'],
     preferredFactions: [Faction.SCIENTIST, Faction.CULTIST, Faction.WILD],
-    sourceFloors: [60, 100],
+    sourceFloors: [FloorLevel.KVARTIRY, FloorLevel.LIVING],
     sourceRooms: [RoomType.STORAGE, RoomType.BATHROOM],
     baseValue: 5,
     choices: ['eat_raw', 'treat', 'sell', 'surrender', 'burn'],
@@ -53,7 +53,7 @@ export const ZHELEMISH_DEFS: readonly ZhelemishDef[] = [
     tags: ['zhelemish', 'dried', 'safer_use', 'folk_food', 'bait', 'portable'],
     tradeRoles: ['food', 'reagent', 'cult_interest'],
     preferredFactions: [Faction.CITIZEN, Faction.CULTIST, Faction.WILD],
-    sourceFloors: [60, 100],
+    sourceFloors: [FloorLevel.KVARTIRY, FloorLevel.LIVING],
     sourceRooms: [RoomType.STORAGE, RoomType.KITCHEN],
     baseValue: 11,
     choices: ['use_treated', 'sell'],
@@ -69,7 +69,7 @@ export const ZHELEMISH_DEFS: readonly ZhelemishDef[] = [
     tags: ['zhelemish', 'boiled', 'safer_use', 'medicine_counterfeit', 'ointment', 'trade'],
     tradeRoles: ['medicine_counterfeit', 'food', 'science_interest'],
     preferredFactions: [Faction.CITIZEN, Faction.SCIENTIST],
-    sourceFloors: [60, 100],
+    sourceFloors: [FloorLevel.KVARTIRY, FloorLevel.LIVING],
     sourceRooms: [RoomType.KITCHEN, RoomType.MEDICAL],
     baseValue: 16,
     choices: ['use_treated', 'sell'],

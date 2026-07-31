@@ -15,7 +15,6 @@ import { stampRoom, protectRoom, connectProtectedRoom, findClearArea } from '../
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { randomRPG, getMaxHp } from '../../systems/rpg';
 import { Spr } from '../../render/sprite_index';
-import { rng } from '../../core/rand';
 
 export function generateForpost(
   world: World, nextRoomId: number, entities: Entity[], nextId: { v: number },
@@ -36,7 +35,7 @@ export function generateForpost(
   let room: Room;
 
   if (candidates.length > 0) {
-    room = candidates[Math.floor(rng() * candidates.length)];
+    room = candidates[Math.floor(Math.random() * candidates.length)];
     room.name = spec.name;
     room.wallTex = spec.wallTex;
     room.floorTex = spec.floorTex;
@@ -102,11 +101,11 @@ export function generateForpost(
     entities.push({
       id: nextId.v++, type: EntityType.NPC,
       x: gx + 0.5, y: gy + 0.5,
-      angle: 0, pitch: 0, alive: true, speed: 1.4 + rng() * 0.3,
+      angle: 0, pitch: 0, alive: true, speed: 1.4 + Math.random() * 0.3,
       sprite: Occupation.HUNTER,
       name: nm.name, firstName: nm.firstName, lastName: nm.lastName, isFemale: nm.female,
       needs: freshNeeds(), hp: maxHp, maxHp,
-      money: 30 + Math.floor(rng() * 50),
+      money: 30 + Math.floor(Math.random() * 50),
       ai: { goal, tx: gx, ty: gy, path: [], pi: 0, stuck: 0, timer: 0 },
       inventory: [
         { defId: wpn, count: 1 },
@@ -124,26 +123,26 @@ export function generateForpost(
   // We find a clear area a bit further away (distance 40 to 80)
   const wildPos = findClearArea(world, cx, cy, 3, 3, 40, 80);
   if (wildPos) {
-    const wildCount = 5 + Math.floor(rng() * 4);
+    const wildCount = 5 + Math.floor(Math.random() * 4);
     const wildWeapons = ['pipe', 'makarov', 'shotgun', 'knife'];
     for (let w = 0; w < wildCount; w++) {
-      const wx = wildPos.x + Math.floor(rng() * 3);
-      const wy = wildPos.y + Math.floor(rng() * 3);
+      const wx = wildPos.x + Math.floor(Math.random() * 3);
+      const wy = wildPos.y + Math.floor(Math.random() * 3);
       if (world.cells[world.idx(wx, wy)] !== Cell.FLOOR) continue;
 
       const rpg = randomRPG(7);
       const maxHp = Math.round(getMaxHp(rpg) * 1.2);
       const nm = randomName(Faction.WILD);
-      const wpn = wildWeapons[Math.floor(rng() * wildWeapons.length)];
+      const wpn = wildWeapons[Math.floor(Math.random() * wildWeapons.length)];
 
       entities.push({
         id: nextId.v++, type: EntityType.NPC,
         x: wx + 0.5, y: wy + 0.5,
-        angle: 0, pitch: 0, alive: true, speed: 1.2 + rng() * 0.4,
+        angle: 0, pitch: 0, alive: true, speed: 1.2 + Math.random() * 0.4,
         sprite: Occupation.HUNTER,
         name: nm.name, firstName: nm.firstName, lastName: nm.lastName, isFemale: nm.female,
         needs: freshNeeds(), hp: maxHp, maxHp,
-        money: 10 + Math.floor(rng() * 20),
+        money: 10 + Math.floor(Math.random() * 20),
         ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
         inventory: [
           { defId: wpn, count: 1 },

@@ -431,7 +431,7 @@ function scrollStartFor(active: number, visible: number, total: number): number 
   return Math.max(0, Math.min(total - visible, active - Math.floor(visible * 0.5)));
 }
 
-function drawToolStrip(ctx: CanvasRenderingContext2D, layout: Layout, state: MapEditorSnapshotLike, s: number, time: number): void {
+function drawToolStrip(ctx: CanvasRenderingContext2D, layout: Layout, state: MapEditorSnapshotLike, s: number): void {
   const tools = (state.tools ?? DEFAULT_TOOLS).map(toEntry);
   const activeTool = state.tool ?? 'cell';
   const x = layout.x + layout.pad;
@@ -439,26 +439,23 @@ function drawToolStrip(ctx: CanvasRenderingContext2D, layout: Layout, state: Map
   const w = Math.max(1, layout.leftW - layout.pad * 1.4);
   const rowH = 16 * s;
 
-  const panelH = Math.min(layout.h - layout.headerH - layout.bottomH - layout.gap * 2, tools.length * rowH + 20 * s);
-  drawNeuroPanel(ctx, x - 4 * s, y - 20 * s, w + 8 * s, panelH + 24 * s, time, 1310);
-  
   ctx.font = `${7 * s}px monospace`;
-  ctx.fillStyle = '#63f6ff';
+  ctx.fillStyle = '#607080';
   ctx.fillText('ИНСТРУМЕНТ', x, y - 10 * s);
   for (const tool of tools) {
     const active = tool.active === true || entryIdText(tool) === activeTool;
-    ctx.fillStyle = active ? 'rgba(99,246,255,0.18)' : 'rgba(0,0,0,0.30)';
+    ctx.fillStyle = active ? 'rgba(80,220,230,0.20)' : 'rgba(0,0,0,0.28)';
     ctx.fillRect(x, y, w, rowH - 2 * s);
-    ctx.strokeStyle = active ? 'rgba(99,246,255,0.72)' : 'rgba(90,120,130,0.25)';
+    ctx.strokeStyle = active ? 'rgba(99,246,255,0.75)' : 'rgba(80,110,120,0.28)';
     ctx.strokeRect(x + 0.5, y + 0.5, w - 1, rowH - 2 * s - 1);
-    ctx.fillStyle = tool.disabled ? '#46545c' : active ? (tool.color ?? '#dff') : '#8aa0a6';
+    ctx.fillStyle = tool.disabled ? '#46545c' : active ? (tool.color ?? '#63f6ff') : '#7f9298';
     ctx.fillText(fitText(ctx, tool.label, w - 6 * s), x + 3 * s, y + 4 * s);
     y += rowH;
     if (y > layout.y + layout.h - layout.bottomH - rowH) break;
   }
 }
 
-function drawPalette(ctx: CanvasRenderingContext2D, layout: Layout, state: MapEditorSnapshotLike, s: number, time: number): void {
+function drawPalette(ctx: CanvasRenderingContext2D, layout: Layout, state: MapEditorSnapshotLike, s: number): void {
   if (layout.rightW <= 0) return;
   const activeTool = state.tool ?? 'cell';
   const entries = (state.palette ?? defaultPaletteForTool(activeTool)).map(paletteEntry);
@@ -473,23 +470,20 @@ function drawPalette(ctx: CanvasRenderingContext2D, layout: Layout, state: MapEd
   const start = scrollStartFor(activeIdx, visibleRows, entries.length);
   const end = Math.min(entries.length, start + visibleRows);
 
-  const panelH = Math.min(layout.h - layout.headerH - layout.bottomH - layout.gap * 2, visibleRows * rowH + 20 * s);
-  drawNeuroPanel(ctx, x - 4 * s, y - 20 * s, w + 8 * s, panelH + 24 * s, time, 1311);
-
   ctx.font = `${7 * s}px monospace`;
-  ctx.fillStyle = '#63f6ff';
+  ctx.fillStyle = '#607080';
   ctx.fillText('ПАЛИТРА', x, y - 10 * s);
   for (let i = start; i < end; i++) {
     const entry = entries[i];
     const id = entryIdText(entry);
     const active = entry.active === true || (brush !== '' && id === brush);
-    ctx.fillStyle = active ? 'rgba(99,246,255,0.18)' : 'rgba(0,0,0,0.30)';
+    ctx.fillStyle = active ? 'rgba(80,220,180,0.18)' : 'rgba(0,0,0,0.24)';
     ctx.fillRect(x, y, w, rowH - 2 * s);
-    ctx.strokeStyle = active ? 'rgba(99,246,255,0.72)' : 'rgba(90,120,130,0.25)';
+    ctx.strokeStyle = active ? 'rgba(120,255,200,0.65)' : 'rgba(80,110,120,0.22)';
     ctx.strokeRect(x + 0.5, y + 0.5, w - 1, rowH - 2 * s - 1);
     ctx.fillStyle = entry.color ?? (active ? '#9fdbc6' : '#7f9298');
     ctx.fillRect(x + 3 * s, y + 4 * s, 5 * s, 5 * s);
-    ctx.fillStyle = entry.disabled ? '#46545c' : active ? '#dff' : '#8aa0a6';
+    ctx.fillStyle = entry.disabled ? '#46545c' : active ? '#dff' : '#93a4aa';
     ctx.fillText(fitText(ctx, entry.label, w - 14 * s), x + 11 * s, y + 3 * s);
     y += rowH;
   }
@@ -829,22 +823,19 @@ function drawInspector(
   player: Entity,
   state: MapEditorSnapshotLike,
   s: number,
-  time: number,
 ): void {
   const cursorX = world.wrap(Math.floor(finiteNumber(state.cursorX, player.x)));
   const cursorY = world.wrap(Math.floor(finiteNumber(state.cursorY, player.y)));
   const details = inspectCell(world, entities, cursorX, cursorY, state.selectedCell);
   const x = layout.x + layout.pad;
   const w = Math.max(1, layout.leftW - layout.pad * 1.4);
-  let y = layout.y + layout.h - layout.bottomH - 96 * s;
+  let y = layout.y + layout.h - layout.bottomH - 82 * s;
   const lineH = 9 * s;
 
-  drawNeuroPanel(ctx, x - 4 * s, y - 4 * s, w + 8 * s, 100 * s, time, 1312);
-
   ctx.font = `${7 * s}px monospace`;
-  ctx.fillStyle = '#63f6ff';
-  ctx.fillText('ИНСПЕКТОР', x, y + 6 * s);
-  y += 18 * s;
+  ctx.fillStyle = '#607080';
+  ctx.fillText('ИНСПЕКТОР', x, y);
+  y += 10 * s;
   drawLabelValue(ctx, 'xy', `${details.x},${details.y}`, x, y, w, s, '#dff'); y += lineH;
   drawLabelValue(ctx, 'idx', String(details.idx), x, y, w, s); y += lineH;
   drawLabelValue(ctx, 'cell', cellName(details.cell), x, y, w, s, details.protected ? '#6ec3ff' : '#d8d0bd'); y += lineH;
@@ -987,11 +978,11 @@ export function drawMapEditor(
   const subtitle = state.mode ? `режим: ${state.mode}` : 'снимок этажа';
   ctx.fillText(fitText(ctx, subtitle, layout.w * 0.36), layout.x + layout.w - layout.pad - 128 * s, layout.y + 10 * s);
 
-  drawToolStrip(ctx, layout, state, s, time);
-  drawPalette(ctx, layout, state, s, time);
+  drawToolStrip(ctx, layout, state, s);
+  drawPalette(ctx, layout, state, s);
   drawMapViewport(ctx, layout, world, entities, player, state, s, time);
   drawModePanel(ctx, layout, state, s, time);
-  drawInspector(ctx, layout, world, entities, player, state, s, time);
+  drawInspector(ctx, layout, world, entities, player, state, s);
   drawStatus(ctx, layout, state, cursorX, cursorY, s);
   ctx.restore();
 }

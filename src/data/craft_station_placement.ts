@@ -1,4 +1,4 @@
-import { RoomType } from '../core/types';
+import { FloorLevel, RoomType } from '../core/types';
 import type { DesignFloorRouteDef } from './design_floors';
 import type { ProceduralFloorSpec } from './procedural_floors';
 
@@ -18,12 +18,13 @@ export type CraftStationDefId = typeof CRAFT_STATION_IDS[number];
 
 export const CRAFT_STATION_CAPS = {
   livingFixed: 2,
-  designMin: 1,
-  designMax: 4,
+  storyMin: 1,
+  storyMax: 4,
   maintenanceMin: 2,
   maintenanceMax: 6,
   proceduralMin: 0,
   proceduralMax: 4,
+  story: { min: 1, max: 4 },
   maintenance: { min: 2, max: 6 },
   procedural: { min: 0, max: 4 },
   design: { min: 0, max: 7 },
@@ -73,11 +74,11 @@ function mergeProfiles(
   };
 }
 
-const STORY_FLOOR_CRAFT_STATION_PROFILES: Partial<Record<string, CraftStationPlacementProfile>> = {
-  ministry: {
-    id: 'design_ministry',
-    min: CRAFT_STATION_CAPS.design.min,
-    max: CRAFT_STATION_CAPS.design.max,
+const STORY_FLOOR_CRAFT_STATION_PROFILES: Partial<Record<FloorLevel, CraftStationPlacementProfile>> = {
+  [FloorLevel.MINISTRY]: {
+    id: 'story_ministry',
+    min: CRAFT_STATION_CAPS.story.min,
+    max: CRAFT_STATION_CAPS.story.max,
     roomDivisor: 12,
     stationWeights: {
       [DISASSEMBLY_WORKBENCH_ID]: 1.1,
@@ -85,12 +86,12 @@ const STORY_FLOOR_CRAFT_STATION_PROFILES: Partial<Record<string, CraftStationPla
       [CRAFT_LAB_BENCH_ID]: 0.75,
       [RECIPE_BILLBOARD_ID]: 1.25,
     },
-    tags: ['design_floor', 'ministry'],
+    tags: ['story_floor', 'ministry'],
   },
-  kvartiry: {
-    id: 'design_kvartiry',
-    min: CRAFT_STATION_CAPS.design.min,
-    max: CRAFT_STATION_CAPS.design.max,
+  [FloorLevel.KVARTIRY]: {
+    id: 'story_kvartiry',
+    min: CRAFT_STATION_CAPS.story.min,
+    max: CRAFT_STATION_CAPS.story.max,
     roomDivisor: 12,
     stationWeights: {
       [DISASSEMBLY_WORKBENCH_ID]: 1.25,
@@ -98,10 +99,10 @@ const STORY_FLOOR_CRAFT_STATION_PROFILES: Partial<Record<string, CraftStationPla
       [CRAFT_LAB_BENCH_ID]: 0.45,
       [RECIPE_BILLBOARD_ID]: 0.8,
     },
-    tags: ['design_floor', 'kvartiry'],
+    tags: ['story_floor', 'kvartiry'],
   },
-  maintenance: {
-    id: 'design_maintenance_collectors',
+  [FloorLevel.MAINTENANCE]: {
+    id: 'story_maintenance_collectors',
     min: CRAFT_STATION_CAPS.maintenance.min,
     max: CRAFT_STATION_CAPS.maintenance.max,
     roomDivisor: 7,
@@ -119,7 +120,7 @@ const STORY_FLOOR_CRAFT_STATION_PROFILES: Partial<Record<string, CraftStationPla
       [RoomType.STORAGE]: 1.15,
       [RoomType.HQ]: 0.85,
     },
-    tags: ['design_floor', 'maintenance', 'collectors'],
+    tags: ['story_floor', 'maintenance', 'collectors'],
   },
 };
 
@@ -210,7 +211,7 @@ const DESIGN_FLOOR_CRAFT_STATION_PROFILES: Partial<Record<string, CraftStationPl
     },
     tags: ['design_floor', 'production_belt', 'industrial'],
   },
-  service_z: {
+  service_floor: {
     id: 'design_service_floor',
     min: 2,
     max: 4,
@@ -337,8 +338,8 @@ const DEFAULT_PROCEDURAL_CRAFT_STATION_PROFILE: CraftStationPlacementProfile = {
   tags: ['procedural_floor', 'default'],
 };
 
-export function craftStationProfileForStoryFloor(biome: string): CraftStationPlacementProfile | undefined {
-  const profile = STORY_FLOOR_CRAFT_STATION_PROFILES[biome];
+export function craftStationProfileForStoryFloor(floor: FloorLevel): CraftStationPlacementProfile | undefined {
+  const profile = STORY_FLOOR_CRAFT_STATION_PROFILES[floor];
   return profile ? cloneProfile(profile) : undefined;
 }
 
@@ -346,7 +347,7 @@ export function craftStationProfileForDesignFloor(route: DesignFloorRouteDef): C
   const profile = DESIGN_FLOOR_CRAFT_STATION_PROFILES[route.id];
   if (!profile) return undefined;
   return mergeProfiles(profile, {
-    tags: [route.id, `z_${route.z}`, route.themeTags?.[0]?.toLowerCase() ?? 'route'],
+    tags: [route.id, `z_${route.z}`, FloorLevel[route.baseFloor]?.toLowerCase() ?? 'route'],
   });
 }
 

@@ -38,11 +38,9 @@
 
 1. **Синхронный путь** в `markPlatformReady()`: проверяем `portalGlobal().gp` синхронно. Если SDK уже на глобале (sandbox preloads SDK скриптом) — вызываем `gameStart()` сразу, без Promise chain. Это происходит при показе меню, ДО первого клика.
 
-2. **User-gesture fallback** в `fallbackGamePushStart`: если SDK ещё не загружен к моменту `markPlatformReady()`, `gameStart()` вызывается на первый `pointerdown`/`keydown`.
+2. **User-gesture fallback** в `fulfillSandboxTests`: если SDK ещё не загружен к моменту `markPlatformReady()`, `gameStart()` вызывается на первый `pointerdown`/`keydown`.
 
 3. **Флаг `gamePushGameStartSent`** гарантирует ровно один вызов — какой путь сработает первым, тот и вызовет.
-
-**ВАЖНОЕ ЗАМЕЧАНИЕ (Регрессия со звуком):** Ранее здесь присутствовал код `fulfillSandboxTests`, который на первый клик имитировал вызовы сохранения, смены языка и переключения звука (`mute`/`unmute`), чтобы обмануть GamePush Sandbox. Выяснилось, что в **production-сборках (на Пикабу)** эти фейковые вызовы ломают реальное состояние игры (сбрасывают язык, устанавливают фейковый score, ломают звуковой движок из-за спама mute/unmute). Поэтому фейковые вызовы были **УДАЛЕНЫ**, оставлен только fallback для `gameStart`. Все остальные тесты песочницы нужно отмечать вручную.
 
 **Что НЕ работает (проверено):**
 - Вызов `gameStart` из `Promise.then()` / async callback → sandbox помечает "не вовремя" → test 3 FAIL.

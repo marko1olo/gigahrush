@@ -1,21 +1,37 @@
 /* ── Hell level generator (Floor 2) — organic ising caves ────── */
 
 import {
-  W, Cell, Tex, Feature, LiftDirection,
-  type Entity, EntityType, ZoneFaction
+  W, Cell, Tex, Feature, Faction, Occupation, LiftDirection,
+  type Entity,
+  EntityType, AIGoal, MonsterKind, FloorLevel, ZoneFaction,
 } from '../../core/types';
 import { World } from '../../core/world';
-
-import { pick, ensureConnectivity, placeLifts, generateZones } from '../shared';
+import { randomName, freshNeeds } from '../../data/catalog';
+import { rng, pick, ensureConnectivity, placeLifts, generateZones } from '../shared';
 import { placeProceduralScreens } from '../procedural_screens';
-import { territorySharesForDesignFloor } from '../../data/floor_territory';
-import { calcZoneLevel } from '../../systems/rpg';
-import { initializeCellTerritory } from '../../systems/territory';
-import { buildHellGeometry, imprintHellArenaValleys } from './geometry';
-import { runHellContent } from './content_manifest';
-import { rng, irand } from '../../core/rand';
+import { HELL_POPULATION_PROFILE } from '../../data/population_profiles';
+import { activeActorCountAtDefaultSoftLimit } from '../../data/entity_limits';
+import { territorySharesForStoryFloor } from '../../data/floor_territory';
+import { chooseFloorMonsterKind } from '../../data/monster_ecology';
+import { sampleNaturalPopulationCells, type NaturalPopulationProfile, type PlacementFieldAnchor } from '../population_placement';
+import { MONSTERS } from '../../entities/monster';
+import { calcZoneLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed, gaussianLevel, getMaxHp } from '../../systems/rpg';
 import { entitySpawnSlots } from '../../systems/entity_limits';
-import { Spr } from '../../render/sprite_index';
+import { initializeCellTerritory } from '../../systems/territory';
+import { Spr, monsterSpr } from '../../render/sprite_index';
+import { runHellContent } from './content_manifest';
+import { buildHellGeometry, imprintHellArenaValleys, type HellGeometry } from './geometry';
+
+const PSI_IDS = ['psi_strike', 'psi_rupture', 'psi_madness', 'psi_storm', 'psi_brainburn'];
+
+const HELL_POPULATION = HELL_POPULATION_PROFILE;
+const HELL_MONSTER_PROFILE = HELL_POPULATION.monsters;
+const HELL_CULTIST_PROFILE = HELL_POPULATION.cultists;
+const HELL_LIQUIDATOR_PROFILE = HELL_POPULATION.liquidators;
+
+const HELL_POPULATION_EXCLUDED_MONSTERS: readonly MonsterKind[] = [MonsterKind.SPORE_CARPET];
+
+type SpawnFaction = Faction.CULTIST | Faction.LIQUIDATOR;
 
 export function generateHell(generationSeed = 0x4d594153): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
   const world = new World();
@@ -24,7 +40,7 @@ export function generateHell(generationSeed = 0x4d594153): { world: World; entit
 
   const field = buildIsingCaveField();
   paintHellTerrain(world, field);
-  buildHellGeometry(world);
+  const hellGeometry = buildHellGeometry(world);
 
   const spawnCell = findNearestFloor(world, W >> 1, W >> 1) ?? world.idx(W >> 1, W >> 1);
   const spawnX = (spawnCell % W) + 0.5;
@@ -39,19 +55,29 @@ export function generateHell(generationSeed = 0x4d594153): { world: World; entit
   paintMissingOrganicTextures(world);
   generateZones(world);
   retuneHellZones(world);
-  for (const z of world.zones) z.level = calcZoneLevel(z.cx, z.cy, -36) + 2;
+  for (const z of world.zones) z.level = calcZoneLevel(z.cx, z.cy, FloorLevel.HELL) + 2;
   initializeCellTerritory(world, {
     seed: generationSeed,
-    targetShares: territorySharesForDesignFloor('hell'),
+    targetShares: territorySharesForStoryFloor(FloorLevel.HELL),
   });
 
   for (let i = 0; i < W * W; i++) {
-    if (world.cells[i] === Cell.FLOOR && rng() < 0.0035) {
+    if (world.cells[i] === Cell.FLOOR && Math.random() < 0.0035) {
       world.features[i] = Feature.LAMP;
     }
   }
   world.bakeLights();
 
+  seedHellPopulation(
+    world,
+    entities,
+    { v: nextId },
+    activeActorCountAtDefaultSoftLimit(HELL_MONSTER_PROFILE.initial),
+    activeActorCountAtDefaultSoftLimit(HELL_CULTIST_PROFILE.initial),
+    activeActorCountAtDefaultSoftLimit(HELL_LIQUIDATOR_PROFILE.initial),
+    0,
+    hellGeometry,
+  );
   nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
 
   seedLoot(world, entities, { v: nextId });
@@ -59,7 +85,7 @@ export function generateHell(generationSeed = 0x4d594153): { world: World; entit
   // Manifest-owned side content
   nextId = runHellContent(world, entities, nextId);
 
-  placeProceduralScreens(world, 180);
+  placeProceduralScreens(world, FloorLevel.HELL);
 
   return { world, entities, spawnX, spawnY };
 }
@@ -140,10 +166,10 @@ function carveOrganicBranches(field: Uint8Array): void {
   const walkers = 210;
 
   for (let i = 0; i < walkers; i++) {
-    let x = irand(0, W - 1);
-    let y = irand(0, W - 1);
-    let dir = irand(0, dirs.length - 1);
-    const len = irand(70, 240);
+    let x = rng(0, W - 1);
+    let y = rng(0, W - 1);
+    let dir = rng(0, dirs.length - 1);
+    const len = rng(70, 240);
     let width = 1;
     let fatTimer = 0;
 
@@ -152,10 +178,10 @@ function carveOrganicBranches(field: Uint8Array): void {
         const swell = hash2(x + step, y - step, 120 + i);
         if (swell > 0.985) {
           width = 3;
-          fatTimer = irand(6, 18);
+          fatTimer = rng(6, 18);
         } else if (swell > 0.9) {
           width = 2;
-          fatTimer = irand(8, 28);
+          fatTimer = rng(8, 28);
         } else {
           width = 1;
         }
@@ -170,7 +196,7 @@ function carveOrganicBranches(field: Uint8Array): void {
       }
       if (hash2(x + i, y + step, 123) > 0.965) {
         const branchDir = (dir + (hash2(x + step, y + i, 124) > 0.5 ? 1 : 3)) & 3;
-        carveBranch(field, x, y, branchDir, irand(18, 72));
+        carveBranch(field, x, y, branchDir, rng(18, 72));
       }
 
       x = wrapCoord(x + dirs[dir][0]);
@@ -293,6 +319,20 @@ function retuneHellZones(world: World): void {
   }
 }
 
+function seedHellPopulation(
+  world: World,
+  entities: Entity[],
+  nextId: { v: number },
+  monsters: number,
+  cultists: number,
+  liquidators: number,
+  samosborCount: number,
+  geometry: HellGeometry,
+): void {
+  spawnHellMonsterBatch(world, entities, nextId, monsters, samosborCount, geometry);
+  spawnFactionAgentBatch(world, entities, nextId, Faction.CULTIST, cultists, geometry);
+  spawnFactionAgentBatch(world, entities, nextId, Faction.LIQUIDATOR, liquidators, geometry);
+}
 
 function seedLoot(world: World, entities: Entity[], nextId: { v: number }): void {
   const drops = ['canned', 'bandage', 'pills', 'pipe', 'knife', 'water', 'ammo_9mm', 'ammo_nails', 'rebar', 'antidep',
@@ -311,16 +351,250 @@ function seedLoot(world: World, entities: Entity[], nextId: { v: number }): void
       alive: true,
       speed: 0,
       sprite: Spr.ITEM_DROP,
-      inventory: [{ defId: pick(drops), count: irand(1, 2) }],
+      inventory: [{ defId: pick(drops), count: rng(1, 2) }],
     });
   }
 }
 
+function spawnHellMonsterBatch(
+  world: World,
+  entities: Entity[],
+  nextId: { v: number },
+  requested: number,
+  samosborCount: number,
+  geometry: HellGeometry,
+): number {
+  const count = entitySpawnSlots(entities, EntityType.MONSTER, requested);
+  const cells = sampleHellPopulationCells(world, count, HELL_MONSTER_PROFILE, hellPopulationSeed(11, nextId.v), hellPopulationAnchors(geometry, 'monster'));
+  let spawned = 0;
+  for (const cell of cells) {
+    spawnHellMonsterAtCell(world, entities, nextId, cell, samosborCount);
+    spawned++;
+  }
+  return spawned;
+}
 
+function spawnHellMonsterAtCell(
+  world: World,
+  entities: Entity[],
+  nextId: { v: number },
+  cell: number,
+  samosborCount: number,
+): void {
+  const x = (cell % W) + 0.5;
+  const y = ((cell / W) | 0) + 0.5;
+  entities.push(createHellMonster(world, nextId, pickHellMonsterKind(samosborCount), x, y));
+}
+
+function spawnFactionAgentBatch(
+  world: World,
+  entities: Entity[],
+  nextId: { v: number },
+  faction: SpawnFaction,
+  requested: number,
+  geometry: HellGeometry,
+): number {
+  const count = entitySpawnSlots(entities, EntityType.NPC, requested);
+  const seed = hellPopulationSeed(faction === Faction.CULTIST ? 23 : 37, nextId.v);
+  const cells = sampleHellPopulationCells(world, count, profileForFaction(faction), seed, hellPopulationAnchors(geometry, faction === Faction.CULTIST ? 'cultist' : 'liquidator'));
+  let spawned = 0;
+  for (const cell of cells) {
+    entities.push(faction === Faction.CULTIST
+      ? createHellCultist(world, nextId, cell)
+      : createHellLiquidator(world, nextId, cell));
+    spawned++;
+  }
+  return spawned;
+}
+
+function profileForFaction(faction: SpawnFaction): NaturalPopulationProfile {
+  return faction === Faction.CULTIST
+    ? { ...HELL_CULTIST_PROFILE, preferredTerritory: ZoneFaction.CULTIST, preferredTerritoryShare: 0.78 }
+    : { ...HELL_LIQUIDATOR_PROFILE, preferredTerritory: ZoneFaction.LIQUIDATOR, preferredTerritoryShare: 0.72 };
+}
+
+function sampleHellPopulationCells(
+  world: World,
+  count: number,
+  profile: NaturalPopulationProfile,
+  seed: number,
+  anchors: readonly PlacementFieldAnchor[],
+): number[] {
+  const effectiveProfile = anchors.length > 0
+    ? { ...profile, anchors, smoothingPasses: 2, smoothingBlend: 0.58 }
+    : profile;
+  return sampleNaturalPopulationCells(world, count, effectiveProfile, seed);
+}
+
+function hellPopulationSeed(kind: number, nextId: number): number {
+  return 4003 + kind * 10007 + nextId * 17;
+}
+
+type HellPopulationAnchorKind = 'monster' | 'cultist' | 'liquidator';
+
+function hellPopulationAnchors(geometry: HellGeometry, kind: HellPopulationAnchorKind): PlacementFieldAnchor[] {
+  if (kind === 'monster') {
+    return [
+      ...geometry.populationAnchors.monster,
+      ...attenuatedSafeAnchors(geometry, 0.38),
+    ];
+  }
+  if (kind === 'cultist') {
+    return [
+      ...geometry.populationAnchors.cultist,
+      ...attenuatedSafeAnchors(geometry, 0.52),
+    ];
+  }
+  return [
+    ...geometry.populationAnchors.liquidator,
+    ...attenuatedSafeAnchors(geometry, 0.78),
+  ];
+}
+
+function attenuatedSafeAnchors(geometry: HellGeometry, weight: number): PlacementFieldAnchor[] {
+  return geometry.populationAnchors.safe.map(anchor => ({ ...anchor, weight }));
+}
+
+function createHellMonster(world: World, nextId: { v: number }, kind: MonsterKind, x: number, y: number): Entity {
+  const def = MONSTERS[kind] ?? MONSTERS[MonsterKind.TVAR];
+  const ci = world.idx(Math.floor(x), Math.floor(y));
+  const zid = world.zoneMap[ci];
+  const zoneLevel = (zid >= 0 && world.zones[zid]) ? (world.zones[zid].level ?? 10) : 10;
+  const bonus = kind === MonsterKind.BETONNIK || kind === MonsterKind.MATKA || kind === MonsterKind.KHOROVAYA_MATKA ? 3 : 1;
+  const rpg = randomRPG(zoneLevel + bonus);
+  const hp = Math.round(scaleMonsterHp(def.hp, zoneLevel + bonus) * (1 + rpg.str * 0.1));
+  return {
+    id: nextId.v++,
+    type: EntityType.MONSTER,
+    x,
+    y,
+    angle: Math.random() * Math.PI * 2,
+    pitch: 0,
+    alive: true,
+    speed: scaleMonsterSpeed(def.speed, zoneLevel + Math.max(1, bonus - 1)),
+    sprite: monsterSpr(kind),
+    hp,
+    maxHp: hp,
+    monsterKind: kind,
+    attackCd: 0,
+    ai: { goal: AIGoal.WANDER, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+    rpg,
+    phasing: kind === MonsterKind.SPIRIT,
+  };
+}
+
+function createHellCultist(world: World, nextId: { v: number }, cell: number): Entity {
+  const zid = world.zoneMap[cell];
+  const zoneLevel = (zid >= 0 && world.zones[zid]) ? (world.zones[zid].level ?? 10) : 10;
+  const npcLevel = gaussianLevel(zoneLevel + 3, 2);
+  const rpg = randomRPG(npcLevel);
+  const maxHp = Math.round(getMaxHp(rpg) * 1.55);
+  const nm = randomName(Faction.CULTIST);
+  const psiId = pick(PSI_IDS);
+  const hasPsi = Math.random() < 0.72;
+  return {
+    id: nextId.v++,
+    type: EntityType.NPC,
+    x: (cell % W) + 0.5,
+    y: ((cell / W) | 0) + 0.5,
+    angle: Math.random() * Math.PI * 2,
+    pitch: 0,
+    alive: true,
+    speed: 1.45 + Math.random() * 0.35,
+    sprite: Occupation.PILGRIM,
+    name: nm.name,
+    firstName: nm.firstName,
+    lastName: nm.lastName,
+    isFemale: nm.female,
+    needs: freshNeeds(),
+    hp: maxHp,
+    maxHp,
+    ai: { goal: AIGoal.WANDER, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+    inventory: hasPsi ? [{ defId: psiId, count: 1 }] : [{ defId: 'rebar', count: 1 }],
+    weapon: hasPsi ? psiId : 'rebar',
+    familyId: -1,
+    faction: Faction.CULTIST,
+    occupation: Occupation.PILGRIM,
+    isTraveler: true,
+    questId: -1,
+    rpg,
+  };
+}
+
+function createHellLiquidator(world: World, nextId: { v: number }, cell: number): Entity {
+  const zid = world.zoneMap[cell];
+  const zoneLevel = (zid >= 0 && world.zones[zid]) ? (world.zones[zid].level ?? 10) : 10;
+  const npcLevel = gaussianLevel(zoneLevel + 4, 2);
+  const rpg = randomRPG(npcLevel);
+  const maxHp = Math.round(getMaxHp(rpg) * 1.75);
+  const nm = randomName(Faction.LIQUIDATOR);
+  const roll = Math.random();
+  let weapon = 'rebar';
+  let inventory = [{ defId: 'rebar', count: 1 }];
+  if (roll < 0.25) {
+    weapon = 'makarov';
+    inventory = [{ defId: 'makarov', count: 1 }, { defId: 'ammo_9mm', count: 24 }];
+  } else if (roll < 0.40) {
+    weapon = 'shotgun';
+    inventory = [{ defId: 'shotgun', count: 1 }, { defId: 'ammo_shells', count: 10 }];
+  } else if (roll < 0.55) {
+    weapon = 'nailgun';
+    inventory = [{ defId: 'nailgun', count: 1 }, { defId: 'ammo_nails', count: 30 }];
+  } else if (roll < 0.65) {
+    weapon = 'ppsh';
+    inventory = [{ defId: 'ppsh', count: 1 }, { defId: 'ammo_9mm', count: 60 }];
+  } else if (roll < 0.75) {
+    weapon = 'machinegun';
+    inventory = [{ defId: 'machinegun', count: 1 }, { defId: 'ammo_belt', count: 100 }];
+  } else if (roll < 0.82) {
+    weapon = 'plasma';
+    inventory = [{ defId: 'plasma', count: 1 }, { defId: 'ammo_energy', count: 20 }];
+  } else if (roll < 0.87) {
+    weapon = 'gauss';
+    inventory = [{ defId: 'gauss', count: 1 }, { defId: 'ammo_energy', count: 10 }];
+  }
+  return {
+    id: nextId.v++,
+    type: EntityType.NPC,
+    x: (cell % W) + 0.5,
+    y: ((cell / W) | 0) + 0.5,
+    angle: Math.random() * Math.PI * 2,
+    pitch: 0,
+    alive: true,
+    speed: 1.35 + Math.random() * 0.25,
+    sprite: Occupation.HUNTER,
+    name: nm.name,
+    firstName: nm.firstName,
+    lastName: nm.lastName,
+    isFemale: nm.female,
+    needs: freshNeeds(),
+    hp: maxHp,
+    maxHp,
+    ai: { goal: AIGoal.WANDER, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+    inventory,
+    weapon,
+    familyId: -1,
+    faction: Faction.LIQUIDATOR,
+    occupation: Occupation.HUNTER,
+    isTraveler: true,
+    questId: -1,
+    rpg,
+  };
+}
+
+function pickHellMonsterKind(samosborCount: number): MonsterKind {
+  return chooseFloorMonsterKind({
+    floor: FloorLevel.HELL,
+    floorTags: ['hell', 'meat', 'deep', 'cult'],
+    samosborCount: Math.max(4, samosborCount),
+    allowRare: true,
+    excludeKinds: HELL_POPULATION_EXCLUDED_MONSTERS,
+  });
+}
 
 function randomFloorCell(world: World): number {
   for (let attempt = 0; attempt < 2048; attempt++) {
-    const cell = irand(0, W * W - 1);
+    const cell = rng(0, W * W - 1);
     if (world.cells[cell] === Cell.FLOOR) return cell;
   }
   return -1;

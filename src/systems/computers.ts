@@ -1,6 +1,7 @@
 import {
   Cell,
   Feature,
+  FloorLevel,
   W,
   msg,
   type Entity,
@@ -15,7 +16,7 @@ import {
   type CraftRecipeLearnResult,
 } from './crafting';
 import { publishEvent } from './events';
-import { floorKeyForDesign  } from './floor_keys';
+import { floorKeyForStory } from './floor_keys';
 import { currentFloorRunEntry, floorRunEntryFloorKey } from './procedural_floors';
 
 export interface ComputerTerminal {
@@ -74,7 +75,7 @@ function currentFloorKey(state: GameState): string {
   try {
     return floorRunEntryFloorKey(currentFloorRunEntry(state));
   } catch {
-    return floorKeyForDesign(String(state.currentZ));
+    return floorKeyForStory(state.currentFloor);
   }
 }
 
@@ -100,7 +101,7 @@ function floorFactLines(world: World, state: GameState, terminal: ComputerTermin
   const room = roomId >= 0 ? world.rooms[roomId] : undefined;
   const zone = zoneId >= 0 ? world.zones[zoneId] : undefined;
   return [
-    `Этаж: ${state.currentZ}. Зона: ${zoneId >= 0 ? zoneId : 'нет'}.`,
+    `Этаж: ${FloorLevel[state.currentFloor] ?? state.currentFloor}. Зона: ${zoneId >= 0 ? zoneId : 'нет'}.`,
     `Комната: ${room?.name ?? 'не подписана'}. Опасность зоны: ${zone?.level ?? 0}.`,
     `Самосбор: ${state.samosborActive ? 'активен' : 'нет'}; таймер ${Math.max(0, Math.floor(state.samosborTimer))} сек.`,
   ];

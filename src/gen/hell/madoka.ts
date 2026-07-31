@@ -3,13 +3,12 @@
 
 import {
   W, Cell,
-  type Entity, Faction, Occupation,
+  type Entity, Faction, FloorLevel, Occupation,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerAuthoredNpc, storyNpcFloorKey } from '../../data/plot';
 import { authoredNpcSpr } from '../../render/sprite_index';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng } from '../../core/rand';
 
 const NPC_ID = 'meduka_meguku';
 
@@ -50,7 +49,7 @@ const NPC_DEF: PlotNpcDef = {
 registerAuthoredNpc({
   id: NPC_ID,
   npc: NPC_DEF,
-  homeFloorKey: storyNpcFloorKey(180),
+  homeFloorKey: storyNpcFloorKey(FloorLevel.HELL),
   tags: ['hell', 'psi'],
 });
 
@@ -58,11 +57,11 @@ export function spawnMedukaMeguku(
   world: World, entities: Entity[], nextId: { v: number },
 ): void {
   for (let i = 0; i < 4000; i++) {
-    const x = Math.floor(rng() * W);
-    const y = Math.floor(rng() * W);
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
     if (world.cells[world.idx(x, y)] !== Cell.FLOOR) continue;
     requireSpawnedPlotNpcFromPackage(entities, nextId, NPC_ID, x + 0.5, y + 0.5, {
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       tool: 'psi_beam',
       canGiveQuest: false,
       isTraveler: true,

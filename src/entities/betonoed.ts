@@ -1,6 +1,6 @@
 /* ── Betonoed: weak-wall concrete eater ─────────────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 2.35,
   sprite: 0,
   aiFlags: ['wallBias', 'weakWallBreach'],
+  floors: [FloorLevel.MAINTENANCE],
   counterplay: 'Слабую стену решают до прогрыза: герметик или блок-комплект закрывают шов, шум уводит темп, огонь срывает жор.',
   lootHint: 'арматурная крошка, бетонный осколок, редкая ПСИ-бетонная заноза',
 };

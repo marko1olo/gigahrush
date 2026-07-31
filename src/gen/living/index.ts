@@ -22,22 +22,12 @@
 /*   To add a new hand-crafted room, create a .ts file here      */
 /*   and call it from generateWorld() below.                     */
 
-import { type Entity, Cell, Tex, EntityType, AIGoal, W, MonsterKind, RoomType, ZoneFaction } from '../../core/types';
+import { type Entity, FloorLevel, Cell, Tex } from '../../core/types';
 import { World } from '../../core/world';
-import { rng } from '../../core/rand';
-import { MONSTERS } from '../../entities/monster';
-import { monsterSpr } from '../../render/sprite_index';
-import { sampleNaturalPopulationCells } from '../population_placement';
-import { baseMonsterPopulationAtDefaultSoftLimit } from '../../data/population_profiles';
-import { activeActorCountAtDefaultSoftLimit } from '../../data/entity_limits';
-import { chooseFloorMonsterKind } from '../../data/monster_ecology';
 import { reassignQuestGivers } from '../../systems/quests';
-import { calcZoneLevel, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
+import { calcZoneLevel } from '../../systems/rpg';
 import { generateZones, stampHQRooms } from '../shared';
 import { placeProceduralScreens } from '../procedural_screens';
-import { designFloorPopulationProfile } from '../../data/design_floor_population';
-import { DESIGN_FLOOR_ROUTES } from '../../data/design_floors';
-import { Faction } from '../../core/types';
 import { generateApartments } from './apartments';
 import { generateVolatileMaze, wipeVolatile } from './volatile';
 import { generateTutorRoom } from './tutor_room';
@@ -79,7 +69,7 @@ export function generateWorld(_seed?: number, isTutorial: boolean = false): { wo
 
   /* ── A2: Permanent zones (64 macro-regions) ─────── */
   generateZones(world);  // Assign zone levels for living floor
-  for (const z of world.zones) z.level = calcZoneLevel(z.cx, z.cy, 0);
+  for (const z of world.zones) z.level = calcZoneLevel(z.cx, z.cy, FloorLevel.LIVING);
 
   /* Update apartmentRoomCount to include all permanent rooms */
   world.apartmentRoomCount = world.rooms.length;
@@ -121,74 +111,34 @@ export function generateWorld(_seed?: number, isTutorial: boolean = false): { wo
   }
 
   /* ── B0: Zone content modules (after maze — bulldoze & stamp over corridors) ── */
-  const nid = { v: nextId };
-  runZoneContentModules(world, entities, nid);
-  nextId = nid.v;
+  if (!isTutorial) {
+    const nid = { v: nextId };
+    runZoneContentModules(world, entities, nid);
+    nextId = nid.v;
+  }
 
   /* ── B1: Readable hub routes and district motifs ─────────────── */
   buildLivingHubGeometry(world);
 
-  /* ── B2: Shadows near Vanka (needs corridors to exist) */
-  spawnVankaShadows(world, entities, { v: nextId });
-  nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
+  if (!isTutorial) {
+    /* ── B2: Shadows near Vanka (needs corridors to exist) */
+    spawnVankaShadows(world, entities, { v: nextId });
+    nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
 
-  /* ── B2.5: Ambient Monsters ───────────────────────── */
-  const livingMonsterProfile = {
-    noiseScale: 96,
-    noiseStrength: 0.2,
-    openWeight: 1.0,
-    roomWeights: {
-      [RoomType.STORAGE]: 1.5,
-      [RoomType.CORRIDOR]: 1.2,
-      [RoomType.BATHROOM]: 1.1,
-      [RoomType.SMOKING]: 1.1,
-    },
-    zoneWeights: {
-      [ZoneFaction.WILD]: 1.8,
-      [ZoneFaction.CULTIST]: 1.2,
-      [ZoneFaction.CITIZEN]: 0.2,
-    },
-  };
-  const monsterCount = Math.floor(activeActorCountAtDefaultSoftLimit(baseMonsterPopulationAtDefaultSoftLimit(0)));
-  const monsterCells = sampleNaturalPopulationCells(world, monsterCount, livingMonsterProfile, 0x1234);
-  for (const cell of monsterCells) {
-    const kind = chooseFloorMonsterKind({ z: 0, rng });
-    const m = MONSTERS[kind];
-    if (!m) continue;
-    const hp = scaleMonsterHp(m.hp, 5); // Base level 5
-    const speed = scaleMonsterSpeed(m.speed, 5);
-    entities.push({
-      id: nextId++, type: EntityType.MONSTER, monsterKind: kind,
-      x: (cell % W) + 0.5, y: Math.floor(cell / W) + 0.5,
-      angle: rng() * Math.PI * 2, pitch: 0, alive: true,
-      hp, maxHp: hp, speed, sprite: monsterSpr(kind),
-      attackCd: 0,
-      ai: { goal: AIGoal.WANDER, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
-      phasing: kind === MonsterKind.SPIRIT,
-    });
+    /* ── B3: Side quest NPCs (random encounters, need FLOOR cells) */
+    spawnSideQuestNpcs(world, entities, { v: nextId });
+    nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
   }
 
-  /* ── B3: Side quest NPCs (random encounters, need FLOOR cells) */
-  spawnSideQuestNpcs(world, entities, { v: nextId });
-  nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
-
   /* ── B4: Rare procedural TV/monitor walls in suitable rooms ─── */
-  placeProceduralScreens(world, 100);
+  placeProceduralScreens(world, FloorLevel.LIVING);
 
   /* ── C: Items in all rooms ─────────────────────────── */
   nextId = spawnRoomItems(world, entities, nextId);
 
   /* ── D: NPCs — families + travelers ────────────────── */
-  const livingRoute = DESIGN_FLOOR_ROUTES.find(r => r.id === 'living');
-  const popProfile = livingRoute ? designFloorPopulationProfile(livingRoute) : null;
-  const npcTarget = popProfile?.npcTarget ?? 2048;
-  const npcFactions: readonly { value: Faction; weight: number }[] = popProfile?.npcFactions ?? [{ value: Faction.CITIZEN, weight: 100 }];
-
-  const residentQuota = Math.floor(npcTarget * 0.8);
-  const travelerQuota = Math.max(0, npcTarget - residentQuota);
-
-  nextId = spawnFamilies(world, apartments, entities, nextId, residentQuota, npcFactions);
-  nextId = spawnTravelers(world, entities, nextId, travelerQuota, npcFactions);
+  nextId = spawnFamilies(world, apartments, entities, nextId);
+  nextId = spawnTravelers(world, entities, nextId);
 
   /* ── E: Quest givers + spawn ───────────────────────── */
   reassignQuestGivers(entities);
@@ -203,6 +153,6 @@ export function generateWorld(_seed?: number, isTutorial: boolean = false): { wo
 export function regrowMaze(world: World): void {
   wipeVolatile(world);
   generateVolatileMaze(world);
-  placeProceduralScreens(world, 100);
+  placeProceduralScreens(world, FloorLevel.LIVING);
   buildLivingHubGeometry(world);
 }

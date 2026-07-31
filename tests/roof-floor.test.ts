@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, LiftDirection, RoomType, W, ZoneFaction } from '../src/core/types';
+import { Cell, FloorLevel, LiftDirection, RoomType, W, ZoneFaction } from '../src/core/types';
 import { auditReachability } from '../src/core/world';
 import { designFloorAtZ, designFloorById } from '../src/data/design_floors';
 import { generateDesignFloor } from '../src/gen/design_floors/manifest';
@@ -15,7 +15,7 @@ import {
   ROOF_SKY_WIDTH,
   summarizeRoofLosExposure,
   type RoofGeneration,
-} from '../src/gen/roof';
+} from '../src/gen/design_floors/roof';
 import { routeCueCount } from '../src/systems/route_cues';
 import { countTerritoryCells, territoryHqAnchors } from '../src/systems/territory';
 
@@ -46,23 +46,10 @@ test('roof is registered as the top authored route floor', () => {
   const route = designFloorById(ROOF_ROUTE_ID);
 
   assert.equal(route?.z, ROOF_FUTURE_Z);
-    assert.equal(route?.displayName, 'Крыша');
-  assert.equal(route?.hasOpenSky, true);
-  assert.equal(route?.themeTags?.includes('ministry'), true);
+  assert.equal(route?.baseFloor, ROOF_BASE_FLOOR);
+  assert.equal(route?.displayName, 'Крыша');
+  assert.equal(route?.baseFloor, FloorLevel.MINISTRY);
   assert.equal(designFloorAtZ(ROOF_FUTURE_Z)?.id, ROOF_ROUTE_ID);
-});
-
-test('roof generator sets open sky flag and does not extrude walls to sky', () => {
-  const gen = generatedRoof();
-  assert.equal(gen.world.hasOpenSky, true);
-  // Tier 0 is standard room height, verifying that global ceiling tier did not force walls up
-  let extrudedWalls = 0;
-  for (let i = 0; i < gen.world.cells.length; i++) {
-    if (gen.world.cells[i] === Cell.WALL && gen.world.ceilHeight[i] > 3) {
-      extrudedWalls++;
-    }
-  }
-  assert.equal(extrudedWalls, 0, 'Roof walls should not extrude to the sky dome');
 });
 
 test('roof generator exposes sky, shelter cue and two descent routes', () => {

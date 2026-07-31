@@ -8,7 +8,7 @@ import { applyDamageRelationPenalty, isHostile } from '../src/systems/factions';
 import { getFactionPlayerRelation } from '../src/systems/npc_relations';
 import { getRecentEvents } from '../src/systems/events';
 import { addNpcPlayerRelation } from '../src/systems/npc_relations';
-import { checkQuests, checkTalkQuest } from '../src/systems/quests';
+import { checkQuests } from '../src/systems/quests';
 import { makeGameState, makeTestEntity } from './helpers';
 
 test('player attack lowers personal NPC relation and can make that NPC hostile', () => {
@@ -74,7 +74,7 @@ test('quest completion gives small faction gain and stronger giver relation gain
     done: false,
   });
 
-  checkTalkQuest(giver, player, world, [player, giver], state, state.msgs);
+  checkQuests(player, world, [player, giver], state, state.msgs);
 
   assert.equal(state.quests[0].done, true);
   assert.equal(getFactionRel(Faction.CITIZEN, Faction.PLAYER), 51);

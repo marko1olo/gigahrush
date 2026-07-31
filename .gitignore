@@ -19,4 +19,9 @@ gatbage/
 !.env.*.example
 
 *.log
-venv/
+
+.env*
+
+secrets.json
+
+keys.json

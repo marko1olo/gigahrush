@@ -19,7 +19,7 @@ function createMockGameState(): GameState {
     msgs: [],
     msgLog: [], // Added msgLog
     clock: { totalMinutes: 0, hour: 0, minute: 0 },
-    currentZ: 1,
+    currentFloor: 1,
     worldEvents: createWorldEventState(),
   } as unknown as GameState;
 }

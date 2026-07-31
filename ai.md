@@ -41,7 +41,7 @@ The short combat-step must not erase personal behavior:
 
 - every actor can keep `combatTargetId`, cooldowns, path/frustration, current intent/debug label and recent damage memory;
 - NPC role, faction, bravery, weapon, personal relation to the player, needs and utility pressure still decide whether they fight, flee, hide, patrol, work or recover;
-- routine utility can resume after danger passes. Micro-goals like noise investigation, looting, and friendly bartering can naturally interrupt routine travel without destroying the main intent;
+- routine utility can resume after danger passes;
 - player distance does not decide AI cadence or whether an actor exists;
 - actors do not scan noise or targets every frame; those expensive choices use local cooldowns and cached ids, while movement, cooldowns, attacks and current intents continue every frame.
 
@@ -387,17 +387,6 @@ AI movement stays toroidal and field-based:
 - personal home/work targets can use direct room/cell paths with target-resolution caps;
 - runtime geometry mutation must bump the correct dirty versions so stale paths and flow fields rebuild;
 - actors must tolerate samosbor, doors and room changes by clearing or retargeting stale paths.
-
-### Navigation Graph And Runtime Edits
-
-The baked navigation is a 2-level **Region-Portal HPA\*** graph in `src/systems/ai/pathfinding.ts`: regions (rooms + `16×16` clusters) linked by portals, with a region-node next-hop matrix `_regionNext` built one BFS per region (O(R·E), no Floyd-Warshall, no spanning-tree seams, toroidal cycles preserved). Queries are O(1).
-
-Runtime destructibility/construction (wall break, wall/door build, door lock or break) updates the graph **incrementally**, never by a mid-game full rebake:
-
-- A mutator reports its changed cells via `markNavigationCellsDirty(cells)`. On the next `ensureNavigationTree`, `patchNavigationRegions` refloods only the affected `16×16` clusters, rescans their borders and rebuilds `_regionNext` (sub-ms). Cluster ids just grow; >1.5× growth triggers one compacting bake.
-- Full `bakeNavigationTree` happens at exactly two planned points — new floor and post-samosbor stitch — matching the Iron Law in [optimization.md](optimization.md).
-- **Accept-stale:** unreported mutators (anomaly wall-snakes, Conway life, section_shift, etc.) are intentionally not wired; their edits leave a briefly sub-optimal/missing path for a few cells until the next planned bake. This keeps navigation one universal, geometry/anomaly-agnostic layer. Do not add a `core/world.ts` hook or instrument anomaly mutators to "complete" the dirty set.
-- Wired reporting sites: `breach_charge.ts`, `weapon_beams.ts`, `door_state.ts`, `main.ts` (map-editor / block-kit).
 
 ## Debug And Telemetry
 

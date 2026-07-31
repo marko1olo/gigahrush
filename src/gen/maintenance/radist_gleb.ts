@@ -1,7 +1,6 @@
 /* ── Радист Глеб — side quest (maintenance floor) ─────────────── */
 /* Учёный с радиостанцией охотится за арматурными тварями.         */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   W, Cell,
   type Entity, Faction, Occupation, QuestType, MonsterKind,
@@ -9,7 +8,6 @@ import {
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng } from '../../core/rand';
 
 const NPC_DEF: PlotNpcDef = {
   name: 'Радист Глеб',
@@ -40,7 +38,7 @@ const NPC_DEF: PlotNpcDef = {
 registerSideQuest('radist_gleb', NPC_DEF, [
   {
     id: 'gleb_rebars',
-    giverId: getPlotNpcNumericId('radist_gleb')!,
+    giverNpcId: 'radist_gleb',
     type: QuestType.KILL,
     desc: 'Глеб: «Убей трёх арматурных тварей. Они глушат эфир.»',
     targetMonsterKind: MonsterKind.REBAR,
@@ -59,11 +57,11 @@ export function spawnRadistGleb(
   world: World, entities: Entity[], nextId: { v: number },
 ): void {
   for (let i = 0; i < 3000; i++) {
-    const x = Math.floor(rng() * W);
-    const y = Math.floor(rng() * W);
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
     if (world.cells[world.idx(x, y)] !== Cell.FLOOR) continue;
     requireSpawnedPlotNpcFromPackage(entities, nextId, 'radist_gleb', x + 0.5, y + 0.5, {
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       weapon: 'makarov',
       canGiveQuest: true,
       isTraveler: true,

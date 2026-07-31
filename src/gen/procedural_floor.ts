@@ -1,6 +1,5 @@
 /* ── Seeded combinatoric procedural floors ───────────────────── */
 
-import { validateFloorGeometry } from './shared';
 import { stampSurfaceSplat } from '../systems/surface_marks';
 import {
   W,
@@ -8,6 +7,7 @@ import {
   ContainerKind,
   DoorState,
   Feature,
+  FloorLevel,
   LiftDirection,
   EntityType,
   AIGoal,
@@ -27,7 +27,7 @@ import {
   type WorldContainer,
 } from '../core/types';
 import { World } from '../core/world';
-import { rng, withSeededRandom, xorshift32 } from '../core/rand';
+import { withSeededRandom, xorshift32 } from '../core/rand';
 import { ITEMS, NOTES, freshNeeds, randomName } from '../data/catalog';
 import { ITEM_TAGS, getStack, spawnCount } from '../data/items';
 import { CONTAINER_DEFS, containerKindsForRoom } from '../data/container_defs';
@@ -36,7 +36,6 @@ import { emergencyPanelDefsForGeometry, type EmergencyPanelDef } from '../data/e
 import { factionToTerritoryOwner, territoryOwnerName, territoryOwnerToFaction } from '../data/factions';
 import { chooseFloorMonsterKind, getMonsterEcology } from '../data/monster_ecology';
 import {
-  populationLevelForRouteZ,
   proceduralPopulationBudget,
   proceduralPopulationProfileId,
 } from '../data/population_profiles';
@@ -59,7 +58,7 @@ import {
   majorityById,
   proceduralFloorAnomalyRoutePressure,
   proceduralFloorRoutePressureLevel,
-  // @ts-ignore
+  proceduralMonsterFloor,
   proceduralLootValueCap,
   type ProceduralFloorSpec,
   type FloorGeometryDef,
@@ -340,15 +339,15 @@ interface AtticWindLane {
 }
 
 function irng(lo: number, hi: number): number {
-  return lo + Math.floor(rng() * (hi - lo + 1));
+  return lo + Math.floor(Math.random() * (hi - lo + 1));
 }
 
 function chance(p: number): boolean {
-  return rng() < p;
+  return Math.random() < p;
 }
 
 function pick<T>(items: readonly T[]): T {
-  return items[Math.floor(rng() * items.length)];
+  return items[Math.floor(Math.random() * items.length)];
 }
 
 function cloneItems(items: readonly Item[]): Item[] {
@@ -809,8 +808,7 @@ function applyProceduralMacroNetwork(world: World, rooms: Room[], spec: Procedur
       y: firstCenter.y + 0.5,
       targetX: lastCenter.x + 0.5,
       targetY: lastCenter.y + 0.5,
-      // @ts-ignore
-      z: spec.themeTags,
+      floor: spec.baseFloor,
       roomId: first.id,
       targetRoomId: last.id,
       zoneId: world.zoneMap[world.idx(firstCenter.x, firstCenter.y)],
@@ -855,7 +853,7 @@ function decorateProceduralRoom(world: World, room: Room, spec: ProceduralFloorS
   const industrial = isIndustrialGeometry(spec.geometryId);
   for (let dy = 1; dy < room.h - 1; dy++) {
     for (let dx = 1; dx < room.w - 1; dx++) {
-      if (rng() > 0.025) continue;
+      if (Math.random() > 0.025) continue;
       const i = world.idx(room.x + dx, room.y + dy);
       if (world.cells[i] !== Cell.FLOOR) continue;
       if (room.type === RoomType.PRODUCTION) world.features[i] = industrial ? Feature.MACHINE : Feature.TABLE;
@@ -1014,8 +1012,7 @@ function applyWorkshopClusterRooms(world: World, rooms: Room[], spec: Procedural
     const localTarget = 5 + (seed % 5);
     let localPlaced = 0;
     for (let i = 0; i < supportTypes.length && localPlaced < localTarget && microRooms < WORKSHOP_MICRO_ROOM_TARGET; i++) {
-      const idx = ((i + clusters + spec.danger) % supportTypes.length + supportTypes.length) % supportTypes.length;
-      const type = supportTypes[idx];
+      const type = supportTypes[(i + clusters + spec.danger) % supportTypes.length];
       const size = workshopMicroRoomSize(type, seed + i * 97);
       const room = tryPlaceWorkshopSupportRoom(world, rooms, spec, nextRoomId, hub, type, size, clusters + 1, i, seed);
       if (!room) continue;
@@ -1421,8 +1418,7 @@ function buildConwayLifeFieldRooms(world: World, spec: ProceduralFloorSpec): { r
     y: spawn.y + 0.5,
     targetX: target.x + 0.5,
     targetY: target.y + 0.5,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: spawnRoom?.id,
     targetRoomId: rooms[rooms.length - 1]?.id,
     zoneId: world.zoneMap[world.idx(spawn.x, spawn.y)],
@@ -1594,8 +1590,7 @@ function registerWallSnakeFieldCue(
     y: head.y + 0.5,
     targetX: loop.bait.x + 0.5,
     targetY: loop.bait.y + 0.5,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: loop.roomId,
     targetRoomId: loop.roomId,
     zoneId: world.zoneMap[headIdx],
@@ -2379,15 +2374,15 @@ const VOID_FILL_ATTEMPTS_PER_TILE = 120;
 function measureTileCoverage(world: World, tileX: number, tileY: number): number {
   const x0 = tileX * VOID_TILE;
   const y0 = tileY * VOID_TILE;
-  let z = 0;
+  let floor = 0;
   for (let dy = 0; dy < VOID_TILE; dy++) {
     for (let dx = 0; dx < VOID_TILE; dx++) {
       const ci = world.idx(x0 + dx, y0 + dy);
       const c = world.cells[ci];
-      if (c === Cell.FLOOR || c === Cell.DOOR || c === Cell.WATER) z++;
+      if (c === Cell.FLOOR || c === Cell.DOOR || c === Cell.WATER) floor++;
     }
   }
-  return z / (VOID_TILE * VOID_TILE);
+  return floor / (VOID_TILE * VOID_TILE);
 }
 
 function voidFillRoomSize(seed: number, industrial: boolean): { w: number; h: number; type: RoomType } {
@@ -2627,10 +2622,11 @@ function stitchSectorBoundaries(world: World, sectors: RecipeRegion[], seed: num
 
           // Which sector is A and which is B relative to ax, ay?
           // If we stepped left to ax, then ax is inside the left sector.
-          // The boundary is at sharedX (or sharedY). ax is sharedX - 1 (or ay is sharedY - 1).
-          // So walking "away" from boundary is -1.
+          // Direction to walk into ax's sector is -1 on X.
           let dxA = 0, dyA = 0;
           if (isVerticalEdge) {
+            dxA = (ax === world.wrap(A.x0 + A.w - 1) || ax === world.wrap(A.x0 - 1)) ? -1 : 1;
+            // Actually, simply: the boundary is at sharedX. ax is sharedX - 1. So walking "away" from boundary is -1.
             dxA = -1;
           } else {
             dyA = -1;
@@ -2986,8 +2982,7 @@ function registerCollectorMirrorInfillCue(world: World, spec: ProceduralFloorSpe
     y: a.y + 0.5,
     targetX: b.x + 0.5,
     targetY: b.y + 0.5,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: first.id,
     targetRoomId: target.id,
     zoneId: world.zoneMap[ci],
@@ -3103,12 +3098,12 @@ function proceduralHqSupportType(owner: ZoneFaction, index: number): RoomType {
   return [RoomType.KITCHEN, RoomType.COMMON, RoomType.STORAGE, RoomType.MEDICAL][index] ?? RoomType.COMMON;
 }
 
-function proceduralHqTextures(owner: ZoneFaction): { wall: Tex; z: Tex } {
-  if (owner === ZoneFaction.SCIENTIST) return { wall: Tex.MARBLE, z: Tex.F_TILE };
-  if (owner === ZoneFaction.LIQUIDATOR) return { wall: Tex.METAL, z: Tex.F_CONCRETE };
-  if (owner === ZoneFaction.CULTIST) return { wall: Tex.BRICK, z: Tex.F_GUT };
-  if (owner === ZoneFaction.WILD) return { wall: Tex.BRICK, z: Tex.F_CONCRETE };
-  return { wall: Tex.PANEL, z: Tex.F_LINO };
+function proceduralHqTextures(owner: ZoneFaction): { wall: Tex; floor: Tex } {
+  if (owner === ZoneFaction.SCIENTIST) return { wall: Tex.MARBLE, floor: Tex.F_TILE };
+  if (owner === ZoneFaction.LIQUIDATOR) return { wall: Tex.METAL, floor: Tex.F_CONCRETE };
+  if (owner === ZoneFaction.CULTIST) return { wall: Tex.BRICK, floor: Tex.F_GUT };
+  if (owner === ZoneFaction.WILD) return { wall: Tex.BRICK, floor: Tex.F_CONCRETE };
+  return { wall: Tex.PANEL, floor: Tex.F_LINO };
 }
 
 function proceduralHqRoomName(owner: ZoneFaction, type: RoomType, index: number, dominant: boolean): string {
@@ -3329,7 +3324,7 @@ function stampProceduralHqCluster(
     clearProceduralHqFootprint(world, x, y, item.w, item.h);
     const room = stampRoom(world, world.rooms.length, item.type, x, y, item.w, item.h, -1);
     room.name = proceduralHqRoomName(owner, item.type, i, dominant);
-    applyRoomTexture(world, room, item.type === RoomType.HQ ? Tex.HERMO_WALL : textures.wall, textures.z);
+    applyRoomTexture(world, room, item.type === RoomType.HQ ? Tex.HERMO_WALL : textures.wall, textures.floor);
     decorateRoom(world, room);
     decorateProceduralRoom(world, room, spec);
     paintProceduralRoomTerritory(world, room, owner);
@@ -3424,7 +3419,7 @@ function chooseItem(room: Room, spec: ProceduralFloorSpec, maxValue = Number.POS
     total += weight;
   }
   if (weighted.length === 0 || total <= 0) return null;
-  let roll = rng() * total;
+  let roll = Math.random() * total;
   for (const item of weighted) {
     roll -= item.weight;
     if (roll <= 0) return item.def;
@@ -3485,9 +3480,9 @@ function seedProceduralLootInventory(room: Room, kind: ContainerKind, spec: Proc
   const def = CONTAINER_DEFS[kind];
   const valueCap = proceduralContainerValueCap(kind, spec);
   const inv: Item[] = [];
-  const targetSlots = Math.min((def.capacitySlots ?? 9), 2 + Math.floor(spec.danger / 2) + (kind === ContainerKind.SAFE || kind === ContainerKind.SECRET_STASH ? 1 : 0));
+  const targetSlots = Math.min(def.capacitySlots, 2 + Math.floor(spec.danger / 2) + (kind === ContainerKind.SAFE || kind === ContainerKind.SECRET_STASH ? 1 : 0));
   const bias = spec.lootBiasIds[(room.id + kind + spec.danger) % Math.max(1, spec.lootBiasIds.length)];
-  if (bias && chance(0.72)) addCappedItem(inv, { defId: bias, count: 1 }, valueCap, (def.capacitySlots ?? 9));
+  if (bias && chance(0.72)) addCappedItem(inv, { defId: bias, count: 1 }, valueCap, def.capacitySlots);
 
   for (let attempt = 0; attempt < targetSlots * 4 && inv.length < targetSlots; attempt++) {
     const remaining = valueCap - inventoryValue(inv);
@@ -3495,7 +3490,7 @@ function seedProceduralLootInventory(room: Room, kind: ContainerKind, spec: Proc
     const picked = chooseItem(room, spec, remaining);
     if (!picked) break;
     const count = irng(1, Math.max(1, Math.min(spawnCount(picked), spec.danger + 2)));
-    addCappedItem(inv, { defId: picked.id, count }, valueCap, (def.capacitySlots ?? 9));
+    addCappedItem(inv, { defId: picked.id, count }, valueCap, def.capacitySlots);
   }
 
 
@@ -3586,14 +3581,13 @@ function addProceduralLootContainer(
     id: nextContainerId(world),
     x: pos.x,
     y: pos.y,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
     kind,
     name: name ?? `${def.name}: ${room.name}`,
     inventory,
-    capacitySlots: (def.capacitySlots ?? 9),
+    capacitySlots: def.capacitySlots,
     ownerName: access === 'owner' ? proceduralOwnerName(spec) : undefined,
     faction: access === 'faction' || access === 'locked' ? majorityById(spec.majorityId).npcFaction : undefined,
     access,
@@ -3730,7 +3724,7 @@ function pickReachablePanelCell(cells: readonly ReachablePanelCell[]): Reachable
   let total = 0;
   for (const cell of cells) total += cell.weight;
   if (cells.length === 0 || total <= 0) return null;
-  let roll = rng() * total;
+  let roll = Math.random() * total;
   for (const cell of cells) {
     roll -= cell.weight;
     if (roll <= 0) return cell;
@@ -3781,7 +3775,7 @@ function pickReachableLootCell(cells: readonly ReachableLootCell[], used: Set<nu
     total += weight;
   }
   if (weighted.length === 0 || total <= 0) return null;
-  let roll = rng() * total;
+  let roll = Math.random() * total;
   for (const item of weighted) {
     roll -= item.weight;
     if (roll <= 0) return item.cell;
@@ -3990,17 +3984,17 @@ function spawnNpcs(world: World, rooms: Room[], entities: Entity[], nextId: { v:
       ? ownerFaction
       : chance(0.78) ? majority.npcFaction : pick([Faction.CITIZEN, Faction.LIQUIDATOR, Faction.WILD, Faction.CULTIST, Faction.SCIENTIST]);
     const occupation = occupationForFaction(faction, roomType);
-    const zoneLevel = Math.max(world.zones[world.zoneMap[cell]]?.level ?? spec.danger, populationLevelForRouteZ(spec.z, spec.danger) - 1);
+    const zoneLevel = world.zones[world.zoneMap[cell]]?.level ?? spec.danger;
     const rpg = randomRPG(gaussianLevel(zoneLevel, 2));
     const maxHp = getMaxHp(rpg);
     const nm = randomName(faction);
     const loadout = npcLoadout(faction, spec.danger);
     entities.push({
-      id: -1,
+      id: nextId.v++,
       type: EntityType.NPC,
       x: (cell % W) + 0.5,
       y: ((cell / W) | 0) + 0.5,
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       pitch: 0,
       alive: true,
       speed: occupation === Occupation.CHILD ? 0.8 : 1.15,
@@ -4280,7 +4274,7 @@ function spawnMonster(
   const pos = randomFloorCell(world, sx, sy, 90 * 90);
   if (!pos) return null;
   const kind = chooseFloorMonsterKind({
-    z: spec.z,
+    floor: proceduralMonsterFloor(spec),
     roomType: roomTypeAt(world, pos.x, pos.y),
     floorTags: spec.monsterBiasTags,
     samosborCount: spec.danger,
@@ -4296,14 +4290,14 @@ function spawnMonster(
       ? tumannikFogSpawn(world, pos)
       : pos;
   if (!spawnPos) return null;
-  const zoneLevel = Math.max(world.zones[world.zoneMap[world.idx(spawnPos.x, spawnPos.y)]]?.level ?? spec.danger, populationLevelForRouteZ(spec.z, spec.danger));
+  const zoneLevel = world.zones[world.zoneMap[world.idx(spawnPos.x, spawnPos.y)]]?.level ?? spec.danger;
   const hp = Math.round(def.hp * (0.75 + zoneLevel * 0.18));
   const monster: Entity = {
     id: nextId.v++,
     type: EntityType.MONSTER,
     x: spawnPos.x + 0.5,
     y: spawnPos.y + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: def.speed * (0.9 + spec.danger * 0.04),
@@ -4635,7 +4629,7 @@ function placeSmogFilterPockets(
   }
 }
 
-function spawnSmogLooter(world: World, room: Room, entities: Entity[], _nextId: { v: number }, spec: ProceduralFloorSpec): void {
+function spawnSmogLooter(world: World, room: Room, entities: Entity[], nextId: { v: number }, spec: ProceduralFloorSpec): void {
   if (!canSpawnEntityType(entities, EntityType.NPC)) return;
   const pos = randomRoomCell(room);
   const ci = world.idx(pos.x, pos.y);
@@ -4645,11 +4639,11 @@ function spawnSmogLooter(world: World, room: Room, entities: Entity[], _nextId: 
   const nm = randomName(Faction.WILD);
   const weapon = chance(0.55) ? 'pipe' : 'knife';
   entities.push({
-    id: -1,
+    id: nextId.v++,
     type: EntityType.NPC,
     x: pos.x + 0.5,
     y: pos.y + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: 1.15,
@@ -4689,7 +4683,7 @@ function spawnSmogMonster(world: World, room: Room, entities: Entity[], nextId: 
     type: EntityType.MONSTER,
     x: pos.x + 0.5,
     y: pos.y + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: def.speed * (0.95 + spec.danger * 0.035),
@@ -6356,8 +6350,7 @@ function registerAtticWindCue(world: World, spec: ProceduralFloorSpec, lane: Att
     y: startY + 0.5,
     targetX: endX + 0.5,
     targetY: endY + 0.5,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     label: 'ветровой ход',
     hint: 'открытая чердачная прямая: быстрее, но слышно дальше',
     targetName: 'дальний шум вентиляции',
@@ -6489,8 +6482,7 @@ function registerAtticDecisionCue(
     y: repair.y + 0.5,
     targetX: cache.x + 0.5,
     targetY: cache.y + 0.5,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: repair.room.id,
     targetRoomId: cache.room.id,
     zoneId: world.zoneMap[world.idx(repair.x, repair.y)],
@@ -7015,30 +7007,9 @@ function applyCommunalKnots(world: World, rooms: Room[], spec: ProceduralFloorSp
 
 function placeCommunalKnotLandmarks(world: World, rooms: Room[], spec: ProceduralFloorSpec, reachable: Uint8Array): void {
   if (spec.geometryId !== 'communal_knots') return;
-
-  let pantryRoom: Room | undefined;
-  let noticeRoom: Room | undefined;
-  let throughRoom: Room | undefined;
-  let fallbackPantry: Room | undefined;
-  let fallbackNotice: Room | undefined;
-
-  for (let i = 0; i < rooms.length; i++) {
-    const room = rooms[i];
-
-    if (!fallbackPantry && room.type === RoomType.STORAGE) fallbackPantry = room;
-    if (!fallbackNotice && room.type === RoomType.COMMON) fallbackNotice = room;
-
-    const name = room.name;
-    if (name.length >= 12) {
-      if (!pantryRoom && name.startsWith('Кладовая общака')) pantryRoom = room;
-      else if (!noticeRoom && name.startsWith('Домен жалобы')) noticeRoom = room;
-      else if (!throughRoom && name.length >= 19 && name.includes('Сквозная коммуналка')) throughRoom = room;
-    }
-
-    if (pantryRoom && noticeRoom && throughRoom) break;
-  }
-  pantryRoom ??= fallbackPantry;
-  noticeRoom ??= fallbackNotice;
+  const pantryRoom = rooms.find(room => room.name.startsWith('Кладовая общака')) ?? rooms.find(room => room.type === RoomType.STORAGE);
+  const noticeRoom = rooms.find(room => room.name.startsWith('Домен жалобы')) ?? rooms.find(room => room.type === RoomType.COMMON);
+  const throughRoom = rooms.find(room => room.name.includes('Сквозная коммуналка'));
 
   const pantry = pantryRoom ? findReachableContainerCell(world, rooms, reachable, spec.seed ^ 0x3701, pantryRoom) : null;
   if (pantry) {
@@ -7180,19 +7151,20 @@ function decorateCitizenWitnessPocket(world: World, room: Room, index: number, s
 
 
 function applyVoidFillers(world: World, rooms: Room[]): void {
-  const minBlockSize = 8;
-  const padding = 0; // minimum distance from edge
-  const maxVoids = 2000;
+  const blockSize = 11;
+  const roomW = 7;
+  const roomH = 7;
+  const step = 8;
+  const maxVoids = 30;
   let filled = 0;
 
-  for (let y = padding; y < W - padding - minBlockSize; y += 1) {
-    for (let x = padding; x < W - padding - minBlockSize; x += 1) {
+  for (let y = 10; y < W - 10 - blockSize; y += step) {
+    for (let x = 10; x < W - 10 - blockSize; x += step) {
       if (filled >= maxVoids) return;
 
-      // Check if we have a solid block of minBlockSize x minBlockSize
       let isVoid = true;
-      for (let dy = 0; dy < minBlockSize; dy++) {
-        for (let dx = 0; dx < minBlockSize; dx++) {
+      for (let dy = 0; dy < blockSize; dy++) {
+        for (let dx = 0; dx < blockSize; dx++) {
           const ci = world.idx(x + dx, y + dy);
           if (world.cells[ci] !== Cell.WALL || world.aptMask[ci] || world.roomMap[ci] !== -1) {
             isVoid = false;
@@ -7203,85 +7175,29 @@ function applyVoidFillers(world: World, rooms: Room[]): void {
       }
 
       if (isVoid) {
-        // Carve a new room
-        const roomW = Math.floor(rng() * (minBlockSize - 2 - 4 + 1)) + 4;
-        const roomH = Math.floor(rng() * (minBlockSize - 2 - 4 + 1)) + 4;
-        const rx = x + Math.floor((minBlockSize - roomW) / 2);
-        const ry = y + Math.floor((minBlockSize - roomH) / 2);
+        const cx = x + Math.floor(blockSize / 2);
+        const cy = y + Math.floor(blockSize / 2);
 
-        // Fill with mostly utility/corridor
-        const roomType = chance(0.7) ? RoomType.STORAGE : (chance(0.5) ? RoomType.STORAGE : RoomType.CORRIDOR);
-
-        const room = stampRoom(world, rooms.length, roomType, rx, ry, roomW, roomH, -1);
-        rooms.push(room);
-        filled++;
-
-        // Connect to nearest corridor/room
-        let nearestFloorCellX = -1;
-        let nearestFloorCellY = -1;
+        let nearestRoom: Room | null = null;
         let bestDist = Infinity;
-
-        const cx = rx + Math.floor(roomW / 2);
-        const cy = ry + Math.floor(roomH / 2);
-
-        // Find nearest floor cell
-        for (let searchRadius = 2; searchRadius < 48; searchRadius++) {
-          for (let dy = -searchRadius; dy <= searchRadius; dy++) {
-            for (let dx = -searchRadius; dx <= searchRadius; dx++) {
-               // Only check perimeter
-               if (Math.abs(dx) !== searchRadius && Math.abs(dy) !== searchRadius) continue;
-
-               const wx = world.wrap(cx + dx);
-               const wy = world.wrap(cy + dy);
-               const ci = world.idx(wx, wy);
-
-               // Found a reachable floor cell not inside our new room
-               if (world.cells[ci] === Cell.FLOOR && world.roomMap[ci] !== room.id) {
-                 const dist = Math.abs(dx) + Math.abs(dy);
-                 if (dist < bestDist) {
-                   bestDist = dist;
-                   nearestFloorCellX = wx;
-                   nearestFloorCellY = wy;
-                 }
-               }
-            }
+        for (const room of rooms) {
+          const rx = room.x + Math.floor(room.w / 2);
+          const ry = room.y + Math.floor(room.h / 2);
+          const d = Math.abs(cx - rx) + Math.abs(cy - ry);
+          if (d < bestDist) {
+            bestDist = d;
+            nearestRoom = room;
           }
-          if (nearestFloorCellX !== -1) break; // found nearest in this radius
         }
 
-        if (nearestFloorCellX !== -1) {
-           carveCorridor(world, cx, cy, nearestFloorCellX, nearestFloorCellY);
-
-           // We need to place a door at the boundary to not break ALife
-           // Simplest: place door at nearest point on room boundary
-           let doorX = cx, doorY = cy;
-           let doorDist = Infinity;
-
-           // Find boundary cell of our room that is closest to nearestFloorCell
-           for (let dy = -1; dy <= room.h; dy++) {
-             for (let dx = -1; dx <= room.w; dx++) {
-               // Must be a wall cell on boundary
-               if (dx >= 0 && dx < room.w && dy >= 0 && dy < room.h) continue;
-
-               const bndX = world.wrap(room.x + dx);
-               const bndY = world.wrap(room.y + dy);
-               const bndIdx = world.idx(bndX, bndY);
-
-               // Only consider cells that were carved into floor/door by the corridor
-               if (world.cells[bndIdx] === Cell.FLOOR || world.cells[bndIdx] === Cell.DOOR) {
-                 const d = Math.abs(bndX - nearestFloorCellX) + Math.abs(bndY - nearestFloorCellY);
-                 if (d < doorDist) {
-                   doorDist = d;
-                   doorX = bndX;
-                   doorY = bndY;
-                 }
-               }
-             }
-           }
-
-           if (doorDist < Infinity) {
-             placeDoorAt(world, doorX, doorY, room.id);
-           }
+        if (nearestRoom && bestDist < W / 2) {
+          const rx = x + Math.floor((blockSize - roomW) / 2);
+          const ry = y + Math.floor((blockSize - roomH) / 2);
+          const roomType = chance(0.5) ? RoomType.STORAGE : RoomType.CORRIDOR;
+          const room = stampRoom(world, rooms.length, roomType, rx, ry, roomW, roomH, -1);
+          rooms.push(room);
+          carveCorridor(world, cx, cy, nearestRoom.x + Math.floor(nearestRoom.w / 2), nearestRoom.y + Math.floor(nearestRoom.h / 2));
+          filled++;
         }
       }
     }
@@ -7345,14 +7261,13 @@ function addCitizenMajorityContainer(
     id: nextContainerId(world),
     x: pos.x,
     y: pos.y,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
     kind,
     name,
     inventory: cloneItems(inventory),
-    capacitySlots: (def.capacitySlots ?? 9),
+    capacitySlots: def.capacitySlots,
     ownerName: access === 'owner' ? 'соседская очередь' : undefined,
     faction: access === 'owner' || access === 'faction' ? Faction.CITIZEN : undefined,
     access,
@@ -7390,8 +7305,7 @@ function registerCitizenEscortCue(world: World, spec: ProceduralFloorSpec, marke
     y: marker.y + 0.5,
     targetX: target.x + 0.5,
     targetY: target.y + 0.5,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: markerRoom.id,
     targetRoomId: targetRoom.id,
     zoneId: world.zoneMap[markerCell],
@@ -8114,8 +8028,7 @@ function registerLivingCue(
     y: marker.y + 0.5,
     targetX: target.x + 0.5,
     targetY: target.y + 0.5,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: targetRoom?.id,
     targetRoomId: targetRoom?.id,
     label,
@@ -8781,8 +8694,7 @@ function placeFallbackAdminMicroRooms(
       y: spawnCueY(anchors[0]),
       targetX: spawnCueX(anchors[anchors.length - 1]),
       targetY: spawnCueY(anchors[anchors.length - 1]),
-      // @ts-ignore
-      z: spec.themeTags,
+      floor: spec.baseFloor,
       roomId: anchors[0]?.id,
       targetRoomId: anchors[anchors.length - 1]?.id,
       zoneId: world.zoneMap[world.idx(roomCenter(anchors[0]).x, roomCenter(anchors[0]).y)],
@@ -9257,14 +9169,13 @@ function addLiquidatorControlContainer(
     id: nextContainerId(world),
     x: pos.x,
     y: pos.y,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: pos.room.id,
     zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
     kind,
     name,
     inventory: inventory.map(item => ({ ...item })),
-    capacitySlots: (def.capacitySlots ?? 9),
+    capacitySlots: def.capacitySlots,
     ownerName: access === 'owner' ? 'дежурный поста ликвидаторов' : undefined,
     faction: access === 'faction' || access === 'locked' ? Faction.LIQUIDATOR : undefined,
     access,
@@ -9375,8 +9286,7 @@ function registerLiquidatorControlCues(world: World, spec: ProceduralFloorSpec, 
       y: checkpoint.y + 0.5,
       targetX: (targetCell % W) + 0.5,
       targetY: ((targetCell / W) | 0) + 0.5,
-      // @ts-ignore
-      z: spec.themeTags,
+      floor: spec.baseFloor,
       roomId: checkpoint.room.id,
       targetRoomId,
       zoneId: checkpoint.zoneId,
@@ -9463,7 +9373,7 @@ function findLiquidatorGuardCell(world: World, entities: readonly Entity[], chec
 function spawnLiquidatorCheckpointGuards(
   world: World,
   entities: Entity[],
-  _nextId: { v: number },
+  nextId: { v: number },
   spec: ProceduralFloorSpec,
   profile: LiquidatorControlProfile,
 ): void {
@@ -9481,11 +9391,11 @@ function spawnLiquidatorCheckpointGuards(
     const maxHp = getMaxHp(rpg);
     const loadout = npcLoadout(Faction.LIQUIDATOR, spec.danger);
     entities.push({
-      id: -1,
+      id: nextId.v++,
       type: EntityType.NPC,
       x: x + 0.5,
       y: y + 0.5,
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       pitch: 0,
       alive: true,
       speed: 1.1,
@@ -10091,8 +10001,7 @@ function registerSumpLifeRaftCue(world: World, spec: ProceduralFloorSpec, room: 
     y: c.y + 0.5,
     targetX: c.x + 0.5,
     targetY: c.y + 0.5,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: room.id,
     targetRoomId: room.id,
     zoneId: world.zoneMap[world.idx(c.x, c.y)],
@@ -11921,8 +11830,7 @@ function registerSamosborSeedRetreatCue(
     y: breachPos.y + 0.5,
     targetX: shelterPos.x + 0.5,
     targetY: shelterPos.y + 0.5,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: breach.id,
     targetRoomId: shelter.id,
     zoneId: world.zoneMap[world.idx(breachPos.x, breachPos.y)],
@@ -12236,7 +12144,7 @@ function spawnMyceliumAnchorMonster(world: World, entities: Entity[], nextId: { 
     type: EntityType.MONSTER,
     x: site.x + 0.5,
     y: site.y + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: def.speed * (0.86 + spec.danger * 0.03),
@@ -12577,7 +12485,7 @@ function pickTeleportEndpoint(
 ): number {
   const candidates = placement.candidates;
   for (let attempt = 0; attempt < 384 && candidates.length > 0; attempt++) {
-    const ci = candidates[Math.floor(rng() * candidates.length)];
+    const ci = candidates[Math.floor(Math.random() * candidates.length)];
     if (!teleportEndpointCandidate(world, placement, ci, used)) continue;
     const x = ci % W;
     const y = (ci / W) | 0;
@@ -12750,8 +12658,7 @@ function registerRailPlatformCue(
     y: marker.y + 0.5,
     targetX: target.x + 0.5,
     targetY: target.y + 0.5,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     label: 'свет платформы',
     hint: 'стойте за лампами: рельсовая вода принадлежит составу',
     targetName: track.label,
@@ -12890,8 +12797,7 @@ function registerRailTransferCue(world: World, spec: ProceduralFloorSpec, center
     y: marker.y + 0.5,
     targetX: target.x + 0.5,
     targetY: target.y + 0.5,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     label: 'пересадочный свет',
     hint: 'рельсовый крест: переходить по светлой кромке или ждать',
     targetName: 'пересечение линий',
@@ -14214,8 +14120,7 @@ function registerApartmentPressureCue(
     y: from.accessY,
     targetX: to.accessX,
     targetY: to.accessY,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: from.roomId,
     targetRoomId: to.roomId,
     zoneId: from.zoneId,
@@ -14368,8 +14273,7 @@ function applyCollectorZombieResidentialInfill(
       y: from.y + 0.5,
       targetX: to.x + 0.5,
       targetY: to.y + 0.5,
-      // @ts-ignore
-      z: spec.themeTags,
+      floor: spec.baseFloor,
       roomId: nearest.id,
       targetRoomId: farthest.id,
       zoneId: world.zoneMap[world.idx(from.x, from.y)],
@@ -14550,8 +14454,7 @@ function registerWildShortcutCue(world: World, spec: ProceduralFloorSpec, chord:
     y: chord.markerY + 0.5,
     targetX: chord.targetX + 0.5,
     targetY: chord.targetY + 0.5,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: chord.fromRoom.id,
     targetRoomId: chord.toRoom.id,
     zoneId: world.zoneMap[world.idx(chord.markerX, chord.markerY)],
@@ -14633,10 +14536,10 @@ function wildMajorityRewardInventory(room: Room, kind: ContainerKind, spec: Proc
     { defId: index % 2 === 0 ? 'ammo_nails' : 'grey_briquette', count: index % 2 === 0 ? 4 : 2 },
     { defId: index % 3 === 0 ? 'filter_receipt' : 'water_coupon', count: 1 },
   ];
-  for (const item of staples) addCappedItem(inv, item, valueCap, (def.capacitySlots ?? 9));
+  for (const item of staples) addCappedItem(inv, item, valueCap, def.capacitySlots);
   for (const item of seedProceduralLootInventory(room, kind, spec)) {
-    if (inv.length >= Math.min((def.capacitySlots ?? 9), 5 + spec.danger)) break;
-    addCappedItem(inv, item, valueCap, (def.capacitySlots ?? 9));
+    if (inv.length >= Math.min(def.capacitySlots, 5 + spec.danger)) break;
+    addCappedItem(inv, item, valueCap, def.capacitySlots);
   }
   return inv;
 }
@@ -14734,11 +14637,11 @@ function spawnWildMajorityAmbusher(
   const nm = randomName(Faction.WILD);
   const weapon = chance(0.35 + spec.danger * 0.05) ? 'knife' : 'pipe';
   entities.push({
-    id: -1,
+    id: nextId.v++,
     type: EntityType.NPC,
     x: pos.x + 0.5,
     y: pos.y + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: 1.2,
@@ -14817,8 +14720,7 @@ function registerWildMajorityRewardCues(world: World, spec: ProceduralFloorSpec,
       y: site.markerY + 0.5,
       targetX: container.x + 0.5,
       targetY: container.y + 0.5,
-      // @ts-ignore
-      z: spec.themeTags,
+      floor: spec.baseFloor,
       roomId: site.sourceRoom.id,
       targetRoomId: container.roomId,
       zoneId: container.zoneId,
@@ -14931,7 +14833,7 @@ function stampCultAltarNook(world: World, room: Room, spec: ProceduralFloorSpec)
     const y = world.wrap(bestY + dy);
     if (world.cells[world.idx(x, y)] === Cell.FLOOR) {
       if (placeCultRoomFeature(world, room, Feature.CANDLE, x, y)) {
-         world.floorTex[world.idx(x, y)] = spec.themeTags.includes('hell') ? Tex.F_MEAT : Tex.F_CARPET;
+         world.floorTex[world.idx(x, y)] = spec.baseFloor === FloorLevel.HELL ? Tex.F_MEAT : Tex.F_CARPET;
       }
     }
   }
@@ -14961,8 +14863,7 @@ function addCultMajorityContainer(
     id: nextContainerId(world),
     x: pos.x,
     y: pos.y,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
     kind,
@@ -15055,7 +14956,7 @@ function stampCultPhaseBoundary(
       if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.WATER) continue;
       stampSurfaceSplat(world, x, y, 0.5, 0.5, 0.24, 118, spec.seed + marks * 193, 66, 18, 38, false);
       world.factionControl[ci] = ZoneFaction.CULTIST;
-      if ((marks & 3) === 0) world.floorTex[ci] = spec.themeTags.includes('hell') ? Tex.F_MEAT : Tex.F_CARPET;
+      if ((marks & 3) === 0) world.floorTex[ci] = spec.baseFloor === FloorLevel.HELL ? Tex.F_MEAT : Tex.F_CARPET;
       marks++;
     }
   }
@@ -15077,7 +14978,7 @@ function stampCultPhaseBoundary(
       if (best > 210 * 210 || Math.abs(Math.sqrt(second) - Math.sqrt(best)) > 18) continue;
       stampSurfaceSplat(world, x, y, 0.5, 0.5, 0.28, 128, spec.seed + marks * 313, 66, 18, 38, false);
       world.factionControl[ci] = ZoneFaction.CULTIST;
-      if ((marks & 3) === 0) world.floorTex[ci] = spec.themeTags.includes('hell') ? Tex.F_MEAT : Tex.F_CARPET;
+      if ((marks & 3) === 0) world.floorTex[ci] = spec.baseFloor === FloorLevel.HELL ? Tex.F_MEAT : Tex.F_CARPET;
       marks++;
     }
   }
@@ -15097,8 +14998,7 @@ function registerCultTributeCue(
     y: markerPos.y + 0.5,
     targetX: targetPos.x + 0.5,
     targetY: targetPos.y + 0.5,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: markerRoom.id,
     targetRoomId: targetRoom.id,
     zoneId: world.zoneMap[world.idx(markerPos.x, markerPos.y)],
@@ -15179,7 +15079,7 @@ function applyCultistMajorityProfile(
   }
 }
 
-function pressureCueProfile(z: number, spec: ProceduralFloorSpec): {
+function pressureCueProfile(floor: FloorLevel, spec: ProceduralFloorSpec): {
   label: string;
   hint: string;
   targetName: string;
@@ -15232,7 +15132,7 @@ function pressureCueProfile(z: number, spec: ProceduralFloorSpec): {
       ignoredText: 'Толпа осталась за стеной. Очаг ноль получил еще минуту.',
     };
   }
-  if (z === 30) {
+  if (floor === FloorLevel.MINISTRY) {
     return {
       label: 'шорох папок',
       hint: 'бумаги ведут к живой канцелярии',
@@ -15243,7 +15143,7 @@ function pressureCueProfile(z: number, spec: ProceduralFloorSpec): {
       ignoredText: 'Папки шуршат дальше без вас. Бумажная угроза осталась в стороне.',
     };
   }
-  if (z === 140) {
+  if (floor === FloorLevel.MAINTENANCE) {
     return {
       label: 'трубный стук',
       hint: 'трубы считают мокрый обход',
@@ -15254,7 +15154,7 @@ function pressureCueProfile(z: number, spec: ProceduralFloorSpec): {
       ignoredText: 'Трубный стук ушел в бетон. Засада осталась шуметь в стороне.',
     };
   }
-  if (z === 180) {
+  if (floor === FloorLevel.HELL) {
     return {
       label: 'мясной зов',
       hint: 'стены дышат в сторону плотного боя',
@@ -15265,7 +15165,7 @@ function pressureCueProfile(z: number, spec: ProceduralFloorSpec): {
       ignoredText: 'Мясной зов стих за спиной. Проход остался кормить тишину.',
     };
   }
-  if (z === 200) {
+  if (floor === FloorLevel.VOID) {
     return {
       label: 'пустой тон',
       hint: 'тишина показывает опасную прямую',
@@ -15304,7 +15204,7 @@ function choosePressureTargetRoom(world: World, rooms: Room[], spec: ProceduralF
     const pref = preferredTypes.indexOf(room.type);
     if (pref >= 0) score += 80 - pref * 12;
     if (room.type === RoomType.CORRIDOR) score += routePressureLevel(spec) * 8;
-    if (room.type === RoomType.PRODUCTION && spec.z === 140) score += 20;
+    if (room.type === RoomType.PRODUCTION && proceduralMonsterFloor(spec) === FloorLevel.MAINTENANCE) score += 20;
     if (score > bestScore) {
       bestScore = score;
       best = room;
@@ -15344,15 +15244,14 @@ function registerProceduralMonsterPressureCue(world: World, rooms: Room[], spec:
   const markerCell = world.idx(marker.x, marker.y);
   if (world.features[markerCell] === Feature.NONE) world.features[markerCell] = Feature.SCREEN;
   stampSurfaceSplat(world, marker.x, marker.y, 0.5, 0.5, 0.34, 0.72, spec.seed ^ 0x5111, 84, 124, 116, true);
-  const profile = pressureCueProfile(spec.z, spec);
+  const profile = pressureCueProfile(proceduralMonsterFloor(spec), spec);
   registerRouteCue(world, {
     id: `procedural_${spec.key}_monster_pressure`,
     x: marker.x + 0.5,
     y: marker.y + 0.5,
     targetX: targetPos.x + 0.5,
     targetY: targetPos.y + 0.5,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: markerRoom.id,
     targetRoomId: target.id,
     zoneId: world.zoneMap[markerCell],
@@ -15409,8 +15308,7 @@ function addFalseSafeContainer(
     id: nextContainerId(world),
     x: pos.x,
     y: pos.y,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
     kind,
@@ -15470,11 +15368,11 @@ function spawnFalseSafeCaretaker(
   const nm = randomName(Faction.CULTIST);
   const loadout = npcLoadout(Faction.CULTIST, spec.danger);
   entities.push({
-    id: -1,
+    id: nextId.v++,
     type: EntityType.NPC,
     x: pos.x + 0.5,
     y: pos.y + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: 1.05,
@@ -15676,7 +15574,7 @@ function findReachableContainerCell(
 function convertDropInventory(drop: Entity, kind: ContainerKind, spec: ProceduralFloorSpec): Item[] {
   const inv: Item[] = [];
   const valueCap = proceduralContainerValueCap(kind, spec);
-  const capacitySlots = CONTAINER_DEFS[kind].capacitySlots ?? 9;
+  const capacitySlots = CONTAINER_DEFS[kind].capacitySlots;
   for (const item of drop.inventory ?? []) addCappedItem(inv, item, valueCap, capacitySlots);
   return inv;
 }
@@ -16183,7 +16081,7 @@ export function generateProceduralFloor(spec: ProceduralFloorSpec): FloorGenerat
   return withSeededRandom(spec.seed, () => {
     const world = new World();
     const entities: Entity[] = [];
-    const nextId = { v: 10000 };
+    const nextId = { v: 1 };
     const allowNpcs = floorRunZAllowsNpcs(spec.z);
     const { rooms, spawnX, spawnY } = buildRooms(world, spec);
 
@@ -16264,7 +16162,6 @@ export function generateProceduralFloor(spec: ProceduralFloorSpec): FloorGenerat
 
     world.bakeLights();
     relightBadAppleWorld(world);
-    validateFloorGeometry(world);
     return { world, entities, spawnX: spawn.spawnX, spawnY: spawn.spawnY };
   });
 }

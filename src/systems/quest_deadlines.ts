@@ -204,6 +204,6 @@ function proceduralQuestTimeLimitMinutes(q: Quest, ctx: QuestDeadlineContext): n
   if (q.contractRank !== undefined) extra += Math.max(0, q.contractRank) * 6 * 60;
 
   let total = base + extra;
-  if (q.visitFloorZ !== undefined || ctx.crossFloor) total = Math.max(total, 2 * 24 * 60);
+  if (q.visitFloor !== undefined || ctx.crossFloor) total = Math.max(total, 2 * 24 * 60);
   return Math.max(MIN_URGENT_MINUTES, Math.min(MAX_QUEST_MINUTES, Math.round(total)));
 }

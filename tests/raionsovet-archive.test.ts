@@ -8,11 +8,11 @@ import { designFloorById } from '../src/data/design_floors';
 import { designFloorPopulationProfile } from '../src/data/design_floor_population';
 import { HUMAN_TERRITORY_OWNERS } from '../src/data/factions';
 import { generateDesignFloor } from '../src/gen/design_floors/manifest';
-import { applyDesignFloorPopulationField } from '../src/gen/population';
+import { applyDesignFloorPopulationField } from '../src/gen/design_floors/population';
 import {
   expandRaionsovetArchiveGeometry,
   generateRaionsovetArchiveDesignFloor,
-} from '../src/gen/raionsovet_archive';
+} from '../src/gen/design_floors/raionsovet_archive';
 import { countTerritoryCells, territoryHqAnchors } from '../src/systems/territory';
 
 const RAIONSOVET_ARCHIVE_TARGET_SHARES = new Map<ZoneFaction, number>([
@@ -33,7 +33,7 @@ const RAIONSOVET_ARCHIVE_HQ_NAMES = new Map<ZoneFaction, string>([
 
 function isAmbientNpcTemplate(entity: Entity): boolean {
   return entity.type === EntityType.NPC &&
-    !(entity as any).npcPackageId &&
+    !entity.plotNpcId &&
     !entity.persistentNpcId &&
     entity.alifeId === undefined &&
     entity.questId === -1;
@@ -67,7 +67,7 @@ test('raionsovet archive profile populates queues, offices, and dangerous stacks
   assert.equal(publicNpcCount >= 120, true, 'queue and office rooms should receive visible NPC traffic');
   assert.equal(archiveMonsterCount >= 120, true, 'archive stack rooms should receive monster pressure');
 
-  const plotIds = new Set(gen.entities.map(entity => (entity as any).npcPackageId).filter(Boolean));
+  const plotIds = new Set(gen.entities.map(entity => entity.plotNpcId).filter(Boolean));
   for (const id of ['archive_lida_index', 'archive_paper_grandfather', 'archive_fire_liquidator', 'archive_false_heir']) {
     assert.equal(plotIds.has(id), true, `${id} is present`);
   }

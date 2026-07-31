@@ -1,6 +1,6 @@
 /* ── Rzhavnik — scrap-disguise shelf ambusher ────────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.55,
   sprite: 0,
   aiFlags: ['scrapWake'],
+  floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE],
   counterplay: 'Ровная стопка железа у стеллажа может прыгнуть первой: проверьте ее выстрелом или держите дистанцию, переждите рывок и добейте хрупкий корпус.',
   lootHint: 'ржавчина, обломок арматуры, черная масляная ветошь, редкий годный прут',
 };
@@ -37,8 +38,7 @@ function dusty(x: number, y: number): number {
   return rgba(clamp(156 + n), clamp(151 + n), clamp(138 + n), 210);
 }
 
-type LineOpts = { t: Uint32Array; x0: number; y0: number; x1: number; y1: number; seed: number; w?: number };
-function line({ t, x0, y0, x1, y1, seed, w = 1 }: LineOpts): void {
+function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, seed: number, w = 1): void {
   const dx = x1 - x0;
   const dy = y1 - y0;
   const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy))));
@@ -55,8 +55,7 @@ function line({ t, x0, y0, x1, y1, seed, w = 1 }: LineOpts): void {
   }
 }
 
-function ellipse(t: Uint32Array, opts: { cx: number, cy: number, rx: number, ry: number, color: (x: number, y: number) => number }): void {
-  const { cx, cy, rx, ry, color } = opts;
+function ellipse(t: Uint32Array, cx: number, cy: number, rx: number, ry: number, color: (x: number, y: number) => number): void {
   for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) {
     for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
       const dx = (x - cx) / rx;
@@ -72,25 +71,25 @@ export function generateSprite(): Uint32Array {
   const cx = Math.floor(S / 2);
 
   // Black oil shadow under the pile keeps the idle silhouette low.
-  ellipse(t, { cx, cy: 55, rx: 24, ry: 6, color: (x, y) => {
+  ellipse(t, cx, 55, 24, 6, (x, y) => {
     const a = clamp(150 + noise(x, y, 7351) * 55);
     return rgba(18, 14, 12, a);
-  } });
+  });
 
   // Suspiciously straight idle stack: parallel rods like useful scrap.
   for (let i = 0; i < 7; i++) {
     const y = 36 + i * 3;
     const x0 = cx - 22 + (i % 2);
     const x1 = cx + 22 - (i % 3);
-    line({ t, x0, y0: y, x1, y1: y + (i === 3 ? 0 : (i % 2)), seed: 7360 + i, w: i === 2 ? 1 : 0 });
+    line(t, x0, y, x1, y + (i === 3 ? 0 : (i % 2)), 7360 + i, i === 2 ? 1 : 0);
   }
 
   // Crooked walker shape unfolding out of the stack.
-  line({ t, x0: cx - 5, y0: 38, x1: cx - 18, y1: 58, seed: 7391, w: 1 });
-  line({ t, x0: cx + 4, y0: 38, x1: cx + 19, y1: 57, seed: 7392, w: 1 });
-  line({ t, x0: cx - 2, y0: 40, x1: cx + 13, y1: 25, seed: 7393, w: 0 });
-  line({ t, x0: cx + 3, y0: 41, x1: cx - 13, y1: 25, seed: 7394, w: 0 });
-  line({ t, x0: cx - 10, y0: 47, x1: cx + 12, y1: 47, seed: 7395, w: 1 });
+  line(t, cx - 5, 38, cx - 18, 58, 7391, 1);
+  line(t, cx + 4, 38, cx + 19, 57, 7392, 1);
+  line(t, cx - 2, 40, cx + 13, 25, 7393, 0);
+  line(t, cx + 3, 41, cx - 13, 25, 7394, 0);
+  line(t, cx - 10, 47, cx + 12, 47, 7395, 1);
 
   // Concrete dust and missing rod ends.
   for (let i = 0; i < 46; i++) {

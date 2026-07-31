@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Faction, ItemType, QuestType, RoomType } from '../src/core/types';
+import { Faction, FloorLevel, ItemType, QuestType, RoomType } from '../src/core/types';
 import { CONTRACTS } from '../src/data/contracts';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { resourceForItem } from '../src/data/resources';
@@ -31,8 +31,8 @@ test('body bag roll supports report and hide contract decisions', () => {
   assert.equal(hide.type, QuestType.FETCH);
   assert.equal(report.targetItem, 'body_bag_roll');
   assert.equal(hide.targetItem, 'body_bag_roll');
-  assert.equal(report.target.z, 2);
-  assert.equal(hide.target.z, 2);
+  assert.equal(report.target.floor, FloorLevel.LIVING);
+  assert.equal(hide.target.floor, FloorLevel.LIVING);
   assert.equal(report.target.roomType, RoomType.MEDICAL);
   assert.equal(hide.target.roomType, RoomType.MEDICAL);
   assert.equal(report.rewardResourceId, 'medicine');

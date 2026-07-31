@@ -5,6 +5,7 @@ import {
   Cell,
   DoorState,
   EntityType,
+  FloorLevel,
   RoomType,
   W,
   ZoneFaction,
@@ -15,7 +16,7 @@ import { generateDesignFloor } from '../src/gen/design_floors/manifest';
 import {
   DESIGN_FLOOR_ID,
   SERVICE_FLOOR_Z,
-} from '../src/gen/service_floor';
+} from '../src/gen/design_floors/service_floor';
 import {
   countTerritoryCells,
   territoryHqAnchors,
@@ -58,7 +59,7 @@ function roomCount(gen: ServiceFloorGeneration, pattern: RegExp): number {
 test('service_floor is registered as the z-18 Maintenance route stop', () => {
   const route = designFloorById(DESIGN_FLOOR_ID);
   assert.equal(route?.z, SERVICE_FLOOR_Z);
-  assert.equal(route?.themeTags?.includes('maintenance'), true);
+  assert.equal(route?.baseFloor, FloorLevel.MAINTENANCE);
   assert.equal(route?.displayName, 'Служебный этаж');
   assert.equal(designFloorAtZ(SERVICE_FLOOR_Z)?.id, DESIGN_FLOOR_ID);
 });
@@ -122,7 +123,7 @@ test('service_floor ambient repair NPCs spawn on their own territory', () => {
   for (const entity of gen.entities) {
     if (
       entity.type !== EntityType.NPC ||
-      (entity as any).npcPackageId ||
+      entity.plotNpcId ||
       entity.persistentNpcId ||
       entity.alifeId !== undefined ||
       entity.questId !== -1 ||
@@ -133,5 +134,5 @@ test('service_floor ambient repair NPCs spawn on their own territory', () => {
   }
 
   assert.equal(ambient >= 700, true, `ambient ${ambient}`);
-  assert.equal(own >= ambient * 0.25, true, `own territory ${own}/${ambient}`);
+  assert.equal(own, ambient, `own territory ${own}/${ambient}`);
 });

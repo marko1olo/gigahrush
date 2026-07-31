@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { EntityType, Feature, MonsterKind, type Entity } from '../src/core/types';
+import { EntityType, Feature, FloorLevel, MonsterKind, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { generateHladonets } from '../src/gen/maintenance/hladonets';
 import { createWorldEventState, getRecentEvents, publishEvent } from '../src/systems/events';
@@ -47,7 +47,7 @@ test('Monster 18 Hladonets generates a local cold pocket and steam counter event
   assert.equal(drops.includes('valve_tag'), true, 'encounter should leave a valve tag trace');
 
   const state = makeGameState({
-    currentZ: -14,
+    currentFloor: FloorLevel.MAINTENANCE,
     worldEvents: createWorldEventState(),
   });
   const beforeHp = threat.hp ?? 0;

@@ -2,7 +2,7 @@
 /*   Constructed from twisted construction rebar and concrete.   */
 /*   Looks like animated building materials — rods, wires, rust. */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -15,6 +15,7 @@ export const DEF: MonsterDef = {
   attackRate: 2.4,
   sprite: 0,   // auto-assigned by generateSprites()
   aiFlags: ['debrisLurker', 'wallBias'],
+  floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
   counterplay: 'Железо звенит перед ударом: не наступайте на ровные прутья у стен, вытаскивайте в центр и бейте с дистанции.',
   lootHint: 'тяжелый металл, витая проволока, редкий годный прут арматуры',
 };

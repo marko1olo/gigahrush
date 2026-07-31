@@ -10,7 +10,7 @@ import {
   applyBlackMarket88Purchase,
   createBlackMarket88DesignState,
   quoteBlackMarket88Purchase,
-} from '../src/gen/black_market_88';
+} from '../src/gen/design_floors/black_market_88';
 import { inventoryItemCategory } from '../src/systems/inventory';
 
 const ITEM_ID = 'aerosol_paint_maiden';

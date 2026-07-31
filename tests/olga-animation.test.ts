@@ -1,6 +1,4 @@
 import { test } from 'node:test';
-import '../src/data/plot';
-import { getPlotNpcNumericId } from '../src/data/npc_packages';
 import * as assert from 'node:assert/strict';
 
 import { EntityType, Faction, Occupation, type Entity } from '../src/core/types';
@@ -14,7 +12,7 @@ import {
 
 function makeOlga(overrides: Partial<Entity> = {}): Entity {
   return {
-    id: getPlotNpcNumericId('olga') ?? 1,
+    id: 1,
     type: EntityType.NPC,
     x: 10,
     y: 12,
@@ -24,6 +22,7 @@ function makeOlga(overrides: Partial<Entity> = {}): Entity {
     speed: 1.2,
     sprite: Occupation.DOCTOR,
     npcVisualId: NPC_VISUAL_OLGA_DMITRIEVNA,
+    plotNpcId: 'olga',
     occupation: Occupation.DOCTOR,
     faction: Faction.SCIENTIST,
     isFemale: true,
@@ -72,10 +71,10 @@ test('Olga walk and harm clip frame facts match the frame pack contract', () => 
   assert.ok(harm);
   assert.equal(renderAnimationFrameCount(walk), 6);
   assert.equal(renderAnimationFrameCount(harm), 3);
-  assert.equal(walk.source.width, 128);
-  assert.equal(walk.source.height, 128);
-  assert.equal(harm.source.width, 128);
-  assert.equal(harm.source.height, 128);
+  assert.equal(walk.source.width, 64);
+  assert.equal(walk.source.height, 64);
+  assert.equal(harm.source.width, 64);
+  assert.equal(harm.source.height, 64);
   assert.equal(walk.source.fallback, 'static');
   assert.equal(harm.source.fallback, 'static');
 });

@@ -9,9 +9,8 @@ import {
 import { World } from '../core/world';
 import { getNetHackTerminalDef, NET_HACK_TERMINALS, type NetHackTerminalDef, type NetHackTerminalDefId } from '../data/net_hack';
 import { publishEvent } from './events';
-import { floorKeyForDesign  } from './floor_keys';
+import { floorKeyForStory } from './floor_keys';
 import { currentFloorRunEntry, floorRunEntryFloorKey } from './procedural_floors';
-import { rng } from '../core/rand';
 
 export interface NetHackTerminal {
   idx: number;
@@ -92,7 +91,7 @@ function currentFloorKey(state: GameState): string {
   try {
     return floorRunEntryFloorKey(currentFloorRunEntry(state));
   } catch {
-    return floorKeyForDesign(String(state.currentZ));
+    return floorKeyForStory(state.currentFloor);
   }
 }
 
@@ -118,7 +117,7 @@ function terminalRandom(def: NetHackTerminalDef, terminal: NetHackTerminal): num
 function floorDanger(world: World, state: GameState, terminal: NetHackTerminal): number {
   const zone = world.zones[world.zoneMap[terminal.idx]];
   const zoneDanger = zone?.level ?? 1;
-  return zoneDanger + state.currentZ * 2 + (state.samosborActive ? 3 : 0);
+  return zoneDanger + state.currentFloor * 2 + (state.samosborActive ? 3 : 0);
 }
 
 function currentTerminal(): NetHackTerminal | undefined {
@@ -263,7 +262,7 @@ export function attemptNetHack(
   world: World,
   state: GameState,
   player: Entity,
-  roll = rng(),
+  roll = Math.random(),
 ): boolean {
   const terminal = currentTerminal();
   const def = terminal ? getNetHackTerminalDef(terminal.defId) : undefined;

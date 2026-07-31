@@ -9,6 +9,7 @@ import {
   EntityType,
   Faction,
   Feature,
+  FloorLevel,
   LiftDirection,
   RoomType,
   Tex,
@@ -38,7 +39,6 @@ import {
   updateSamosbor,
 } from '../src/systems/samosbor';
 import { makeGameState } from './helpers';
-import { _overrideRng, _restoreRng } from '../src/core/rand';
 
 const TEST_SHELTER_ROOM_ID = 777;
 
@@ -118,7 +118,7 @@ function makeShelterWorld(doorState: DoorState): {
 
 function resolveClassicSeal(ctx: ReturnType<typeof makeShelterWorld>): ReturnType<typeof makeGameState> {
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     samosborActive: true,
     samosborCount: 1,
     worldEvents: createWorldEventState(),
@@ -148,7 +148,7 @@ function forceWarningWindow(variantId: SamosborVariantId): {
     isFemale: true,
   });
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     samosborTimer: 12,
     worldEvents: createWorldEventState(),
   });
@@ -230,18 +230,19 @@ test('random samosbor transfer moves a random map entity and can pick player', (
     faction: Faction.CITIZEN,
   });
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     samosborActive: true,
     samosborCount: 1,
     worldEvents: createWorldEventState(),
   });
+  const originalRandom = Math.random;
   const targetRoll = (targetIdx + 0.25) / (W * W);
   const rolls = [0.75, targetRoll, 0];
-  _overrideRng(() => rolls.shift() ?? 0);
+  Math.random = () => rolls.shift() ?? 0;
   try {
     assert.equal(tickRandomEntityTransferForTests(ctx.world, ctx.entities, state, testVariant('classic')), true);
   } finally {
-    _restoreRng();
+    Math.random = originalRandom;
   }
   assert.equal(ctx.player.x, targetX + 0.5);
   assert.equal(ctx.player.y, targetY + 0.5);
@@ -282,7 +283,7 @@ test('active samosbor exposes a compact survival instruction', () => {
   resetSamosborRuntimeForTests();
   const ctx = makeShelterWorld(DoorState.CLOSED);
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     samosborTimer: 0,
     worldEvents: createWorldEventState(),
   });
@@ -326,7 +327,7 @@ test('maronary green source glow damages player near marked source', () => {
   resetSamosborRuntimeForTests();
   const ctx = makeMaronaryGlowWorld();
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     samosborTimer: 1,
     worldEvents: createWorldEventState(),
   });
@@ -363,7 +364,7 @@ function makeFogEffectWorld(): { world: World; state: ReturnType<typeof makeGame
   const ci = world.idx(20, 20);
   world.fog[ci] = 180;
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     samosborActive: true,
     samosborCount: 2,
     worldEvents: createWorldEventState(),
@@ -380,7 +381,8 @@ test('classic fog effect spawns a monster from active fog', () => {
     ctx.state,
     ctx.nextId,
     ctx.state.samosborCount,
-    testVariant('classic').LIVING,
+    testVariant('classic'),
+    FloorLevel.LIVING,
     ctx.ci,
   );
 
@@ -412,7 +414,7 @@ function makePlayerPressureWorld(): {
   world.roomMap[pressureIdx] = -1;
 
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     samosborActive: true,
     samosborCount: 3,
     worldEvents: createWorldEventState(),
@@ -428,7 +430,8 @@ test('active samosbor spawns nearby pressure monster targeting unsheltered playe
     ctx.entities,
     ctx.state,
     ctx.nextId,
-    testVariant('classic').LIVING,
+    testVariant('classic'),
+    FloorLevel.LIVING,
   ), true);
 
   const monster = ctx.entities.find(e => e.type === EntityType.MONSTER);
@@ -446,7 +449,7 @@ test('active samosbor spawns nearby pressure monster targeting unsheltered playe
 test('active samosbor pressure spawn is skipped for accepted shelter player', () => {
   const ctx = makeShelterWorld(DoorState.HERMETIC_CLOSED);
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     samosborActive: true,
     samosborCount: 2,
     worldEvents: createWorldEventState(),
@@ -462,7 +465,8 @@ test('active samosbor pressure spawn is skipped for accepted shelter player', ()
     ctx.entities,
     state,
     ctx.nextId,
-    testVariant('classic').LIVING,
+    testVariant('classic'),
+    FloorLevel.LIVING,
   ), false);
   assert.equal(ctx.entities.some(e => e.type === EntityType.MONSTER), false);
 });
@@ -490,7 +494,8 @@ test('maronary fog effect rewrites actor identity in active fog', () => {
     ctx.state,
     ctx.nextId,
     ctx.state.samosborCount,
-    testVariant('maronary').LIVING,
+    testVariant('maronary'),
+    FloorLevel.LIVING,
     ctx.ci,
   );
 
@@ -525,7 +530,7 @@ test('veretar fog effect deletes actor in active fog', () => {
     ctx.nextId,
     ctx.state.samosborCount,
     testVariant('veretar'),
-    ctx.state.currentZ ?? 0,
+    FloorLevel.LIVING,
     ctx.ci,
   );
 
@@ -547,7 +552,7 @@ test('veretar fog cell deletion records local grid dirty rects', () => {
     ctx.nextId,
     ctx.state.samosborCount,
     testVariant('veretar'),
-    ctx.state.currentZ ?? 0,
+    FloorLevel.LIVING,
     ctx.ci,
   );
 
@@ -571,7 +576,7 @@ test('istotit fog effect heals actors in active fog', () => {
     ctx.nextId,
     ctx.state.samosborCount,
     testVariant('istotit'),
-    ctx.state.currentZ ?? 0,
+    FloorLevel.LIVING,
     ctx.ci,
   );
 
@@ -584,7 +589,7 @@ test('istotit fog effect heals actors in active fog', () => {
 test('captured samosbor zone is restored before post-cycle patch or fallback rebuild', () => {
   const ctx = makeShelterWorld(DoorState.CLOSED);
   const state = makeGameState({
-    currentZ: 34,
+    currentFloor: FloorLevel.MINISTRY,
     samosborTimer: 0,
     worldEvents: createWorldEventState(),
   });
@@ -689,7 +694,7 @@ function seedTargetRuntimeState(world: World, staleIdx: number): RuntimeGenerati
   };
 }
 
-function makeRuntimeGenerationCase(seed: number, floor: number): RuntimeGenerationCase {
+function makeRuntimeGenerationCase(seed: number, floor: FloorLevel): RuntimeGenerationCase {
   const target = new World();
   const staleIdx = target.idx(5, 5);
   const before = seedTargetRuntimeState(target, staleIdx);
@@ -845,7 +850,7 @@ test('local samosbor patch can be deferred before replacement generation', () =>
     }
   }
   const state = makeGameState({
-    currentZ: 34,
+    currentFloor: FloorLevel.MINISTRY,
     samosborTimer: 0,
     worldEvents: createWorldEventState(),
   });
@@ -857,7 +862,7 @@ test('local samosbor patch can be deferred before replacement generation', () =>
   state.samosborTimer = 0;
   let replacementCalls = 0;
   let scheduledPatch: (() => void) | null = null;
-  const replacement = makeRuntimeGenerationCase(8, 'ministry').generation;
+  const replacement = makeRuntimeGenerationCase(8, FloorLevel.MINISTRY).generation;
   const needsFullRebuild = updateSamosbor(
     ctx.world,
     ctx.entities,
@@ -885,7 +890,7 @@ test('local samosbor patch can be deferred before replacement generation', () =>
   assert.equal(replacementCalls, 1);
 });
 
-function runReplacementRebuild(seed: number, floor: number): RuntimeGenerationCase {
+function runReplacementRebuild(seed: number, floor: FloorLevel): RuntimeGenerationCase {
   const ctx = makeRuntimeGenerationCase(seed, floor);
   rebuildWorld(ctx.target, ctx.entities, ctx.nextId, seed, floor, ctx.generation);
   return ctx;
@@ -900,7 +905,7 @@ function assertDirtyVersionsBumped(ctx: RuntimeGenerationCase): void {
 }
 
 test('story-floor samosbor rebuild copies generated protected state and bumps dirty versions', () => {
-  const ctx = runReplacementRebuild(1, 'ministry');
+  const ctx = runReplacementRebuild(1, FloorLevel.MINISTRY);
 
   assert.equal(ctx.target.aptMask[ctx.protectedIdx], 1);
   assert.equal(ctx.target.hermoWall[ctx.protectedIdx], 1);
@@ -913,7 +918,7 @@ test('story-floor samosbor rebuild copies generated protected state and bumps di
 });
 
 test('design-floor samosbor rebuild resets stale screens and surfaces from replacement', () => {
-  const ctx = runReplacementRebuild(2, 'living');
+  const ctx = runReplacementRebuild(2, FloorLevel.LIVING);
 
   assert.deepEqual(ctx.target.screenCells, [ctx.screenIdx]);
   assert.equal(ctx.target.surfaceMap.has(ctx.surfaceIdx), true);
@@ -925,7 +930,7 @@ test('design-floor samosbor rebuild resets stale screens and surfaces from repla
 });
 
 test('procedural samosbor rebuild copies anomaly, smog, fog and rail runtime state', () => {
-  const ctx = runReplacementRebuild(3, 'maintenance');
+  const ctx = runReplacementRebuild(3, FloorLevel.MAINTENANCE);
 
   assert.equal(ctx.target.anomalyTeleports.get(ctx.teleportA), ctx.teleportB);
   assert.equal(ctx.target.anomalyTeleports.has(ctx.staleIdx), false);
@@ -942,14 +947,14 @@ test('procedural samosbor rebuild copies anomaly, smog, fog and rail runtime sta
 });
 
 test('full samosbor rebuild preserves old fog on walkable regenerated cells only', () => {
-  const ctx = makeRuntimeGenerationCase(4, 'ministry');
+  const ctx = makeRuntimeGenerationCase(4, FloorLevel.MINISTRY);
   ctx.generation.world.cells[ctx.staleIdx] = Cell.FLOOR;
   ctx.generation.world.floorTex[ctx.staleIdx] = Tex.F_CONCRETE;
   ctx.generation.world.wallTex[ctx.staleIdx] = Tex.CONCRETE;
   ctx.generation.world.zoneMap[ctx.staleIdx] = 0;
   ctx.generation.world.fog[ctx.staleIdx] = 0;
 
-  rebuildWorld(ctx.target, ctx.entities, ctx.nextId, 4, 'ministry', ctx.generation);
+  rebuildWorld(ctx.target, ctx.entities, ctx.nextId, 4, FloorLevel.MINISTRY, ctx.generation);
 
   assert.equal(ctx.target.cells[ctx.staleIdx], Cell.FLOOR);
   assert.equal(ctx.target.aptMask[ctx.staleIdx], 0);

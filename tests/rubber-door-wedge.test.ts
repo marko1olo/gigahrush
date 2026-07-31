@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, DoorState, RoomType, W } from '../src/core/types';
+import { Cell, DoorState, FloorLevel, RoomType, W } from '../src/core/types';
 import { World } from '../src/core/world';
 import { ITEMS } from '../src/data/catalog';
 import { resourceForItem } from '../src/data/resources';
@@ -44,7 +44,7 @@ test('rubber door wedge repairs a damaged hermodoor through the E interaction pa
   room.doors.push(doorIdx);
 
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
     time: 1,
     samosborTimer: 20,

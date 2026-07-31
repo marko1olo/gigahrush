@@ -2,7 +2,7 @@
 /*   Doom-inspired mancubus: massive, fat, terrifying.           */
 /*   Ranged AoE attack — shoots explosive fireballs.             */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -17,6 +17,7 @@ export const DEF: MonsterDef = {
   isRanged: true,
   projSpeed: 6,
   projSprite: 0, // uses PSI_BOLT or similar
+  floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL],
   counterplay: 'Не входите в прямой сектор: сначала снимите охрану, затем бейте из-за углов между залпами. Стены и колонны режут огненный темп.',
   lootHint: 'жирный металл, командная органика, энергоячейка, закупоренный голос',
   boss: {

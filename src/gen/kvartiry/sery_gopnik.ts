@@ -1,7 +1,6 @@
 /* ── Серый Гопник — side quest (kvartiry floor) ───────────────── */
 /* Дикий с района. «Слышь, есть закурить?»                        */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   W, Cell,
   type Entity, Faction, Occupation, QuestType,
@@ -9,7 +8,6 @@ import {
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng } from '../../core/rand';
 
 const NPC_DEF: PlotNpcDef = {
   name: 'Серый Гопник',
@@ -42,7 +40,7 @@ const NPC_DEF: PlotNpcDef = {
 registerSideQuest('sery_gopnik', NPC_DEF, [
   {
     id: 'sery_cigs',
-    giverId: getPlotNpcNumericId('sery_gopnik')!,
+    giverNpcId: 'sery_gopnik',
     type: QuestType.FETCH,
     desc: 'Серый: «Десять пачек сигарет. Заплачу проходом у лифта и тишиной у водораздачи.»',
     targetItem: 'cigs', targetCount: 10,
@@ -59,11 +57,11 @@ export function spawnSeryGopnik(
   world: World, entities: Entity[], nextId: { v: number },
 ): void {
   for (let i = 0; i < 3000; i++) {
-    const x = Math.floor(rng() * W);
-    const y = Math.floor(rng() * W);
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
     if (world.cells[world.idx(x, y)] !== Cell.FLOOR) continue;
     requireSpawnedPlotNpcFromPackage(entities, nextId, 'sery_gopnik', x + 0.5, y + 0.5, {
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       weapon: 'knife',
       canGiveQuest: true,
       isTraveler: true,

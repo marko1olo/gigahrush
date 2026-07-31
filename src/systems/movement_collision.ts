@@ -16,8 +16,6 @@ export interface ActorOccupyPosition {
 export interface ActorUnstuckOptions {
   radius?: number;
   maxCellRadius?: number;
-  /** If true, rescue entities that are inside solid cells instead of leaving them for crush damage */
-  rescueFromSolid?: boolean;
 }
 
 const ACTOR_UNSTUCK_OFFSETS = [
@@ -50,8 +48,10 @@ export function actorOccupyRadius(e: Pick<Entity, 'type' | 'height' | 'radius' |
 }
 
 export function canActorOccupyCoarse(world: World, x: number, y: number, radius: number): boolean {
-  void radius; // Discrete logical radius (1 subcell) means we only check the center
-  return !world.solid(Math.floor(x), Math.floor(y));
+  return !world.solid(Math.floor(x + radius), Math.floor(y + radius)) &&
+    !world.solid(Math.floor(x + radius), Math.floor(y - radius)) &&
+    !world.solid(Math.floor(x - radius), Math.floor(y + radius)) &&
+    !world.solid(Math.floor(x - radius), Math.floor(y - radius));
 }
 
 export function canActorOccupyFine(world: World, x: number, y: number, radius: number): boolean {
@@ -118,10 +118,8 @@ export function unstuckActorFromBlockers(
   e: Entity,
   options: ActorUnstuckOptions = {},
 ): boolean {
-  // If the entity is directly inside a solid block and rescue is not requested,
-  // do not unstuck so it takes crush damage (samosbor).  AI entities pass
-  // rescueFromSolid=true to be extracted from accidental wall positions.
-  if (world.solid(Math.floor(e.x), Math.floor(e.y)) && !options.rescueFromSolid) return false;
+  // If the entity is directly inside a solid block, do not unstuck so it takes crush damage
+  if (world.solid(Math.floor(e.x), Math.floor(e.y))) return false;
 
   const radius = options.radius ?? actorOccupyRadius(e);
   const ignoreFineBlockers = entityIgnoresFineBlockers(e);
@@ -132,5 +130,12 @@ export function unstuckActorFromBlockers(
 
   e.x = pos.x;
   e.y = pos.y;
+  if (e.ai) {
+    e.ai.path = [];
+    e.ai.pi = 0;
+    e.ai.stuck = 0;
+    e.ai.tx = Math.floor(pos.x);
+    e.ai.ty = Math.floor(pos.y);
+  }
   return true;
 }

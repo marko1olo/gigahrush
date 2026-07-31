@@ -1,6 +1,6 @@
 /* ── Betonnik — massive concrete golem ────────────────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -12,6 +12,7 @@ export const DEF: MonsterDef = {
   dmg: 35,
   attackRate: 3.0,
   sprite: 0,   // auto-assigned by generateSprites()
+  floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
   counterplay: 'Не меняйтесь ударами в прямом коридоре: углы, запас выносливости, шум, огонь или запечатанный слабый проем дают окно уйти.',
   lootHint: 'арматурная крошка, бетонные осколки, редкий теплый бетонный сгусток',
 };

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { DEF, generateSprite, generateNightmareSprite } from '../src/entities/nightmare';
 import { getMonsterEcology } from '../src/data/monster_ecology';
@@ -78,6 +78,7 @@ test('nightmare definition, ecology, and sprite generation', () => {
 
   assert.equal(DEF.kind, MonsterKind.NIGHTMARE);
   assert.equal(DEF.hp, 260);
+  assert.deepEqual(DEF.floors, [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID]);
   assert.equal(ecology?.rare, true);
 
   const sprite1 = generateNightmareSprite(123);
@@ -167,7 +168,7 @@ test('nightmare pressure breaks from heavy burst damage', () => {
   prime(entities);
   updateMonster(world, entities, beast, 0.1, state.time, msgs, target.id, { v: 10 }, state);
 
-  assert.ok((beast.attackCd ?? 0) >= 0.45, 'attackCd should be increased from stagger (accounting for dt tickdown in same frame)');
+  assert.ok((beast.attackCd ?? 0) >= 0.55, 'attackCd should be increased from stagger');
   // In the same frame, the scaling is overridden by the > 0 pressure branch
   // So we only assert on attackCd and events.
 

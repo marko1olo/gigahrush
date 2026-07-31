@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Faction, ItemType, RoomType } from '../src/core/types';
+import { Faction, FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { World } from '../src/core/world';
 import { FACTORIES } from '../src/data/factories';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
@@ -54,7 +54,7 @@ test('weapon checkout tag is reachable from a liquidator issue stash as theft ev
 
 test('weapon checkout tag can be sold or spent to scrub stolen weapon serials', () => {
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 91 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 91 });
   assert.equal(addItem(player, 'weapon_checkout_tag', 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter проверить');
 

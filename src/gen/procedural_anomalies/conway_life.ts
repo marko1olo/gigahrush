@@ -77,8 +77,7 @@ function registerConwayCue(ctx: ProceduralAnomalyGenContext, room: Room, arenaIn
     y: c.y + 0.5,
     targetX: target.x + 0.5,
     targetY: target.y + 0.5,
-    // @ts-ignore
-    z: ctx.spec.themeTags,
+    floor: ctx.spec.baseFloor,
     roomId: room.id,
     targetRoomId: room.id,
     zoneId: ctx.world.zoneMap[ctx.world.idx(c.x, c.y)],

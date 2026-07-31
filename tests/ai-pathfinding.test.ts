@@ -89,8 +89,8 @@ function assertContiguous(path: readonly number[]): void {
     const by = (path[i] / 4096) | 0;
     const dx = Math.abs(ax - bx);
     const dy = Math.abs(ay - by);
-    const isAdjacentX = dx <= 6 || dx >= 4096 - 6;
-    const isAdjacentY = dy <= 6 || dy >= 4096 - 6;
+    const isAdjacentX = dx <= 1 || dx === 4095;
+    const isAdjacentY = dy <= 1 || dy === 4095;
     assert.ok(isAdjacentX && isAdjacentY && (dx !== 0 || dy !== 0));
   }
 }
@@ -136,9 +136,9 @@ test('frozen navigation cache survives temporary samosbor geometry dirties until
   setPathContext([], 0.1, true);
   const staleDuringWave = bfsPath(world, 0.5, 10.5, 21.5, 10.5);
   let stats = getPathfindingStats();
-  assert.ok(staleDuringWave.length > 0, 'frozen path still navigable');
-  assertContiguous(staleDuringWave);
+  assert.deepEqual(staleDuringWave, first);
   assert.equal(stats.bfsCalls, 0);
+  assert.equal(stats.cacheHits, 1);
 
   unfreezeNavigationCacheForWorld(world);
   setPathContext([], 0.2, false);
@@ -160,9 +160,7 @@ test('nested samosbor navigation freezes survive inner wave unfreeze', () => {
 
   unfreezeNavigationCacheForWorld(world);
   setPathContext([], 0.1, true);
-  const stalePath = bfsPath(world, 0.5, 10.5, 21.5, 10.5);
-  assert.ok(stalePath.length > 0, 'frozen path still navigable');
-  assertContiguous(stalePath);
+  assert.deepEqual(bfsPath(world, 0.5, 10.5, 21.5, 10.5), first);
   assert.equal(getPathfindingStats().bfsCalls, 0);
 
   unfreezeNavigationCacheForWorld(world);
@@ -243,23 +241,21 @@ test('baked navigation invalidates and respects full fine blockers', () => {
   assert.equal(tryAssignPathToCell(world, actor, 10, 10), 'not_found');
 });
 
-test('followPath completes a valid grid path without getting stuck', () => {
+test('followPath treats split-axis drift without waypoint progress as stuck', () => {
   const world = makeCorridorWorld();
   const actor = npc(91, 4.0);
   setPathContext([], 0);
   assert.equal(tryAssignPathToCell(world, actor, 10, 10), 'assigned');
-  const pathLen = actor.ai!.path.length;
-  assert.ok(pathLen > 0);
 
-  // Grid-based follower traverses the BFS path subcell by subcell.
-  // After enough ticks the entity reaches the end of the path.
-  for (let tick = 0; tick < 500; tick++) {
+  blockCellFully(world, 5, 10);
+  for (let tick = 0; tick < 40; tick++) {
     setPathContext([], tick / 10);
-    followPath(world, actor, 0.1);
-    if (actor.ai!.path.length === 0) break;
+    followPath(world, actor, 0.1); 
   }
 
-  assert.equal(actor.ai!.path.length, 0, 'path consumed');
+  assert.equal(actor.ai!.goal, AIGoal.IDLE);
+  assert.equal(actor.ai!.path.length, 0);
+  assert.equal(actor.x < 5.1, true);
 });
 
 test('routine gotoRoom assigns every caller from baked navigation during samosbor', () => {
@@ -276,7 +272,6 @@ test('routine gotoRoom assigns every caller from baked navigation during samosbo
   assert.equal(npcs.filter(e => e.ai!.path.length > 0).length, 6);
 
   setPathContext([], 0.1, true);
-  npcs[4].ai!.path = [];
   gotoRoom(world, npcs[4], 0);
   stats = getPathfindingStats();
   assert.equal(stats.routineDenied, 0);
@@ -325,7 +320,7 @@ test('path steering follows baked path chunks instead of the final point vector'
   assert.ok(steering.nextCell !== undefined);
 });
 
-test('followPath moves toward first subcell on a staircase grid path', () => {
+test('followPath string-pulls visible path cells into organic diagonal movement', () => {
   const world = makeOpenPlazaWorld();
   const actor = npc(200, 0.5);
   actor.y = 10.5;
@@ -341,11 +336,11 @@ test('followPath moves toward first subcell on a staircase grid path', () => {
 
   followPath(world, actor, 1);
 
-  // Grid follower heads toward the first subcell center
-  assert.equal(actor.x > 0.55, true, 'entity moved east');
+  assert.equal(actor.x > 0.55, true);
+  assert.equal(actor.y > 10.55, true);
 });
 
-test('followPath follows grid path subcell by subcell without corner cutting', () => {
+test('followPath keeps corner safety while smoothing a grid path', () => {
   const world = makeCornerWorld();
   const actor = npc(201, 6.5);
   actor.y = 10.5;
@@ -360,15 +355,13 @@ test('followPath follows grid path subcell by subcell without corner cutting', (
     subcellIdx(10, 14),
   ];
 
-  // Grid follower: entity moves toward subcell centers.
-  // subcellIdx(7,10) center is at approximately (7.125, 10.125),
-  // so the entity moves both east and toward that Y.
   followPath(world, actor, 1);
 
-  assert.equal(actor.x > 7.0, true, 'entity moved east');
+  assert.equal(actor.x > 7.0, true);
+  assert.equal(Math.abs(actor.y - 10.5) < 0.08, true);
 });
 
-test('followPath follows BFS path without shortcutting to goal', () => {
+test('followPath prefers a visible final goal over a baked tree detour', () => {
   const world = makeOpenPlazaWorld();
   const actor = npc(202, 0.5);
   actor.y = 10.5;
@@ -385,12 +378,8 @@ test('followPath follows BFS path without shortcutting to goal', () => {
     subcellIdx(4, 10),
   ];
 
-  // Bresenham lookahead: entity shortcuts through visible waypoints.
-  // In an open plaza, many waypoints are directly visible — the entity
-  // moves toward the farthest one, not just the first subcell.
   followPath(world, actor, 1);
 
-  // Entity moved forward (exact direction depends on lookahead visibility)
-  const distMoved = Math.sqrt((actor.x - 0.5) ** 2 + (actor.y - 10.5) ** 2);
-  assert.equal(distMoved > 0.3, true, 'entity moved forward');
+  assert.equal(actor.x > 1.0, true);
+  assert.equal(Math.abs(actor.y - 10.5) < 0.12, true);
 });

@@ -1,6 +1,6 @@
 /* ── Monster shared types & registry ──────────────────────────── */
 
-import { MonsterKind, type ProjType } from '../core/types';
+import { FloorLevel, MonsterKind, type ProjType } from '../core/types';
 
 export type MonsterAIFlag =
   | 'wallBias'
@@ -23,8 +23,6 @@ export type MonsterAIFlag =
   | 'sourceSwarm'
   | 'slimeScavenger'
   | 'slimeStrider'
-  | 'weepingAngel'
-  | 'melee'
   | 'meatGrowth'
   | 'blackWaterWake'
   | 'rootedPlant'
@@ -71,6 +69,7 @@ export interface MonsterDef {
   projSprite?: number;      // projectile sprite index
   projType?: ProjType;      // projectile behavior tag
   aiFlags?: readonly MonsterAIFlag[];
+  floors?: readonly FloorLevel[];
   counterplay?: string;
   lootHint?: string;
   boss?: MonsterBossReadability;
@@ -366,13 +365,13 @@ export const NEW_MONSTER_KINDS: readonly MonsterKind[] = [
   MonsterKind.GNOME,
 ];
 
-export const NEW_MONSTERS_BY_FLOOR: Record<number, readonly MonsterKind[]> = {
-  [30]: [MonsterKind.SHOVNIK, MonsterKind.LAMPOVY, MonsterKind.LAMPOGLAZ, MonsterKind.PECHATEED, MonsterKind.KONTORSHCHIK, MonsterKind.PARAGRAPH, MonsterKind.NELYUD, MonsterKind.BLACK_LIQUIDATOR, MonsterKind.KANTSELYARSKIY_IDOL, MonsterKind.TONKAYA_TEN, MonsterKind.PROTOKOLNIK, MonsterKind.HEAD_SLUG, MonsterKind.BEZEKHIY, MonsterKind.LOZHNYY_DUKH, MonsterKind.CHERVIE_AVATAR, MonsterKind.MUKHOZHUK_HOST, MonsterKind.SPORE_CARPET],
-  [60]: [MonsterKind.SHOVNIK, MonsterKind.LAMPOVY, MonsterKind.PECHATEED, MonsterKind.NELYUD, MonsterKind.KRYSNOZHKA, MonsterKind.GNOME, MonsterKind.POMOYNY_ROY, MonsterKind.GREEN_DOG, MonsterKind.BLACK_LIQUIDATOR, MonsterKind.PANELNIK, MonsterKind.PAUPSINA, MonsterKind.ZHORNAYA_TVAR, MonsterKind.DIKIY_MERTVYAK, MonsterKind.OBZHIVALSHCHIK, MonsterKind.HEAD_SLUG, MonsterKind.BEZEKHIY, MonsterKind.TRESKOTNIK, MonsterKind.GNILUSHKA, MonsterKind.SPORE_CARPET],
-  [100]: [MonsterKind.SHOVNIK, MonsterKind.LAMPOVY, MonsterKind.LAMPOGLAZ, MonsterKind.PECHATEED, MonsterKind.KONTORSHCHIK, MonsterKind.LOTOCHNIK, MonsterKind.NELYUD, MonsterKind.KRYSNOZHKA, MonsterKind.GNOME, MonsterKind.POMOYNY_ROY, MonsterKind.GREEN_DOG, MonsterKind.BLACK_LIQUIDATOR, MonsterKind.PANELNIK, MonsterKind.PAUPSINA, MonsterKind.SLIMEVIK, MonsterKind.SLIME_WOMAN, MonsterKind.SOBRANNYY, MonsterKind.BORSHCHEVIK, MonsterKind.TONKAYA_TEN, MonsterKind.RZHAVNIK, MonsterKind.ZHORNAYA_TVAR, MonsterKind.TUMANNIK, MonsterKind.PSEUDOLIFT, MonsterKind.DIKIY_MERTVYAK, MonsterKind.OBZHIVALSHCHIK, MonsterKind.HEAD_SLUG, MonsterKind.BEZEKHIY, MonsterKind.LOZHNYY_DUKH, MonsterKind.TRESKOTNIK, MonsterKind.GNILUSHKA, MonsterKind.FOG_SHARK, MonsterKind.BLOOD_PLANT, MonsterKind.SPORE_CARPET],
-  [140]: [MonsterKind.LAMPOVY, MonsterKind.TUBE_EEL, MonsterKind.LOTOCHNIK, MonsterKind.KRYSNOZHKA, MonsterKind.GNOME, MonsterKind.POMOYNY_ROY, MonsterKind.GREEN_DOG, MonsterKind.KOSTOREZ, MonsterKind.SAFEGUARD, MonsterKind.BETONOED, MonsterKind.PANELNIK, MonsterKind.PAUPSINA, MonsterKind.SLIMEVIK, MonsterKind.SLIME_WOMAN, MonsterKind.SOBRANNYY, MonsterKind.BORSHCHEVIK, MonsterKind.RZHAVNIK, MonsterKind.SLEPOGLAZ, MonsterKind.OLGOY, MonsterKind.CHERNOSLIZ, MonsterKind.VODYANOY_KOSHMAR, MonsterKind.PSEUDOLIFT, MonsterKind.ZAKALENNAYA_ARMATURA, MonsterKind.HEAD_SLUG, MonsterKind.TRUBNYY_AVTOMAT, MonsterKind.CHERVIE_AVATAR, MonsterKind.MUKHOZHUK_HOST, MonsterKind.FOG_SHARK, MonsterKind.BLOOD_PLANT, MonsterKind.SWARM, MonsterKind.SPORE_CARPET],
-  [180]: [MonsterKind.KOSTOREZ, MonsterKind.KHOROVAYA_MATKA, MonsterKind.SOBRANNYY, MonsterKind.ZHORNAYA_TVAR, MonsterKind.TUMANNIK, MonsterKind.SLEPOGLAZ, MonsterKind.OLGOY, MonsterKind.PSEUDOLIFT, MonsterKind.ZAKALENNAYA_ARMATURA, MonsterKind.TRESKOTNIK, MonsterKind.GLUBINNAYA_TEN, MonsterKind.FOG_SHARK, MonsterKind.BLOOD_PLANT, MonsterKind.SWARM, MonsterKind.LISHENNYY],
-  [200]: [MonsterKind.PARAGRAPH, MonsterKind.SAFEGUARD, MonsterKind.TONKAYA_TEN, MonsterKind.LOZHNYY_DUKH, MonsterKind.CHERVIE_AVATAR, MonsterKind.GLUBINNAYA_TEN, MonsterKind.LISHENNYY],
+export const NEW_MONSTERS_BY_FLOOR: Record<FloorLevel, readonly MonsterKind[]> = {
+  [FloorLevel.MINISTRY]: [MonsterKind.SHOVNIK, MonsterKind.LAMPOVY, MonsterKind.LAMPOGLAZ, MonsterKind.PECHATEED, MonsterKind.KONTORSHCHIK, MonsterKind.PARAGRAPH, MonsterKind.NELYUD, MonsterKind.BLACK_LIQUIDATOR, MonsterKind.KANTSELYARSKIY_IDOL, MonsterKind.TONKAYA_TEN, MonsterKind.PROTOKOLNIK, MonsterKind.HEAD_SLUG, MonsterKind.BEZEKHIY, MonsterKind.LOZHNYY_DUKH, MonsterKind.CHERVIE_AVATAR, MonsterKind.MUKHOZHUK_HOST, MonsterKind.SPORE_CARPET],
+  [FloorLevel.KVARTIRY]: [MonsterKind.SHOVNIK, MonsterKind.LAMPOVY, MonsterKind.PECHATEED, MonsterKind.NELYUD, MonsterKind.KRYSNOZHKA, MonsterKind.GNOME, MonsterKind.POMOYNY_ROY, MonsterKind.GREEN_DOG, MonsterKind.BLACK_LIQUIDATOR, MonsterKind.PANELNIK, MonsterKind.PAUPSINA, MonsterKind.ZHORNAYA_TVAR, MonsterKind.DIKIY_MERTVYAK, MonsterKind.OBZHIVALSHCHIK, MonsterKind.HEAD_SLUG, MonsterKind.BEZEKHIY, MonsterKind.TRESKOTNIK, MonsterKind.GNILUSHKA, MonsterKind.SPORE_CARPET],
+  [FloorLevel.LIVING]: [MonsterKind.SHOVNIK, MonsterKind.LAMPOVY, MonsterKind.LAMPOGLAZ, MonsterKind.PECHATEED, MonsterKind.KONTORSHCHIK, MonsterKind.LOTOCHNIK, MonsterKind.NELYUD, MonsterKind.KRYSNOZHKA, MonsterKind.GNOME, MonsterKind.POMOYNY_ROY, MonsterKind.GREEN_DOG, MonsterKind.BLACK_LIQUIDATOR, MonsterKind.PANELNIK, MonsterKind.PAUPSINA, MonsterKind.SLIMEVIK, MonsterKind.SLIME_WOMAN, MonsterKind.SOBRANNYY, MonsterKind.BORSHCHEVIK, MonsterKind.TONKAYA_TEN, MonsterKind.RZHAVNIK, MonsterKind.ZHORNAYA_TVAR, MonsterKind.TUMANNIK, MonsterKind.PSEUDOLIFT, MonsterKind.DIKIY_MERTVYAK, MonsterKind.OBZHIVALSHCHIK, MonsterKind.HEAD_SLUG, MonsterKind.BEZEKHIY, MonsterKind.LOZHNYY_DUKH, MonsterKind.TRESKOTNIK, MonsterKind.GNILUSHKA, MonsterKind.FOG_SHARK, MonsterKind.BLOOD_PLANT, MonsterKind.SPORE_CARPET],
+  [FloorLevel.MAINTENANCE]: [MonsterKind.LAMPOVY, MonsterKind.TUBE_EEL, MonsterKind.LOTOCHNIK, MonsterKind.KRYSNOZHKA, MonsterKind.GNOME, MonsterKind.POMOYNY_ROY, MonsterKind.GREEN_DOG, MonsterKind.KOSTOREZ, MonsterKind.SAFEGUARD, MonsterKind.BETONOED, MonsterKind.PANELNIK, MonsterKind.PAUPSINA, MonsterKind.SLIMEVIK, MonsterKind.SLIME_WOMAN, MonsterKind.SOBRANNYY, MonsterKind.BORSHCHEVIK, MonsterKind.RZHAVNIK, MonsterKind.SLEPOGLAZ, MonsterKind.OLGOY, MonsterKind.CHERNOSLIZ, MonsterKind.VODYANOY_KOSHMAR, MonsterKind.PSEUDOLIFT, MonsterKind.ZAKALENNAYA_ARMATURA, MonsterKind.HEAD_SLUG, MonsterKind.TRUBNYY_AVTOMAT, MonsterKind.CHERVIE_AVATAR, MonsterKind.MUKHOZHUK_HOST, MonsterKind.FOG_SHARK, MonsterKind.BLOOD_PLANT, MonsterKind.SWARM, MonsterKind.SPORE_CARPET],
+  [FloorLevel.HELL]: [MonsterKind.KOSTOREZ, MonsterKind.KHOROVAYA_MATKA, MonsterKind.SOBRANNYY, MonsterKind.ZHORNAYA_TVAR, MonsterKind.TUMANNIK, MonsterKind.SLEPOGLAZ, MonsterKind.OLGOY, MonsterKind.PSEUDOLIFT, MonsterKind.ZAKALENNAYA_ARMATURA, MonsterKind.TRESKOTNIK, MonsterKind.GLUBINNAYA_TEN, MonsterKind.FOG_SHARK, MonsterKind.BLOOD_PLANT, MonsterKind.SWARM, MonsterKind.LISHENNYY],
+  [FloorLevel.VOID]: [MonsterKind.PARAGRAPH, MonsterKind.SAFEGUARD, MonsterKind.TONKAYA_TEN, MonsterKind.LOZHNYY_DUKH, MonsterKind.CHERVIE_AVATAR, MonsterKind.GLUBINNAYA_TEN, MonsterKind.LISHENNYY],
 };
 
 /** Get generic type name for a monster kind (e.g. "Бетонник", "Тварь") */

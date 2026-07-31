@@ -1,6 +1,5 @@
 /* ── Нелегальная типография — Kvartiry social pressure POI ───── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   Tex,
   Feature,
@@ -11,35 +10,8 @@ import {
 } from '../../core/types';
 import { World } from '../../core/world';
 import { type Entity } from '../../core/types';
-import { type PlotNpcDef, registerSideQuest , registerAuthoredNpc } from '../../data/plot';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Ира Свидетель',
-  isFemale: false,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.SECRETARY,
-  sprite: Occupation.SECRETARY,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'note', count: 2 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_0_tp9h9', npc: AMBIENT_NPC_0 });
-
-const AMBIENT_NPC_1: PlotNpcDef = {
-  name: 'Курьер с мокрой печатью',
-  isFemale: false,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.TRAVELER,
-  sprite: Occupation.TRAVELER,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'ballot', count: 3 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_1_kg8bu', npc: AMBIENT_NPC_1 });
-
-import { createSocialPoiRoom, placeDropNear, setFeatureIfFloor, spawnSocialNpc } from './social_helpers';
+import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
+import { createSocialPoiRoom, placeDropNear, setFeatureIfFloor, spawnAmbientNpc, spawnSocialNpc } from './social_helpers';
 
 const DIMA: PlotNpcDef = {
   name: 'Дима Печатник',
@@ -65,7 +37,7 @@ const DIMA: PlotNpcDef = {
 
 registerSideQuest('kv_dima_pechatnik', DIMA, [{
   id: 'kv_print_notes',
-  giverId: getPlotNpcNumericId('kv_dima_pechatnik')!,
+  giverNpcId: 'kv_dima_pechatnik',
   type: QuestType.FETCH,
     desc: 'Дима Печатник: «Неси десять чужих записок. Сделаем бумагу, после которой охрана задает меньше вопросов.»',
   targetItem: 'note', targetCount: 10,
@@ -74,7 +46,7 @@ registerSideQuest('kv_dima_pechatnik', DIMA, [{
   relationDelta: 14, xpReward: 45, moneyReward: 40,
 }, {
   id: 'kv_print_ministry_audit_forgery',
-  giverId: getPlotNpcNumericId('kv_dima_pechatnik')!,
+  giverNpcId: 'kv_dima_pechatnik',
   type: QuestType.FETCH,
   desc: 'Дима Печатник: «Два пустых бланка - и напечатаю аудиторское предписание. Работает тихо, пока печать не сравнили с настоящей.»',
   targetItem: 'blank_form', targetCount: 2,
@@ -102,8 +74,8 @@ export function generatePrintRoom(
   setFeatureIfFloor(world, poi.x + 1, poi.y + 1, Feature.LAMP);
 
   spawnSocialNpc(entities, nextId, DIMA, 'kv_dima_pechatnik', poi.x + 2, poi.y + 2, { weapon: 'knife' });
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_0, 'kv_ambient_0_tp9h9', poi.x + 6, poi.y + 3);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_1, 'kv_ambient_1_kg8bu', poi.x + 8, poi.y + 5);
+  spawnAmbientNpc(entities, nextId, 'Ира Свидетель', Faction.CITIZEN, Occupation.SECRETARY, poi.x + 6, poi.y + 3, [{ defId: 'note', count: 2 }]);
+  spawnAmbientNpc(entities, nextId, 'Курьер с мокрой печатью', Faction.CITIZEN, Occupation.TRAVELER, poi.x + 8, poi.y + 5, [{ defId: 'ballot', count: 3 }]);
 
   for (const defId of ['note', 'note', 'note', 'note', 'book', 'book', 'ballot', 'cigs', 'ink_bottle', 'seal_wax']) {
     placeDropNear(world, entities, nextId, poi, defId, 1);

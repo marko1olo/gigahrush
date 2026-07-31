@@ -14,7 +14,7 @@ import { generateInterrogationCloset } from './interrogation';
 import { generateQueueHall } from './queue_hall';
 import { generateInspectionArchive } from './inspection_archive';
 import { generateLiquidatorArchive } from './liquidator_archive';
-import { generateRaionsovetArchive } from '../raionsovet_archive/archive_poi';
+import { generateRaionsovetArchive } from './raionsovet_archive';
 import { generateRefusalClauseOffice } from './refusal_clause';
 import { generateDocumentGate } from './document_gate';
 import { generateLampoglazLine } from './lampoglaz_line';
@@ -23,7 +23,7 @@ import { generateMukhozhukAudit } from './mukhozhuk_audit';
 import { generateNiiContrabandAudit } from './nii_contraband_audit';
 import { generateKartotechnikArchive } from './kartotechnik';
 import { generateMatkaDokumentovRoom } from './matka_dokumentov';
-import { runMinistryDesignFloorContent } from './route_papers_slice';
+import { runMinistryDesignFloorContent } from '../design_floors/ministry';
 
 export function runMinistryContent(
   world: World,
@@ -40,8 +40,7 @@ export function runMinistryContent(
   const idRef = { v: nextId };
   const permit = withPoiGenerationMetadata(world, entities, {
     id: 'ministry_permit_office',
-    // @ts-ignore
-    z: 'ministry',
+    floor: 'ministry',
     debugLabel: 'Министерство: Пропускное бюро',
     decisionHooks: [
       { kind: 'quest', id: 'permit_ballot_blanks', label: 'получить пропуск через бюллетени' },
@@ -74,8 +73,7 @@ export function runMinistryContent(
 
   const nii = withPoiGenerationMetadata(world, entities, {
     id: 'ministry_nii_contraband_audit',
-    // @ts-ignore
-    z: 'ministry',
+    floor: 'ministry',
     debugLabel: 'Министерство: ревизионная НИИ',
     decisionHooks: [
       { kind: 'quest', id: 'nii_audit_find_room', label: 'найти ревизионную НИИ' },

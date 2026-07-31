@@ -4,6 +4,7 @@ import {
   ContainerKind,
   Faction,
   Feature,
+  FloorLevel,
   MonsterKind,
   Occupation,
   RoomType,
@@ -19,7 +20,7 @@ import {
 } from '../admin_common';
 import { genLog } from '../log';
 
-const HOME_FLOOR_KEY = storyNpcFloorKey(30);
+const HOME_FLOOR_KEY = storyNpcFloorKey(FloorLevel.MINISTRY);
 const PLATON_ID = 'mukhozhuk_witness_platon';
 const QUARANTINE_SECRETARY_ID = 'mukhozhuk_quarantine_secretary';
 
@@ -91,7 +92,7 @@ function addFoodAuditCabinet(
     id: nextContainerId(world),
     x: wx,
     y: wy,
-    z: 30,
+    floor: FloorLevel.MINISTRY,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(wx, wy)],
     kind: ContainerKind.FRIDGE,

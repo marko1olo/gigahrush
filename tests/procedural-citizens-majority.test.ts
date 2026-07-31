@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, EntityType, LiftDirection, W } from '../src/core/types';
+import { Cell, EntityType, FloorLevel, LiftDirection, W } from '../src/core/types';
 import {
   auditReachability,
   hasReachableAdjacentCell,
@@ -17,7 +17,7 @@ function forcedCitizensSpec(): ProceduralFloorSpec {
     ...base,
     danger: 2,
     geometryId: 'living_blocks',
-    baseFloor: 'living',
+    baseFloor: FloorLevel.LIVING,
     majorityId: 'citizens',
     anomalyId: 'none',
     title: `гражданский тест: ${base.title}`,

@@ -1,10 +1,10 @@
 /* ── Комната печатей — Ministry admin POI ─────────────────────── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   ContainerKind,
   Tex,
   Feature,
+  FloorLevel,
   RoomType,
   Faction,
   Occupation,
@@ -27,7 +27,7 @@ import { genLog } from '../log';
 const QUEST_WITNESSED_FORGERY = 'stamp_room_witnessed_forgery';
 const STAMP_ROOM_FORGERY_TAG = 'stamp_room_forgery';
 const FORGED_STAMP_SHEET = 'forged_stamp_sheet';
-const HOME_FLOOR_KEY = storyNpcFloorKey(30);
+const HOME_FLOOR_KEY = storyNpcFloorKey(FloorLevel.MINISTRY);
 const GUARD_MATVEY_ID = 'stamp_room_guard_matvey';
 const WITNESS_RAISA_ID = 'stamp_room_witness_raisa';
 const FORGERY_USE_PATHS = [
@@ -111,7 +111,7 @@ const WITNESS_RAISA_DEF: PlotNpcDef = {
 registerSideQuest('zoya_surguchnaya', ZOYA_DEF, [
   {
     id: 'stamp_room_padding',
-    giverId: getPlotNpcNumericId('zoya_surguchnaya')!,
+    giverNpcId: 'zoya_surguchnaya',
     type: QuestType.FETCH,
     desc: 'Зоя Сургучная: «Пять записок. Подложим под печать, чтобы она не прожгла стол.»',
     targetItem: 'note', targetCount: 5,
@@ -121,16 +121,16 @@ registerSideQuest('zoya_surguchnaya', ZOYA_DEF, [
   },
   {
     id: 'stamp_archive_route',
-    giverId: getPlotNpcNumericId('zoya_surguchnaya')!,
+    giverNpcId: 'zoya_surguchnaya',
     type: QuestType.TALK,
     desc: 'Зоя Сургучная: «Передайте Осипу Карточному, что печать признала его ящик существующим.»',
-    targetNpcId: getPlotNpcNumericId('osip_kartochny')!,
+    targetNpcId: 'osip_kartochny',
     rewardItem: 'book', rewardCount: 1,
     relationDelta: 10, xpReward: 35, moneyReward: 30,
   },
   {
     id: QUEST_WITNESSED_FORGERY,
-    giverId: getPlotNpcNumericId('zoya_surguchnaya')!,
+    giverNpcId: 'zoya_surguchnaya',
     type: QuestType.FETCH,
     desc: 'Зоя Сургучная: «Два куска сургуча. Поставим поддельную печать при понятой: лист пройдет в архив, но журнал тоже проснется.»',
     targetItem: 'seal_wax', targetCount: 2,
@@ -191,7 +191,7 @@ function addStampAuditContainer(
     id: nextContainerId(world),
     x,
     y,
-    z: 30,
+    floor: FloorLevel.MINISTRY,
     roomId,
     zoneId: world.zoneMap[world.idx(x, y)],
     kind: ContainerKind.FILING_CABINET,

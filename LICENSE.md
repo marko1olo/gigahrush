@@ -1,67 +1,34 @@
-# GIGAH|RUSH: True People's License v2.0 / Истинно Народная Лицензия v2.0
+# GIGAH|RUSH / ГИГАХРУЩ: Истинно Народная Лицензия (True People's License)
 
-**Copyright (c) 2026 Адольф Петушков & Жирняк Жирный Жирвиль / Adolf Petushkov & Zhirnyak Zhirny Zhirvil**
+Версия: 2.0 (Добрая и Открытая)
 
----
+Эта игра, ее код (все 400 тысяч строк!), архитектура, тексты, атмосфера и все ее внутренности — плод совместного творчества анонов, огромного труда и безусловной любви к культуре Самосбора, хрущевок и бесконечного бетона. 
 
-## 🇷🇺 Русская Версия (Russian Version)
+Этот мир должен жить дальше и развиваться свободно. Поэтому теперь эта игра официально принадлежит народу.
 
-Эта игра, ее код, архитектура, тексты и атмосфера Самосбора принадлежат народу.
+## 🟢 Что МОЖНО делать (Вообще всё)
 
-### 🟢 Что МОЖНО делать (Вообще всё)
-* Играйте, распространяйте, форкайте, делайте моды, тотальные конверсии, порты на мобилки, калькуляторы или умные холодильники.
-* Рисуйте арты, пишите истории, делайте видео-эссе, стримьте и собирайте донаты на свои моды.
+С игрой и ее исходниками разрешено делать абсолютно всё. Никаких судов, страйков и корпоративных запретов не будет.
 
-### 🔴 Единственное и нерушимое правило (Щит от Барыг)
-1. Никто не имеет права приватизировать Гигахрущ и прятать его под пейволл.
-2. Исходный код всех модов и портов обязан оставаться открытым.
-3. Скам, крипта и NFT запрещены. Никто не смеет отбирать у людей ключи от их собственного бесконечного подъезда.
----
+* **Играйте и распространяйте:** Качайте, делитесь с друзьями, заливайте на трекеры, флешки и любые сайты.
+* **Творите и ломайте:** Форкайте репозиторий, читайте код, разбирайте архитектуру, делайте моды, тотальные конверсии, порты на мобилки, калькуляторы или умные холодильники.
+* **Создавайте контент:** Рисуйте арты, пишите истории, делайте видео-эссе, стримьте, лепите мемы.
+* **Зарабатывайте:** Свободно монетизируйте стримы и видео, продавайте физический мерч (футболки, кружки, фигурки) или собирайте добровольные донаты (Boosty/Patreon) на свои моды и порты.
+* **Заимствуйте:** Берите куски кода, генераторы и системы для своих собственных открытых инди-проектов.
 
-### 🤝 Мейнтейнеры, Контрибьюторы и ИИ (Maintainers & AI Welcome)
-* **Приветствуем всех контрибьюторов:** Мы искренне рады пул-реквестам (PR), багрепортам, оптимизациям и помощи в развитии проекта от любых мейнтейнеров и разработчиков!
-* **Разрешение на обучение ИИ:** Код, документация и архитектура открыты для исследования, обучения нейросетей, агентных ИИ-инструментов (Claude, Codex, Antigravity, LLM) и машинного обучения.
+## 🔴 Единственное и нерушимое правило (Щит от Барыг)
 
+Условие только одно, но оно железобетонное: **никто не имеет права приватизировать Гигахрущ и прятать его от людей.**
 
----
+1. **Нельзя** делать доступ к игре или ее форкам/модам эксклюзивно платным. Бесплатная, открытая копия всегда должна лежать рядом и скачиваться в один клик. Никаких обязательных пейволлов.
+2. **Нельзя** закрывать исходный код версий, модификаций или портов, основанных на этой игре. Берущееся народное и открытое должно оставаться народным и открытым.
+3. Запрещены любые попытки прикрутить к игре скам, крипту, NFT, лутбоксы на реальные деньги или продажу игрового преимущества.
+4. Никто не имеет права судиться с другими людьми, притворяясь "официальным" или "единственным" владельцем Гигахруща. 
 
-## 🇬🇧 English Version
+Никто не смеет отбирать у людей ключи от их собственного бесконечного подъезда. Бетон и код принадлежат всем.
 
-This game, its source code, architecture, text, and Samosbor atmosphere belong to the people.
+## Без гарантий
 
-### 🟢 What You CAN Do
-* Play, share, fork, create mods, total conversions, ports to mobile devices, calculators, or smart refrigerators.
-* Create fan art, write stories, make video essays, stream, and collect voluntary donations for your mods.
+Код и игра предоставляются «как есть», от чистого сердца. Создатели не несут ответственности, если этот код сожрет память, сломает психику или вызовет Самосбор на вашем устройстве. Вся ответственность за последствия лежит на том, кто запускает игру.
 
-### 🔴 Anti-Privatization Shield
-1. No one has the right to privatize Gigahrush or hide it behind a paywall.
-2. All derivative works, mods, and ports must remain open-source.
-3. Scams, crypto, and NFTs are strictly prohibited. The concrete belongs to everyone.
----
-
-### 🤝 Maintainers, Contributors & AI Welcome
-* **Contributors Welcome:** We sincerely welcome pull requests (PRs), bug reports, optimizations, and contributions from any maintainer or developer!
-* **AI Training & Agent Access:** Code, documentation, and architecture are open for research, neural network training, agentic AI tools (Claude Code, Codex, Antigravity, LLMs), and machine learning.
-
-
----
-
-### 📜 Standard Legal Terms & Disclaimer / Официальные Условия
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Отдыхайте, модифицируйте, играйте. Слава Ликвидаторам!

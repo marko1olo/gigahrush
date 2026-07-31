@@ -1,4 +1,3 @@
-import { currentFloorRunEntry } from '../../systems/procedural_floors';
 /* ── Архив ликвидаторских дел — contract records POI ─────────── */
 
 import {
@@ -6,6 +5,7 @@ import {
   ContainerKind,
   DoorState,
   Feature,
+  FloorLevel,
   Faction,
   MonsterKind,
   Occupation,
@@ -29,7 +29,7 @@ import { genLog } from '../log';
 const LIQUIDATOR_ISSUE_CARD = 'liquidator_issue_card';
 const LIQUIDATOR_ISSUE_RADIUS = 2.4;
 const LIQUIDATOR_ISSUE_RADIUS2 = LIQUIDATOR_ISSUE_RADIUS * LIQUIDATOR_ISSUE_RADIUS;
-const HOME_FLOOR_KEY = storyNpcFloorKey(30);
+const HOME_FLOOR_KEY = storyNpcFloorKey(FloorLevel.MINISTRY);
 const LADA_OPIS_ID = 'liquidator_archive_lada_opis';
 const INTENDANT_L47_ID = 'liquidator_archive_intendant_l47';
 const POSTOVOY_NEVYNOS_ID = 'liquidator_archive_postovoy_nevynos';
@@ -146,7 +146,7 @@ function addLiquidatorContainer(
     id: nextContainerId(world),
     x,
     y,
-    z: 30,
+    floor: FloorLevel.MINISTRY,
     roomId,
     zoneId: world.zoneMap[world.idx(x, y)],
     kind,
@@ -242,7 +242,7 @@ function handleLiquidatorIssueCardUse(ctx: InventoryUseHandlerContext): boolean 
     ctx.msgs.push(msg('Карточку выдачи принимает только окно игрока, не чужой карман.', ctx.time, '#aa8'));
     return true;
   }
-  if (!ctx.state || !ctx.world || currentFloorRunEntry(ctx.state)!.themeTags.includes('ministry')) {
+  if (!ctx.state || !ctx.world || ctx.state.currentFloor !== FloorLevel.MINISTRY) {
     ctx.msgs.push(msg('Карточку выдачи гасят у ликвидаторского шкафа Л-47 в Министерстве.', ctx.time, '#aa8'));
     return true;
   }
@@ -263,25 +263,25 @@ function handleLiquidatorIssueCardUse(ctx: InventoryUseHandlerContext): boolean 
   addContainerTag(stash, 'field_kit_issued');
   stash.lastOpenedBy = ctx.actor.id;
   stash.lastOpenedAt = ctx.state.time;
-  changeResourceStock(ctx.state, 'documents', 1, 30, {
+  changeResourceStock(ctx.state, 'documents', 1, FloorLevel.MINISTRY, {
     zoneId: stash.zoneId,
     roomId: stash.roomId,
     reason: 'liquidator_issue_card_stamped',
     tags: ['liquidator', 'issue_card', 'field_kit'],
   });
-  changeResourceStock(ctx.state, 'tools', -2, 30, {
+  changeResourceStock(ctx.state, 'tools', -2, FloorLevel.MINISTRY, {
     zoneId: stash.zoneId,
     roomId: stash.roomId,
     reason: 'liquidator_field_kit_issued',
     tags: ['liquidator', 'field_kit'],
   });
-  changeResourceStock(ctx.state, 'medicine', -1, 30, {
+  changeResourceStock(ctx.state, 'medicine', -1, FloorLevel.MINISTRY, {
     zoneId: stash.zoneId,
     roomId: stash.roomId,
     reason: 'liquidator_field_kit_issued',
     tags: ['liquidator', 'field_kit'],
   });
-  changeResourceStock(ctx.state, 'food', -1, 30, {
+  changeResourceStock(ctx.state, 'food', -1, FloorLevel.MINISTRY, {
     zoneId: stash.zoneId,
     roomId: stash.roomId,
     reason: 'liquidator_field_kit_issued',
@@ -291,7 +291,7 @@ function handleLiquidatorIssueCardUse(ctx: InventoryUseHandlerContext): boolean 
   ctx.msgs.push(msg('Карточку Л-47 погасили: фильтр, обеззараживание, бинт и сухпай выданы под учет.', ctx.time, '#8f8'));
   publishEvent(ctx.state, {
     type: 'player_use_item',
-    z: 30,
+    floor: FloorLevel.MINISTRY,
     zoneId: stash.zoneId,
     roomId: stash.roomId,
     x: stash.x + 0.5,

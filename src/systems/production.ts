@@ -3,6 +3,7 @@ import {
   ContainerKind,
   Faction,
   Feature,
+  FloorLevel,
   type ContainerAccess,
   type Entity,
   type GameState,
@@ -34,7 +35,7 @@ import { territoryOwnerToFaction } from '../data/factions';
 import { territoryRoomOwner } from './territory';
 
 export interface ProductionState {
-  z: number;
+  floor: FloorLevel;
   roomId: number;
   factoryId: string;
   recipeId: string;
@@ -72,8 +73,8 @@ const MAX_SAVED_TIME = 365 * 24 * 60 * 60;
 const BLOCKED_REASONS = ['no_inputs', 'container_full', 'no_container'] as const;
 type ProductionBlockedReason = typeof BLOCKED_REASONS[number];
 
-function isValidZ(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value);
+function isFloorLevel(value: unknown): value is FloorLevel {
+  return typeof value === 'number' && Number.isInteger(value) && FloorLevel[value] !== undefined;
 }
 
 function cleanFinite(value: unknown, fallback: number, min = 0, max = MAX_SAVED_TIME): number {
@@ -92,7 +93,7 @@ function cleanBlockedReason(value: unknown): ProductionState['blockedReason'] | 
     : undefined;
 }
 
-function normalizeProductionEntry(raw: unknown, fallbackFloor: number): ProductionState | null {
+function normalizeProductionEntry(raw: unknown, fallbackFloor: FloorLevel): ProductionState | null {
   if (!raw || typeof raw !== 'object') return null;
   const src = raw as Partial<ProductionState>;
   const factory = typeof src.factoryId === 'string'
@@ -104,7 +105,7 @@ function normalizeProductionEntry(raw: unknown, fallbackFloor: number): Producti
   if (!factory || !recipe) return null;
   const cycleSec = Math.max(30, recipe.cycleSec);
   const out: ProductionState = {
-    z: isValidZ(src.z) ? src.z : fallbackFloor,
+    floor: isFloorLevel(src.floor) ? src.floor : fallbackFloor,
     roomId: cleanInt(src.roomId, -1, 0, 100_000),
     factoryId: factory.id,
     recipeId: recipe.id,
@@ -123,7 +124,7 @@ function normalizeProductionEntry(raw: unknown, fallbackFloor: number): Producti
 export function setProductionState(
   state: GameState,
   input: unknown,
-  fallbackFloor = state.currentZ,
+  fallbackFloor = state.currentFloor,
 ): ProductionState[] {
   const normalized = normalizeProductionStateList(input, fallbackFloor);
   (state as ProductionGameState).production = normalized;
@@ -138,7 +139,7 @@ function productionList(state: GameState): ProductionState[] {
 
 export function normalizeProductionStateList(
   input: unknown,
-  fallbackFloor: number,
+  fallbackFloor: FloorLevel,
   cap = PRODUCTION_SAVE_STATE_CAP,
 ): ProductionState[] {
   if (!Array.isArray(input)) return [];
@@ -147,7 +148,7 @@ export function normalizeProductionStateList(
   for (const raw of input) {
     const normalized = normalizeProductionEntry(raw, fallbackFloor);
     if (!normalized) continue;
-    const key = `${normalized.z}:${normalized.roomId}:${normalized.factoryId}`;
+    const key = `${normalized.floor}:${normalized.roomId}:${normalized.factoryId}`;
     if (used.has(key)) continue;
     used.add(key);
     out.push(normalized);
@@ -155,26 +156,26 @@ export function normalizeProductionStateList(
   const max = Math.max(0, Math.floor(cap));
   if (max <= 0) return [];
   if (out.length <= max) return out;
-  const currentZ = out.filter(p => p.z === fallbackFloor).slice(-max);
-  const slotsLeft = Math.max(0, max - currentZ.length);
-  const otherFloors = out.filter(p => p.z !== fallbackFloor).slice(-slotsLeft);
-  return [...otherFloors, ...currentZ];
+  const currentFloor = out.filter(p => p.floor === fallbackFloor).slice(-max);
+  const slotsLeft = Math.max(0, max - currentFloor.length);
+  const otherFloors = out.filter(p => p.floor !== fallbackFloor).slice(-slotsLeft);
+  return [...otherFloors, ...currentFloor];
 }
 
 export function productionForSave(state: GameState): ProductionState[] {
-  return normalizeProductionStateList(productionList(state), state.currentZ);
+  return normalizeProductionStateList(productionList(state), state.currentFloor);
 }
 
-function productionFloor(state: GameState, p: ProductionState): number {
-  const saved = p as ProductionState & { floor?: number };
-  if (saved.z === undefined) saved.z = state.currentZ;
-  return saved.z;
+function productionFloor(state: GameState, p: ProductionState): FloorLevel {
+  const saved = p as ProductionState & { floor?: FloorLevel };
+  if (saved.floor === undefined) saved.floor = state.currentFloor;
+  return saved.floor;
 }
 
 function productionCountForCurrentFloor(state: GameState): number {
   let count = 0;
   for (const p of productionList(state)) {
-    if (productionFloor(state, p) === state.currentZ) count++;
+    if (productionFloor(state, p) === state.currentFloor) count++;
   }
   return count;
 }
@@ -182,7 +183,7 @@ function productionCountForCurrentFloor(state: GameState): number {
 function productionRoomCountForCurrentFloor(state: GameState): number {
   const rooms = new Set<string>();
   for (const p of productionList(state)) {
-    if (productionFloor(state, p) === state.currentZ) rooms.add(`${p.roomId}:${p.factoryId}`);
+    if (productionFloor(state, p) === state.currentFloor) rooms.add(`${p.roomId}:${p.factoryId}`);
   }
   return rooms.size;
 }
@@ -192,7 +193,7 @@ function outputContainer(world: World, id: number): WorldContainer | undefined {
 }
 
 function productionValidForWorld(state: GameState, world: World, p: ProductionState): boolean {
-  if (productionFloor(state, p) !== state.currentZ) return true;
+  if (productionFloor(state, p) !== state.currentFloor) return true;
   const room = world.rooms[p.roomId];
   if (!room) return false;
   const factory = FACTORIES.find(f => f.id === p.factoryId);
@@ -200,7 +201,7 @@ function productionValidForWorld(state: GameState, world: World, p: ProductionSt
   if (factoryForRoom(room.type, room.name)?.id !== factory.id) return false;
   if (p.outputContainerId <= 0) return true;
   const container = outputContainer(world, p.outputContainerId);
-  return !!container && container.z === state.currentZ && container.roomId === p.roomId;
+  return !!container && container.floor === state.currentFloor && container.roomId === p.roomId;
 }
 
 export function pruneProductionForWorld(state: GameState, world: World): number {
@@ -379,12 +380,13 @@ function createOutputContainer(
     id: nextContainerId(world),
     x: pos.x,
     y: pos.y,
-    z: state.currentZ,
+    floor: state.currentFloor,
     roomId: room.id,
     zoneId: world.zoneMap[ci],
     kind,
     name: `${def.name}: ${recipe.name}`,
     inventory: [],
+    capacitySlots: Math.max(def.capacitySlots, recipe.outputs.length + (recipe.inputItems?.length ?? 0) + 2),
     faction: factory.ownerFaction ?? roomFaction(world, room),
     access,
     lockDifficulty: access === 'locked' ? 2 + (room.id % 4) : undefined,
@@ -441,7 +443,7 @@ function resolveOutputContainer(
   factory: FactoryDef,
   recipe: FactoryRecipeDef,
 ): WorldContainer | undefined {
-  const containers = world.containers.filter(c => c.z === state.currentZ && c.roomId === room.id);
+  const containers = world.containers.filter(c => c.floor === state.currentFloor && c.roomId === room.id);
   const tags = recipeOutputTags(factory, recipe);
   const exact = bestContainer(containers, recipe, tags, c => sameFactoryOutput(c, factory) && c.tags.includes(recipe.id));
   if (exact) return exact;
@@ -468,10 +470,10 @@ function resolveOutputContainer(
     ?? bestContainer(containers, recipe, tags, c => !isOtherFactoryOutput(c, factory));
 }
 
-function missingResourceIds(state: GameState, recipe: FactoryRecipeDef, z: number): string[] {
+function missingResourceIds(state: GameState, recipe: FactoryRecipeDef, floor: FloorLevel): string[] {
   const missing: string[] = [];
   for (const input of recipe.inputs) {
-    if (!canSpendResources(state, [input], z)) missing.push(input.id);
+    if (!canSpendResources(state, [input], floor)) missing.push(input.id);
   }
   return missing;
 }
@@ -543,11 +545,11 @@ function registerFactoryRoom(
   containerId: number,
 ): void {
   const list = productionList(state);
-  if (list.some(p => productionFloor(state, p) === state.currentZ && p.roomId === roomId && p.factoryId === factory.id)) return;
+  if (list.some(p => productionFloor(state, p) === state.currentFloor && p.roomId === roomId && p.factoryId === factory.id)) return;
   if (productionRoomCountForCurrentFloor(state) >= MAX_PRODUCTION_ROOMS) return;
   if (productionCountForCurrentFloor(state) >= MAX_PRODUCTION_STATES) return;
   list.push({
-    z: state.currentZ,
+    floor: state.currentFloor,
     roomId,
     factoryId: factory.id,
     recipeId: recipe.id,
@@ -653,7 +655,7 @@ function publishProductionOutput(
 }
 
 export function ensureProductionRooms(state: GameState, world: World): number {
-  ensureRoomContainers(world, state.currentZ);
+  ensureRoomContainers(world, state.currentFloor);
   pruneProductionForWorld(state, world);
   let added = 0;
   for (const room of world.rooms) {
@@ -773,7 +775,7 @@ function handleMissingInputs(
   container: WorldContainer,
   observer?: Entity,
 ): boolean {
-  const missingResources = missingResourceIds(state, recipe, p.z);
+  const missingResources = missingResourceIds(state, recipe, p.floor);
   const missingItems = missingInputItemIds(container, recipe);
   if (missingResources.length > 0 || missingItems.length > 0) {
     p.blockedReason = 'no_inputs';
@@ -862,7 +864,7 @@ function processSuccessfulProduction(
   badBatch: FactoryBadBatchDef | undefined,
   observer?: Entity,
 ): void {
-  spendResources(state, recipe.inputs, p.z);
+  spendResources(state, recipe.inputs, p.floor);
   consumeInputItems(container, recipe);
   addOutputStacks(container, outputs);
   container.factoryId = factory.id;
@@ -926,7 +928,7 @@ export function tickProduction(state: GameState, world: World, force = false, ob
   ensureProductionRooms(state, world);
   let made = 0;
   for (const p of productionList(state)) {
-    if (productionFloor(state, p) !== state.currentZ) continue;
+    if (productionFloor(state, p) !== state.currentFloor) continue;
     if (!force && state.time < p.nextTickAt) continue;
     const factory = FACTORIES.find(f => f.id === p.factoryId);
     const recipe = factory?.recipes.find(r => r.id === p.recipeId);
@@ -954,18 +956,9 @@ export function tickProduction(state: GameState, world: World, force = false, ob
 }
 
 export function summarizeProduction(state: GameState, limit = 6): string[] {
-  const list = productionList(state);
-  const result: string[] = [];
-  for (let i = 0; i < list.length; i++) {
-    const p = list[i];
-    if (productionFloor(state, p) === state.currentZ) {
-      const blocked = p.blockedReason ? ` ${p.blockedReason}` : '';
-      const jammed = p.jammed ? ' jammed' : '';
-      result.push(`room ${p.roomId}: ${p.factoryId}/${p.recipeId} next ${Math.max(0, Math.round(p.nextTickAt - state.time))}s${blocked}${jammed}`);
-      if (result.length >= limit) {
-        break;
-      }
-    }
-  }
-  return result;
+  return productionList(state).filter(p => productionFloor(state, p) === state.currentFloor).slice(0, limit).map(p => {
+    const blocked = p.blockedReason ? ` ${p.blockedReason}` : '';
+    const jammed = p.jammed ? ' jammed' : '';
+    return `room ${p.roomId}: ${p.factoryId}/${p.recipeId} next ${Math.max(0, Math.round(p.nextTickAt - state.time))}s${blocked}${jammed}`;
+  });
 }

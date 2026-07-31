@@ -60,7 +60,7 @@ test('craft recipe source registry covers every discovery kind', () => {
   assert.equal(counts.terminal > 0, true);
   assert.equal(counts.npc > 0, true);
   assert.equal(counts.floor > 0, true);
-  assert.equal(craftRecipeSourcesForFloor('design:living').some(source => source.id === 'floor_recipe_billboard_basics'), true);
+  assert.equal(craftRecipeSourcesForFloor('story:living').some(source => source.id === 'floor_recipe_billboard_basics'), true);
 });
 
 test('item and terminal recipe sources point at existing registries', () => {

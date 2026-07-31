@@ -1,14 +1,6 @@
 /* ── Monster ecology: spawn identity, counterplay, and loot hints ── */
 
-import { MonsterKind, RoomType } from '../core/types';
-import { rng } from '../core/rand';
-
-export interface MonsterLootEntry {
-  itemDefId: string;
-  chance: number;
-  minCount?: number;
-  maxCount?: number;
-}
+import { FloorLevel, MonsterKind, RoomType } from '../core/types';
 
 export interface MonsterRareDrop {
   itemId: string;
@@ -22,7 +14,7 @@ export interface MonsterEcologyDef {
   cue?: string;
   rule?: string;
   floorFit?: string;
-  floors: readonly number[];
+  floors: readonly FloorLevel[];
   rooms: readonly RoomType[];
   spawnWeight: number;
   minSamosborCount: number;
@@ -32,7 +24,6 @@ export interface MonsterEcologyDef {
   deathLogHint?: string;
   rumorIds: readonly string[];
   rareDrops: readonly MonsterRareDrop[];
-  lootTable?: readonly MonsterLootEntry[];
 }
 
 export type MonsterCueTaskChannel = 'data' | 'text' | 'sprite' | 'audio';
@@ -46,7 +37,7 @@ export interface MonsterCueTask {
 }
 
 export interface MonsterEcologyQuery {
-  z: number;
+  floor: FloorLevel;
   roomType?: RoomType;
   floorTags?: readonly string[];
   roomTags?: readonly string[];
@@ -66,9 +57,9 @@ export interface MonsterEcologyRank {
   ecology: MonsterEcologyDef;
 }
 
-const CIVIL: readonly number[] = [30, 14, 0];
-const DEEP: readonly number[] = [-26, -36, -50];
-const ALL_BUT_VOID: readonly number[] = [30, 14, 0, -26, -36];
+const CIVIL: readonly FloorLevel[] = [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING];
+const DEEP: readonly FloorLevel[] = [FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID];
+const ALL_BUT_VOID: readonly FloorLevel[] = [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL];
 const NATIVE_FLOOR_MULT = 2.4;
 const BIAS_KIND_MULT = 2.7;
 const ROUTE_PRESSURE_KINDS: readonly MonsterKind[] = [
@@ -237,7 +228,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'В сером тумане один силуэт сдвинут в сторону, а настоящий корпус выдает только черно-красный сустав.',
     rule: 'Пока оба в плотном fog-пятне, видимая фигура смещена; свет, огонь или выход из тумана складывают смещение.',
     floorFit: 'Жилые самосборные карманы, адские пепельные коридоры и редкие смоговые маршрутные этажи.',
-    floors: [0, -36],
+    floors: [FloorLevel.LIVING, FloorLevel.HELL],
     rooms: [RoomType.CORRIDOR, RoomType.COMMON, RoomType.STORAGE, RoomType.SMOKING],
     spawnWeight: 1.35,
     minSamosborCount: 2,
@@ -254,7 +245,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Мусор шевелится, лапки скребут у кухни, приманка пахнет сильнее кармана.',
     rule: 'Первый рывок слабый, но стая идет на помеченную еду или говняк и быстро окружает в быту.',
     floorFit: 'Кухни, кладовые и мусорные проходы Квартир, Жилой зоны и Коллекторов.',
-    floors: [14, 0, -26],
+    floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
     rooms: [RoomType.KITCHEN, RoomType.STORAGE, RoomType.CORRIDOR, RoomType.COMMON],
     spawnWeight: 3.2,
     minSamosborCount: 1,
@@ -271,7 +262,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Жалобный вой в коридоре, мокрые лапы по металлу, зеленый мох на серой низкой спине.',
     rule: 'Собаки делятся целью в малом радиусе и заходят телами, но громкий металл, вентиль, шумовая банка или дробовик пугают их и рвут стаю.',
     floorFit: 'Заброшенные жилые блоки, мусорные коридоры, ложные безопасные секции и технические переходы.',
-    floors: [14, 0, -26],
+    floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
     rooms: [RoomType.CORRIDOR, RoomType.COMMON, RoomType.STORAGE, RoomType.LIVING, RoomType.KITCHEN],
     spawnWeight: 2.4,
     minSamosborCount: 1,
@@ -288,7 +279,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Пакеты шуршат ногами, желтые крошки собираются на переднем краю, запах еды ведет край роя.',
     rule: 'Дальше чует открытую еду и говняк в инвентаре игрока, идет на брошенную приманку и расходится по фиксированным фланговым слотам.',
     floorFit: 'Мусорные кухни, рынки, кладовые, бытовые коридоры и засоренные технические углы.',
-    floors: [14, 0, -26],
+    floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
     rooms: [RoomType.KITCHEN, RoomType.STORAGE, RoomType.COMMON, RoomType.CORRIDOR],
     spawnWeight: 2.9,
     minSamosborCount: 1,
@@ -305,7 +296,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Черно-ржавая живая статика течет из щели, на полу остается темная крошка и желтые точки глаз.',
     rule: 'Пока источник не заклеен или не выжжен, он на cooldown выпускает ограниченное число слабых быстрых тел рядом с игроком.',
     floorFit: 'Технические пустоты, заброшенные кухни после самосбора, сервисные щели Коллекторов и мясные вентиляции нижних этажей.',
-    floors: [-26, -36],
+    floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL],
     rooms: [RoomType.CORRIDOR, RoomType.STORAGE, RoomType.PRODUCTION, RoomType.KITCHEN],
     spawnWeight: 1.15,
     minSamosborCount: 2,
@@ -322,7 +313,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Бетон царапает сам себя, лапа тянется из-за панели, силуэт держит стену.',
     rule: 'У стены и рядом с прижатой целью тварь бьет дальше и больнее; в центре комнаты теряет преимущество.',
     floorFit: 'Жилые и технические коридоры, общие комнаты и склады до Мясного низа.',
-    floors: [14, 0, -26, -36],
+    floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
     rooms: [RoomType.CORRIDOR, RoomType.LIVING, RoomType.COMMON, RoomType.STORAGE],
     spawnWeight: 6.2,
     minSamosborCount: 1,
@@ -339,7 +330,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Скреб плитной руки, светлая пыль на ребре, широкие плечи закрывают стену.',
     rule: 'У стены держит броню и достает дальше плитной рукой; в двух клетках от стен теряет упор и коротко замедляется.',
     floorFit: 'Панельные жилые комнаты, общие проходы Квартир и редкие сервисные коридоры Коллекторов.',
-    floors: [14, 0, -26],
+    floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
     rooms: [RoomType.LIVING, RoomType.COMMON, RoomType.CORRIDOR, RoomType.STORAGE],
     spawnWeight: 1.7,
     minSamosborCount: 2,
@@ -356,7 +347,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Палевая паутина на полу и стене, низкое многоногое тело, зеленые кончики клыков и обрывки сбруи.',
     rule: 'Держит среднюю дистанцию, плюет по прямой короткой сетью, отступает вбок при сближении и не стакает контроль дольше нескольких секунд.',
     floorFit: 'Сервисные кладовые, заброшенные комнаты, аварийные склады милиции или партии; редко в Квартирах как сбежавшая обученная тварь.',
-    floors: [14, 0, -26],
+    floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
     rooms: [RoomType.STORAGE, RoomType.PRODUCTION, RoomType.CORRIDOR, RoomType.COMMON],
     spawnWeight: 1.15,
     minSamosborCount: 2,
@@ -373,7 +364,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Челюсть раскрывается, брюхо подтягивается, короткие усики нюхают пол до рывка.',
     rule: 'Сначала выбирает близкую пищевую вонь, бросок или носителя еды; промах оставляет длинное окно наказания.',
     floorFit: 'Кухни, мясные склады, алтарные застолья и тёплые коридоры Жилой зоны, Квартир и Ада.',
-    floors: [14, 0, -36],
+    floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.HELL],
     rooms: [RoomType.KITCHEN, RoomType.STORAGE, RoomType.COMMON, RoomType.CORRIDOR],
     spawnWeight: 2.2,
     minSamosborCount: 2,
@@ -390,7 +381,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Мокрый шорох у пола, тяжелое ползание под дверью, вода отвечает раньше шага.',
     rule: 'Снаружи тесных клеток кайтится, но в дверях, ванной и воде получает убийный контакт.',
     floorFit: 'Склады, ванные, производственные лотки и мокрые коридоры Жилой зоны, Коллекторов и Ада.',
-    floors: [0, -26, -36],
+    floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
     rooms: [RoomType.CORRIDOR, RoomType.BATHROOM, RoomType.PRODUCTION, RoomType.STORAGE],
     spawnWeight: 4.3,
     minSamosborCount: 1,
@@ -407,7 +398,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Коридор дрожит, бетон осыпается, тяжелая фигура перекрывает прямой ход.',
     rule: 'Прямой размен проигран; углы, шум и огонь покупают путь или отход.',
     floorFit: 'Редкие тяжелые встречи в гражданских этажах, Коллекторах, Аду и Пустоте.',
-    floors: [30, 0, -26, -36, -50],
+    floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
     rooms: [RoomType.CORRIDOR, RoomType.PRODUCTION, RoomType.HQ, RoomType.COMMON],
     spawnWeight: 0.65,
     minSamosborCount: 4,
@@ -424,7 +415,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Слабая стена хрустит изнутри, пыль тянется линией вдоль шва до прогрыза.',
     rule: 'Прогрызает только подготовленный слабый шов; шум ускоряет выход, герметик и блок-комплект закрывают, огонь отгоняет.',
     floorFit: 'Коллекторские кладовые, технические короткие ходы и слабые бетонные швы.',
-    floors: [-26],
+    floors: [FloorLevel.MAINTENANCE],
     rooms: [RoomType.STORAGE, RoomType.CORRIDOR, RoomType.PRODUCTION],
     spawnWeight: 0.12,
     minSamosborCount: 0,
@@ -434,10 +425,6 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     deathLogHint: 'Смерть от бетоноеда должна читать нерешенную слабую стену, жадный короткий путь или поздний огонь.',
     rumorIds: ['monster_betonoed_weak_wall', 'ecology_betonoed_shortcut'],
     rareDrops: [{ itemId: 'rebar', chance: 0.05 }, { itemId: 'psi_concrete_splinter', chance: 0.025 }],
-    lootTable: [
-      { itemDefId: 'rawmeat', chance: 0.25, minCount: 1, maxCount: 2 },
-      { itemDefId: 'metal_sheet', chance: 0.1, minCount: 1, maxCount: 1 }
-    ],
   },
   {
     kind: MonsterKind.GNOME,
@@ -445,20 +432,16 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Скрежет мелкой арматуры по бетону, низкий топот и стук откалываемых камней.',
     rule: 'Любит узкие технические туннели и глухие коридоры, старается избегать открытых залов; роет у стен.',
     floorFit: 'Узкие переходы Коллекторов, технические щели Квартир и Жилой зоны.',
-    floors: [-26, 14, 0],
-    rooms: [RoomType.STORAGE, RoomType.CORRIDOR, RoomType.PRODUCTION],
+    floors: [FloorLevel.MAINTENANCE, FloorLevel.KVARTIRY, FloorLevel.LIVING],
+    rooms: [RoomType.CORRIDOR, RoomType.STORAGE, RoomType.PRODUCTION],
     spawnWeight: 1.5,
     minSamosborCount: 1,
     rare: false,
-    lootHint: 'Собирают блестящий мусор: провода, платы, болты. Редко — краденые ювелирные изделия.',
-    counterplay: 'Гномы быстры, но хрупки. Используйте дробовик на подходе или загоняйте их в узкие коридоры. Они трусливы поодиночке, убейте вожака — остальные разбегутся.',
+    lootHint: 'мелкие детали, гайки, провода, изолента, арматура',
+    counterplay: 'Не деритесь в узком туннеле: выманите на открытое пространство. Маленький и быстрый — дробовик решает.',
     deathLogHint: 'Смерть от гнома должна указывать на зажатость в узком туннеле или промах по мелкой цели.',
-    rumorIds: ['gnome_sighting_1', 'gnome_nest_2'],
+    rumorIds: ['ecology_gnome_tunnels'],
     rareDrops: [{ itemId: 'rebar', chance: 0.08 }, { itemId: 'wire_coil', chance: 0.05 }],
-    lootTable: [
-      { itemDefId: 'wire_coil', chance: 0.35, minCount: 1, maxCount: 2 },
-      { itemDefId: 'metal_sheet', chance: 0.15, minCount: 1, maxCount: 1 }
-    ],
   },
   {
     kind: MonsterKind.ZOMBIE,
@@ -476,10 +459,6 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     deathLogHint: 'Смерть от мертвяка должна показывать, что игрок пустил его в толпу, кухню или дверной хват.',
     rumorIds: ['monster_zombie_human', 'ecology_zombie_neighbor'],
     rareDrops: [{ itemId: 'note', chance: 0.05 }, { itemId: 'cigs', chance: 0.03 }],
-    lootTable: [
-      { itemDefId: 'wet_rag_bundle', chance: 0.35, minCount: 1, maxCount: 1 },
-      { itemDefId: 'rawmeat', chance: 0.15, minCount: 1, maxCount: 2 }
-    ],
   },
   {
     kind: MonsterKind.DIKIY_MERTVYAK,
@@ -487,7 +466,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Рваный хрип ускоряется, белые костяшки вынесены вперед, ноги смазаны рывком.',
     rule: 'Разгоняется в узких проходах и рядом с телами; любой ранний урон сбивает моментум до столкновения.',
     floorFit: 'Очереди, жилые коридоры, толкучки и соседские драки Квартир и Жилой зоны.',
-    floors: [14, 0],
+    floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING],
     rooms: [RoomType.CORRIDOR, RoomType.COMMON, RoomType.KITCHEN, RoomType.LIVING],
     spawnWeight: 2.15,
     minSamosborCount: 1,
@@ -504,7 +483,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Зеленый разогрев, ламповый взгляд и пауза перед болтом.',
     rule: 'Если линия видимости не сломана до вспышки, летит болт; после залпа есть окно сближения.',
     floorFit: 'Коридоры, офисы, производство и поздние открытые комнаты от Министерства до Пустоты.',
-    floors: [30, 0, -26, -36, -50],
+    floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
     rooms: [RoomType.CORRIDOR, RoomType.OFFICE, RoomType.PRODUCTION, RoomType.COMMON],
     spawnWeight: 3.1,
     minSamosborCount: 3,
@@ -521,7 +500,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Желтый гул плафона, фарфоровый обод и зеленая точка на освещенной прямой.',
     rule: 'Получает точный захват и больший урон, если цель стоит в светлой клетке или вплотную к лампе; темнота и укрытие сбивают выстрел.',
     floorFit: 'Длинные жилые коридоры, министерские офисные линии и освещенные общие проходы.',
-    floors: [0, 30],
+    floors: [FloorLevel.LIVING, FloorLevel.MINISTRY],
     rooms: [RoomType.CORRIDOR, RoomType.OFFICE, RoomType.COMMON],
     spawnWeight: 2.2,
     minSamosborCount: 2,
@@ -538,7 +517,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Рябь идет против течения, мутный глаз раскрывает зеленую щель из-под черной пленки.',
     rule: 'Пока чернослиз сидит в темной воде, он почти скрыт; свет, шум, урон или близкий шаг раскрывают первый точный залп.',
     floorFit: 'Черные коллекторские лужи, насосные изгибы, мокрые шкафы проб НИИ и темные обходы.',
-    floors: [-26],
+    floors: [FloorLevel.MAINTENANCE],
     rooms: [RoomType.CORRIDOR, RoomType.PRODUCTION, RoomType.STORAGE],
     spawnWeight: 1.4,
     minSamosborCount: 2,
@@ -555,7 +534,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Мысли громче сирены, комната кажется теснее, выход за спиной становится важным.',
     rule: 'Длинный бой усиливает давление; победа требует тяжелого урона сразу или отказа от комнаты.',
     floorFit: 'Общие, штабные, медицинские и коридорные комнаты на опасных маршрутах всех этажей.',
-    floors: [30, 0, -26, -36, -50],
+    floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
     rooms: [RoomType.COMMON, RoomType.HQ, RoomType.MEDICAL, RoomType.CORRIDOR],
     spawnWeight: 1.4,
     minSamosborCount: 3,
@@ -572,7 +551,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'За гермодверью шевелится один тяжелый силуэт с несколькими головами и общим пальто.',
     rule: 'Спит в трансе, просыпается от близости, шума или урона, растет от серии попаданий и убийств; слизь или гермодверь срывают погоню.',
     floorFit: 'Производственные комнаты, склады, бункеры и запечатанные укрытия Жилой зоны, Коллекторов и Ада.',
-    floors: [0, -26, -36],
+    floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
     rooms: [RoomType.PRODUCTION, RoomType.STORAGE, RoomType.COMMON, RoomType.CORRIDOR],
     spawnWeight: 0.28,
     minSamosborCount: 5,
@@ -589,7 +568,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Высокий зонтик белых семян, желтые капли на стебле и корни, которые уже легли поперек прохода.',
     rule: 'Почти не ходит: держит маршрут телом, соком и семенным облаком. Рубка чистит путь тише, огонь убивает быстро, но дает дым.',
     floorFit: 'Сервисные коридоры, грибные биотопы, склады борщеводов и заброшенные влажные комнаты Жилой зоны и Коллекторов.',
-    floors: [0, -26],
+    floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE],
     rooms: [RoomType.CORRIDOR, RoomType.PRODUCTION, RoomType.STORAGE, RoomType.COMMON],
     spawnWeight: 1.15,
     minSamosborCount: 2,
@@ -606,7 +585,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Силуэт сжимается в темном углу, тень остается после тела, воздух холодеет.',
     rule: 'В темноте готовит рывок; свет, фонарь, шаг назад или открытое место срывают удар.',
     floorFit: 'Коридоры, курилки, офисы и общие комнаты гражданских этажей, Ада и Пустоты.',
-    floors: [30, 14, 0, -36, -50],
+    floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.HELL, FloorLevel.VOID],
     rooms: [RoomType.CORRIDOR, RoomType.SMOKING, RoomType.OFFICE, RoomType.COMMON],
     spawnWeight: 3.6,
     minSamosborCount: 2,
@@ -623,7 +602,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Черный силуэт отскакивает, а позади на один удар остается более бледный торс.',
     rule: 'Первый темный рывок ставит afterimage-якорь; если цель идет к нему в темноте, второй темп бьет сбоку, а свет или стояние на месте гасят ловушку.',
     floorFit: 'Глубокие туманные выходы, пустотные швы, культовые коридоры и темные алтари Ада и Пустоты.',
-    floors: [-36, -50],
+    floors: [FloorLevel.HELL, FloorLevel.VOID],
     rooms: [RoomType.CORRIDOR, RoomType.COMMON, RoomType.HQ, RoomType.STORAGE],
     spawnWeight: 0.62,
     minSamosborCount: 3,
@@ -640,7 +619,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Черное человеческое отсутствие с серой пепельной кромкой тянется к ближайшему свету.',
     rule: 'Ищет активный свет в ограниченном радиусе: фонарь, УФ, лампу, свечу или брошенный светящийся предмет. Контакт дает короткий распад HP и нужд.',
     floorFit: 'Темный отсек, Пустота, адские швы, глубокие туманные выходы и отрицательные маршрутные этажи.',
-    floors: [-36, -50],
+    floors: [FloorLevel.HELL, FloorLevel.VOID],
     rooms: [RoomType.CORRIDOR, RoomType.COMMON, RoomType.HQ, RoomType.STORAGE],
     spawnWeight: 0.58,
     minSamosborCount: 4,
@@ -657,7 +636,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Игольная тень стоит спиной, локти указывают в коридор, шаг назад слишком охотный.',
     rule: 'Выбирает рядом темный коридор или дверную линию, держится видимой и получает один фланговый удар, если цель пересекает подготовленную линию.',
     floorFit: 'Темные коридоры, дверные повороты, офисные и квартирные изгибы Министерства, Жилой зоны и редких пустотных маршрутов.',
-    floors: [30, 0, -50],
+    floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.VOID],
     rooms: [RoomType.CORRIDOR, RoomType.OFFICE, RoomType.LIVING, RoomType.COMMON],
     spawnWeight: 1.15,
     minSamosborCount: 2,
@@ -674,7 +653,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Ровная арматура лежит слишком тихо, металл звенит до удара, пол отмечен резами.',
     rule: 'У стен, стеллажей и станков быстрее выходит из укрытия; в центре лучше читается и расстреливается.',
     floorFit: 'Производство, склады и коридоры Жилой зоны, Коллекторов, Ада и Пустоты.',
-    floors: [0, -26, -36, -50],
+    floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
     rooms: [RoomType.PRODUCTION, RoomType.STORAGE, RoomType.CORRIDOR],
     spawnWeight: 1.1,
     minSamosborCount: 5,
@@ -691,7 +670,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Слишком ровная стопка ржавых прутьев у стеллажа, пыль без следов и масляная лужица под железом.',
     rule: 'Спит в складском мусоре, просыпается от близкого шага, громкого металла или выстрела; первый рывок силен, дальше корпус хрупкий.',
     floorFit: 'Склады, ремонтные ниши, кабельные и трубные клетки Жилой зоны и Коллекторов.',
-    floors: [0, -26],
+    floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE],
     rooms: [RoomType.STORAGE, RoomType.PRODUCTION, RoomType.CORRIDOR],
     spawnWeight: 0.85,
     minSamosborCount: 2,
@@ -708,7 +687,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Темная сталь, бетонные плечи и оранжевые трещины; после тяжелого попадания плиты осыпаются.',
     rule: 'Пока броня на месте, ножи и слабые пули почти не двигают бой; дробь, кувалда, взрыв или тяжелый выстрел срывают бронеплиты.',
     floorFit: 'Машинные, складские и глубокие сервисные комнаты Коллекторов и Ада.',
-    floors: [-26, -36],
+    floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL],
     rooms: [RoomType.PRODUCTION, RoomType.STORAGE, RoomType.CORRIDOR],
     spawnWeight: 0.28,
     minSamosborCount: 5,
@@ -725,7 +704,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Мокрые удары за стеной, приплод у входа, комната звучит как гнездо.',
     rule: 'Если тянуть бой, capped-приплод заполняет проход и превращает отход в задачу.',
     floorFit: 'Штабные, общие и производственные комнаты Коллекторов, Ада и Пустоты.',
-    floors: [-26, -36, -50],
+    floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
     rooms: [RoomType.HQ, RoomType.COMMON, RoomType.PRODUCTION, RoomType.CORRIDOR],
     spawnWeight: 0.45,
     minSamosborCount: 4,
@@ -742,7 +721,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Детские лица открываются одно за другим, стена поёт мокро, потом рядом с источником падают маленькие тела.',
     rule: 'Хоровой отсчёт даёт ограниченную волну приплода; зачистка детей открывает короткое окно урона до следующего куплета.',
     floorFit: 'Мясные комнаты, культовые хоровые сборы, алтарные маршруты и глубокие органические коридоры Ада.',
-    floors: [-36],
+    floors: [FloorLevel.HELL],
     rooms: [RoomType.HQ, RoomType.COMMON, RoomType.PRODUCTION, RoomType.CORRIDOR],
     spawnWeight: 0.34,
     minSamosborCount: 5,
@@ -759,7 +738,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Черная фигурка смотрит даже спиной, воздух щелкает перед ПСИ-выстрелом.',
     rule: 'Не двигается, но держит открытую среднюю линию; угол, дверь или упор ломают задачу.',
     floorFit: 'Офисы, склады, курилки и штабы Министерства, Жилой зоны, Ада и Пустоты.',
-    floors: [30, 0, -36, -50],
+    floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.HELL, FloorLevel.VOID],
     rooms: [RoomType.STORAGE, RoomType.OFFICE, RoomType.SMOKING, RoomType.HQ],
     spawnWeight: 0.9,
     minSamosborCount: 3,
@@ -776,7 +755,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Черная фигура срослась со столом, желтые листы вытягиваются в линию, красная печать собирает ложное лицо.',
     rule: 'Офисное поле усиливает дальность и урон у столов, шкафов, архивов и целей с бумагами; упор, шкаф или стена срывают выстрел.',
     floorFit: 'Офисные коридоры, архивные картотеки, приемные и регистрационные комнаты Министерства.',
-    floors: [30],
+    floors: [FloorLevel.MINISTRY],
     rooms: [RoomType.OFFICE, RoomType.STORAGE, RoomType.COMMON, RoomType.CORRIDOR],
     spawnWeight: 0.68,
     minSamosborCount: 2,
@@ -793,7 +772,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Мелочь вокруг начинает действовать организованно, тяжелый корпус держит прямой сектор.',
     rule: 'Сначала снять охрану и разбить линию колонной; прямой вход кормит залпы и окружение.',
     floorFit: 'Производственные, штабные и общие комнаты Коллекторов и Ада.',
-    floors: [-26, -36],
+    floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL],
     rooms: [RoomType.HQ, RoomType.PRODUCTION, RoomType.COMMON],
     spawnWeight: 0.32,
     minSamosborCount: 6,
@@ -810,7 +789,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Сверху шепчет сирена, потолок следит, проход становится слишком открытым.',
     rule: 'Держит линию и слушание; дверь, угол или колонна между залпами важнее дуэли.',
     floorFit: 'Пороговые общие, штабные и коридорные зоны Мясного низа.',
-    floors: [-36],
+    floors: [FloorLevel.HELL],
     rooms: [RoomType.COMMON, RoomType.HQ, RoomType.CORRIDOR],
     spawnWeight: 0.28,
     minSamosborCount: 5,
@@ -827,7 +806,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Белый силуэт правит расстояние, зеленый свет отмечает ошибочный путь.',
     rule: 'Открытая линия и пустой запас проигрывают; укрытие между залпами и выход за спиной решают бой.',
     floorFit: 'Финальные общие и штабные пространства Пустоты.',
-    floors: [-50],
+    floors: [FloorLevel.VOID],
     rooms: [RoomType.COMMON, RoomType.HQ],
     spawnWeight: 0,
     minSamosborCount: 99,
@@ -844,7 +823,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Белый человекообразный корпус замирает, красно-циановая щель пишет отказ, клинки расходятся до рывка.',
     rule: 'Очень быстр, но режет честно: стена, дверь, машина или аппарат рвут линию, дробь сбивает замах.',
     floorFit: 'Редкие глубокие офисы, штабы, производства и коридоры Коллекторов и Пустоты, плюс терминальный backlash.',
-    floors: [-26, -50],
+    floors: [FloorLevel.MAINTENANCE, FloorLevel.VOID],
     rooms: [RoomType.OFFICE, RoomType.HQ, RoomType.PRODUCTION, RoomType.CORRIDOR],
     spawnWeight: 0.18,
     minSamosborCount: 7,
@@ -861,7 +840,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Холодный сквозняк идет против двери, лицо-череп появляется не с той стороны стены.',
     rule: 'Стены не держат контакт; спасает смена позиции, дистанция и сбитый УФ-светом темп.',
     floorFit: 'Коридоры, офисы, штабы и общие пространства Министерства, Ада и Пустоты.',
-    floors: [30, -36, -50],
+    floors: [FloorLevel.MINISTRY, FloorLevel.HELL, FloorLevel.VOID],
     rooms: [RoomType.CORRIDOR, RoomType.OFFICE, RoomType.HQ, RoomType.COMMON],
     spawnWeight: 1.1,
     minSamosborCount: 4,
@@ -878,7 +857,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Холодный сквозняк идет из дверной щели, тело наклоняется через косяк до перехода.',
     rule: 'После предупреждения делает один локальный проход через закрытую дверь; затем долго не повторяет фазу и слабеет от точного выстрела или УФ.',
     floorFit: 'Офисные двери Министерства, редкие жилые комнаты и пустотные швы с открытым обходом.',
-    floors: [30, 0, -50],
+    floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.VOID],
     rooms: [RoomType.OFFICE, RoomType.CORRIDOR, RoomType.LIVING, RoomType.COMMON],
     spawnWeight: 0.72,
     minSamosborCount: 3,
@@ -895,7 +874,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Плазма заряжается, мокрый проход гудит, корпус замирает перед выстрелом.',
     rule: 'Прямая линия опасна, особенно в воде; после залпа есть короткая пауза для захода.',
     floorFit: 'Производственные, штабные, коридорные и офисные зоны Министерства и Коллекторов.',
-    floors: [30, -26],
+    floors: [FloorLevel.MINISTRY, FloorLevel.MAINTENANCE],
     rooms: [RoomType.PRODUCTION, RoomType.HQ, RoomType.CORRIDOR, RoomType.OFFICE],
     spawnWeight: 1.4,
     minSamosborCount: 3,
@@ -912,7 +891,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Синие трубные кольца ярчают, вода по линии гудит, белый сердечник держит одну ось.',
     rule: 'Стреляет только по коротко проверенной мокрой линии; сухой шаг, угол или фланг срывают заряд, а после залпа есть длинное окно.',
     floorFit: 'Мокрые сервисные коридоры, насосные, трубные мосты и машинные линии Коллекторов.',
-    floors: [-26],
+    floors: [FloorLevel.MAINTENANCE],
     rooms: [RoomType.CORRIDOR, RoomType.PRODUCTION, RoomType.STORAGE],
     spawnWeight: 1.25,
     minSamosborCount: 2,
@@ -946,7 +925,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Лампа гудит как зуб, озон висит в проходе, силуэт держится у света.',
     rule: 'Рядом с лампой бьет сильнее; три клетки, темный коридор, угол или выключатель режут преимущество.',
     floorFit: 'Освещенные коридоры, офисы, общие и производственные комнаты до Коллекторов.',
-    floors: [30, 14, 0, -26],
+    floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
     rooms: [RoomType.CORRIDOR, RoomType.OFFICE, RoomType.COMMON, RoomType.PRODUCTION],
     spawnWeight: 2.8,
     minSamosborCount: 2,
@@ -980,7 +959,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Серый пиджак, желтая папка на груди, полосы бумаги с красными печатями тянутся к карману.',
     rule: 'Без документов медленный; с бланками, пропусками и печатями чует дальше, ускоряется и помечает бумагу шумной канцелярской меткой.',
     floorFit: 'Архивы, картотеки, столы форм, очереди и кабинетные коридоры Министерства; редко забредает в жилые офисные углы.',
-    floors: [30, 0],
+    floors: [FloorLevel.MINISTRY, FloorLevel.LIVING],
     rooms: [RoomType.OFFICE, RoomType.STORAGE, RoomType.COMMON, RoomType.CORRIDOR],
     spawnWeight: 0.95,
     minSamosborCount: 2,
@@ -997,7 +976,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Пустое лицо-печать, черная бумажная ряса и красные штампы вокруг кармана.',
     rule: 'Давление растет от времени боя и ценности документов у цели; сброс или тайник режут будущий рост, а быстрый burst или выход из комнаты закрывают протокол.',
     floorFit: 'Архивы, картотеки, регистратуры и залы комиссии Министерства.',
-    floors: [30],
+    floors: [FloorLevel.MINISTRY],
     rooms: [RoomType.OFFICE, RoomType.STORAGE, RoomType.COMMON],
     spawnWeight: 0.72,
     minSamosborCount: 3,
@@ -1014,7 +993,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Вода щелкает, манометр дрожит, лоток рябит против течения.',
     rule: 'В воде резко ускоряется; сухой край, мост, гарпун и приманка возвращают игроку темп.',
     floorFit: 'Затопленные коридоры, производство, склады и ванные Коллекторов.',
-    floors: [-26],
+    floors: [FloorLevel.MAINTENANCE],
     rooms: [RoomType.CORRIDOR, RoomType.PRODUCTION, RoomType.STORAGE, RoomType.BATHROOM],
     spawnWeight: 4.3,
     minSamosborCount: 1,
@@ -1031,7 +1010,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Плоское тело блестит у кромки, широкие ладони оставляют синие потеки, желтый осадок дрожит на спине.',
     rule: 'В воде получает броню, регенерацию и темп; на сухом бетоне теряет защиту, медлит и оставляет короткий мокрый след.',
     floorFit: 'Дрены, насосные, коллекторы, затопленные коридоры и редкие жилые ванные.',
-    floors: [-26, 0],
+    floors: [FloorLevel.MAINTENANCE, FloorLevel.LIVING],
     rooms: [RoomType.CORRIDOR, RoomType.PRODUCTION, RoomType.BATHROOM, RoomType.COMMON],
     spawnWeight: 2.1,
     minSamosborCount: 2,
@@ -1048,7 +1027,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Рябь идет от темного отражения к игроку, манометр давит без стрелки, вода гудит в голове.',
     rule: 'Если игрок и монстр стоят на связанной мокрой линии, давление растет; сухой бетон рвет линию после короткой паузы.',
     floorFit: 'Насосные, затопленные коридоры, сливные мосты и производственные лотки Коллекторов.',
-    floors: [-26],
+    floors: [FloorLevel.MAINTENANCE],
     rooms: [RoomType.CORRIDOR, RoomType.PRODUCTION, RoomType.STORAGE, RoomType.BATHROOM],
     spawnWeight: 1.15,
     minSamosborCount: 2,
@@ -1065,7 +1044,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Бледная кишка поднимается из лотка, зубное кольцо раскрывается, кровь у трубы уходит вниз.',
     rule: 'Сухой пол замедляет его, но вода, труба или провал дают тяжелый укус и короткий подтяг к пасти.',
     floorFit: 'Мясные тайники, коллекторные лотки, затопленные лаборатории и адские холодильные комнаты.',
-    floors: [-26, -36],
+    floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL],
     rooms: [RoomType.CORRIDOR, RoomType.PRODUCTION, RoomType.STORAGE, RoomType.BATHROOM],
     spawnWeight: 0.82,
     minSamosborCount: 2,
@@ -1082,7 +1061,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Формулировка шуршит без бумаги, строка выпрямляется на 15 клеток.',
     rule: 'Стреляет по прямой линии; шкаф, дверь или угол ломают пункт, а после залпа нужно сближаться.',
     floorFit: 'Офисы, штабы, коридоры и общие комнаты Министерства и Пустоты.',
-    floors: [30, -50],
+    floors: [FloorLevel.MINISTRY, FloorLevel.VOID],
     rooms: [RoomType.OFFICE, RoomType.HQ, RoomType.CORRIDOR, RoomType.COMMON],
     spawnWeight: 1.5,
     minSamosborCount: 3,
@@ -1116,7 +1095,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'За закрытой дверью скребут длинные пальцы, глазки краснеют в темноте, на обоях растет бледная слизь.',
     rule: 'Не выходит из домашней комнаты, пока самосбор или высокая злость не сорвут поводок; шум, кража и бой растят злость, доклад или помощь соседям ее сбивают.',
     floorFit: 'Жилые квартиры, ложные безопасные блоки и плотные коммунальные карманы Жилой зоны и Квартир.',
-    floors: [14, 0],
+    floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING],
     rooms: [RoomType.LIVING, RoomType.COMMON, RoomType.KITCHEN, RoomType.STORAGE],
     spawnWeight: 0.72,
     minSamosborCount: 1,
@@ -1133,7 +1112,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Темный носитель несет прозрачный мешок, усики трогают пол и тянутся к пятнам.',
     rule: 'Не охотится первым, идет к слизевым комнатам и пятнам; раненый бежит, а в углу бьет слабой кислотной плетью.',
     floorFit: 'Слизевые комнаты Жилой зоны, Коллекторы и потерянные грибные/самосборные блоки.',
-    floors: [0, -26],
+    floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE],
     rooms: [RoomType.PRODUCTION, RoomType.BATHROOM, RoomType.MEDICAL, RoomType.STORAGE, RoomType.CORRIDOR],
     spawnWeight: 1.15,
     minSamosborCount: 1,
@@ -1150,7 +1129,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Над шеей висит мокрый серо-розовый комок, усики держат тело как чужой воротник.',
     rule: 'При развале носителя отделяется, коротко ползет к трупу или оглушенному NPC и пытается занять новое тело; УФ задерживает переползание.',
     floorFit: 'Карантинные палаты, фальшивые медпункты, больничные комнаты после самосбора и гражданские офисы с мертвой очередью.',
-    floors: [0, 14, 30, -26],
+    floors: [FloorLevel.LIVING, FloorLevel.KVARTIRY, FloorLevel.MINISTRY, FloorLevel.MAINTENANCE],
     rooms: [RoomType.MEDICAL, RoomType.COMMON, RoomType.OFFICE, RoomType.CORRIDOR, RoomType.STORAGE],
     spawnWeight: 0.36,
     minSamosborCount: 2,
@@ -1167,7 +1146,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Высокий мокрый силуэт собирается из черной воды, рога темнеют, глаза холодно белеют.',
     rule: 'В воде и активной слизи ускоряется и сильнее хватает; на сухом освещенном бетоне подсыхает, теряет темп и оставляет короткую токсичную пленку.',
     floorFit: 'Коллекторные лотки, затопленные лаборатории, черные слизевые комнаты и редкие пробитые санузлы Жилой зоны.',
-    floors: [-26, 0],
+    floors: [FloorLevel.MAINTENANCE, FloorLevel.LIVING],
     rooms: [RoomType.BATHROOM, RoomType.PRODUCTION, RoomType.MEDICAL, RoomType.STORAGE, RoomType.CORRIDOR],
     spawnWeight: 0.42,
     minSamosborCount: 3,
@@ -1184,7 +1163,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Тонкая черная женщина с серыми волосами и ветвящимися наростами пятится от света и оружия.',
     rule: 'Не нападает первой: разговаривает, принимает еду/лекарство или тару НИИ, но после удара бежит и режет когтями только в тесном углу.',
     floorFit: 'Потерянные жилые ячейки, ложные безопасные блоки, грибные и самосборные маршруты Жилой зоны и Квартир.',
-    floors: [0, 14],
+    floors: [FloorLevel.LIVING, FloorLevel.KVARTIRY],
     rooms: [RoomType.LIVING, RoomType.COMMON, RoomType.STORAGE, RoomType.KITCHEN, RoomType.CORRIDOR],
     spawnWeight: 0.18,
     minSamosborCount: 2,
@@ -1201,7 +1180,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Запечатанный глаз пульсирует зеленым не в вас, а в место последнего громкого звука.',
     rule: 'Долго заряжает луч в зафиксированную точку; шаг в сторону и рывок после промаха превращают дальнюю смерть в слабый упор.',
     floorFit: 'Длинные технические и мясные коридоры с боковым обходом в Коллекторах и Аду.',
-    floors: [-26, -36],
+    floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL],
     rooms: [RoomType.CORRIDOR, RoomType.PRODUCTION, RoomType.COMMON],
     spawnWeight: 1.05,
     minSamosborCount: 3,
@@ -1218,7 +1197,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Пилы поднимаются, воздух скребет, на полу параллельные резы.',
     rule: 'Опасен в конце замаха; три шага, угол, колонна, дробь или бронелист срывают смертельный темп.',
     floorFit: 'Производственные, складские и коридорные зоны Коллекторов и Ада.',
-    floors: [-26, -36],
+    floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL],
     rooms: [RoomType.PRODUCTION, RoomType.STORAGE, RoomType.CORRIDOR],
     spawnWeight: 0.35,
     minSamosborCount: 6,
@@ -1235,7 +1214,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'У двери внезапно нет эха; у кромки кадра белеют пальцы, а серая полоска пола слишком живая.',
     rule: 'Молчит до короткой дистанции; первый бонус теряет от прямого взгляда, закрытой двери или осторожного прохода спиной назад.',
     floorFit: 'Двери, кладовки, квартирные пороги и ложные соседские комнаты Жилой зоны и Квартир, редко Министерства.',
-    floors: [0, 14, 30],
+    floors: [FloorLevel.LIVING, FloorLevel.KVARTIRY, FloorLevel.MINISTRY],
     rooms: [RoomType.CORRIDOR, RoomType.LIVING, RoomType.STORAGE, RoomType.COMMON, RoomType.OFFICE],
     spawnWeight: 1.55,
     minSamosborCount: 2,
@@ -1252,7 +1231,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Табло показывает неверный этаж, металл двери не совпадает с шахтой, у порога влажная красная кромка.',
     rule: 'Не ходит по этажу: осмотр, приманка или отход из тамбура превращают ловушку в выбор маршрута.',
     floorFit: 'Процедурные маршруты, темные метро/служебные этажи и лифтовые аномалии после самосбора.',
-    floors: [0, -26, -36],
+    floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
     rooms: [RoomType.CORRIDOR, RoomType.PRODUCTION, RoomType.COMMON],
     spawnWeight: 0,
     minSamosborCount: 1,
@@ -1269,7 +1248,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Старые черные шинели идут строем, номера на масках не совпадают, красные линзы моргают не как у живых.',
     rule: 'Патруль стучит в двери и держит нейтральную фазу, пока игрок не подходит вплотную, не несет пробу или не открывает герму.',
     floorFit: 'Редкие тяжелые последствия самосбора в жилых, квартальных и министерских коридорах.',
-    floors: [30, 14, 0],
+    floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING],
     rooms: [RoomType.CORRIDOR, RoomType.COMMON, RoomType.OFFICE, RoomType.STORAGE],
     spawnWeight: 0.14,
     minSamosborCount: 3,
@@ -1286,7 +1265,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Зеленый экран распадается на черные кабели, текстовые зубы и несколько голов, повторяющих один приказ.',
     rule: 'Силен у экранов, серверов и аппаратов; угол, разбитая линия к экрану, отключенный аппарат или энергооружие превращают аватар в обычную цель.',
     floorFit: 'Министерские архивы, машинные комнаты Коллекторов, NET-колодцы и пустотные экранные узлы.',
-    floors: [30, -26, -50],
+    floors: [FloorLevel.MINISTRY, FloorLevel.MAINTENANCE, FloorLevel.VOID],
     rooms: [RoomType.OFFICE, RoomType.HQ, RoomType.PRODUCTION, RoomType.CORRIDOR],
     spawnWeight: 0.42,
     minSamosborCount: 4,
@@ -1303,7 +1282,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Чиновник или охранник пахнет сладкой гнилью, прячет еду, а из воротника шевелятся хитиновые лапки.',
     rule: 'После раскрытия гонит к еде, документам и охране; опасен рядом с уже враждебными свидетелями, но карантин, публичное разоблачение или быстрый выстрел ломают командный темп.',
     floorFit: 'Министерские кабинеты, карантинные коридоры и редкие ликвидаторские склады Коллекторов.',
-    floors: [30, -26],
+    floors: [FloorLevel.MINISTRY, FloorLevel.MAINTENANCE],
     rooms: [RoomType.OFFICE, RoomType.HQ, RoomType.STORAGE, RoomType.CORRIDOR],
     spawnWeight: 0.18,
     minSamosborCount: 4,
@@ -1320,7 +1299,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'В серой пелене хлопают газовые жабры, металлические зубы блестят сбоку и стая разворачивается не по полу.',
     rule: 'В тумане быстро делится целью со стаей; на сухом воздухе теряет темп и поворот, огонь убивает надежно, но рядом взрывает газовое брюхо.',
     floorFit: 'Смоговые жилые карманы, коллекторные туманные линии, адский пепел и самосборные остатки.',
-    floors: [0, -26, -36],
+    floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
     rooms: [RoomType.CORRIDOR, RoomType.PRODUCTION, RoomType.COMMON, RoomType.BATHROOM],
     spawnWeight: 0.95,
     minSamosborCount: 2,
@@ -1337,7 +1316,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Красно-черный ствол с человеческой складкой в коре держит комнату корнями, а плесень у ящиков остается теплой.',
     rule: 'Бьет короткими корнями вокруг центра и лечится от близких партий красной плесени; огонь и режущие инструменты открывают корневой проход быстрее полного боя.',
     floorFit: 'Заброшенные биоблоки, ложные безопасные комнаты, культовые наркопритоны и мясные влажные карманы.',
-    floors: [0, -26, -36],
+    floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
     rooms: [RoomType.PRODUCTION, RoomType.STORAGE, RoomType.COMMON, RoomType.LIVING],
     spawnWeight: 0.16,
     minSamosborCount: 4,
@@ -1354,7 +1333,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Приподнятый угол, зеленые жилы в ворсе, плесневая бахрома и тень под висящей тряпкой.',
     rule: 'Спит до близкого шага, урона или вскрытого рядом контейнера; после пробуждения плывет к порогу и выпускает короткий cooldown-споровый выдох.',
     floorFit: 'Квартиры, офисы, кладовые, ложные безопасные блоки и грибные бытовые комнаты.',
-    floors: [30, 14, 0, -26],
+    floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
     rooms: [RoomType.LIVING, RoomType.OFFICE, RoomType.STORAGE, RoomType.CORRIDOR, RoomType.PRODUCTION],
     spawnWeight: 0.72,
     minSamosborCount: 1,
@@ -1371,7 +1350,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Узкая бетонная фигура замирает, красные трещины вспыхивают и пыль сыплется перед прямым рывком.',
     rule: 'Короткий windup можно сбить любым попаданием; если рывок дошел, он бьет больно и ломает себя.',
     floorFit: 'Длинные жилые и квартальные коридоры, захламленные общие комнаты и редкие адские бетонные кишки.',
-    floors: [14, 0, -36],
+    floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.HELL],
     rooms: [RoomType.CORRIDOR, RoomType.COMMON, RoomType.STORAGE, RoomType.LIVING],
     spawnWeight: 2.4,
     minSamosborCount: 1,
@@ -1388,7 +1367,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     cue: 'Шорох бетона, когда вы отворачиваетесь. Необычно гладкая статуя.',
     rule: 'Не движется, если любой актор (игрок или НПЦ) смотрит на нее (находится в угле обзора и есть прямая видимость). Смертельно опасна вблизи.',
     floorFit: 'Глубокие и безлюдные уровни: техобслуживание, ад, пустота.',
-    floors: [-26, -36, -50],
+    floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
     rooms: [RoomType.CORRIDOR, RoomType.STORAGE, RoomType.PRODUCTION],
     spawnWeight: 0.05,
     minSamosborCount: 2,
@@ -1411,35 +1390,15 @@ export function getMonsterEcology(kind: MonsterKind | undefined): MonsterEcology
   return kind === undefined ? undefined : MONSTER_ECOLOGY_BY_KIND[kind];
 }
 
-/** Pack spawn shape used by the design-floor monster populate to build anisotropic clusters. */
-export type MonsterPackMode = 'crowd' | 'loner' | 'territorial' | 'roamer';
-export interface MonsterPackShape {
-  /** crowd = dense homogeneous group; loner = solo; territorial = holds a home room; roamer = patrols wide. */
-  mode: MonsterPackMode;
-  /** [min, max] members grown per spawned pack cluster. */
-  size: readonly [number, number];
-  /** cluster radius in cells the members grow within (0 = single cell). */
-  spread: number;
-}
-
 interface MonsterEcologyContext {
   tags: readonly string[];
   anchorTags?: readonly string[];
   avoidTags?: readonly string[];
   anchorPenalty?: number;
   avoidPenalty?: number;
-  /** Explicit pack behavior; when absent it is inferred from tags (swarm/crowd/pack → crowd, else loner). */
-  pack?: MonsterPackShape;
 }
 
 const MONSTER_ECOLOGY_CONTEXT: Partial<Record<MonsterKind, MonsterEcologyContext>> = {
-  [MonsterKind.GNOME]: {
-    tags: ['maintenance', 'corridor', 'storage', 'production', 'dark', 'low_light', 'tunnels', 'pack', 'noise', 'metal'],
-    anchorTags: ['maintenance', 'corridor', 'storage', 'dark', 'low_light'],
-    avoidTags: ['open', 'bright', 'light', 'lamp'],
-    anchorPenalty: 0.3,
-    avoidPenalty: 0.5,
-  },
   [MonsterKind.SBORKA]: {
     tags: ['corridor', 'storage', 'swarm', 'samosbor', 'meat', 'food', 'fog', 'crowd'],
     anchorTags: ['corridor', 'storage', 'samosbor', 'meat', 'food', 'crowd'],
@@ -1479,7 +1438,6 @@ const MONSTER_ECOLOGY_CONTEXT: Partial<Record<MonsterKind, MonsterEcologyContext
     tags: ['residential', 'kitchen', 'storage', 'food', 'meat', 'corpse', 'feast', 'altar', 'predator', 'hell'],
     anchorTags: ['kitchen', 'storage', 'food', 'meat', 'corpse', 'feast', 'altar'],
     anchorPenalty: 0.32,
-    pack: { mode: 'territorial', size: [2, 4], spread: 4 },
   },
   [MonsterKind.POLZUN]: {
     tags: ['water', 'wet', 'bathroom', 'storage', 'industrial', 'conveyor', 'movement', 'fog', 'low'],
@@ -1512,7 +1470,6 @@ const MONSTER_ECOLOGY_CONTEXT: Partial<Record<MonsterKind, MonsterEcologyContext
     avoidTags: ['water', 'hell', 'void'],
     anchorPenalty: 0.18,
     avoidPenalty: 0.35,
-    pack: { mode: 'roamer', size: [2, 3], spread: 8 },
   },
   [MonsterKind.MUKHOZHUK_HOST]: {
     tags: ['documents', 'office', 'hq', 'authority', 'quarantine', 'food', 'parasite', 'liquidator'],
@@ -1527,7 +1484,6 @@ const MONSTER_ECOLOGY_CONTEXT: Partial<Record<MonsterKind, MonsterEcologyContext
     avoidTags: ['dry', 'bright', 'office'],
     anchorPenalty: 0.14,
     avoidPenalty: 0.22,
-    pack: { mode: 'roamer', size: [2, 4], spread: 10 },
   },
   [MonsterKind.BLOOD_PLANT]: {
     tags: ['plant', 'red_mold', 'mushroom', 'cult', 'contraband', 'storage', 'false_safe_block', 'meat', 'roots'],
@@ -1535,7 +1491,6 @@ const MONSTER_ECOLOGY_CONTEXT: Partial<Record<MonsterKind, MonsterEcologyContext
     avoidTags: ['dry', 'documents', 'office'],
     anchorPenalty: 0.12,
     avoidPenalty: 0.3,
-    pack: { mode: 'territorial', size: [1, 3], spread: 3 },
   },
   [MonsterKind.SPORE_CARPET]: {
     tags: ['residential', 'living', 'office', 'storage', 'corridor', 'door', 'threshold', 'mushroom', 'spores', 'loot', 'false_safe_block'],
@@ -1827,36 +1782,6 @@ export function isCarnivoreMonster(kind: MonsterKind | undefined): boolean {
   return tags.includes('meat') || tags.includes('corpse') || tags.includes('predator') || tags.includes('food');
 }
 
-// Shared cached shapes — resolvers return these references (no per-call allocation, so
-// monsterPackMode is safe to call from the monster AI wander branch).
-const DEFAULT_MONSTER_PACK_SHAPE: MonsterPackShape = { mode: 'loner', size: [1, 1], spread: 0 };
-const SWARM_PACK_SHAPE: MonsterPackShape = { mode: 'crowd', size: [8, 16], spread: 5 };
-const CROWD_PACK_SHAPE: MonsterPackShape = { mode: 'crowd', size: [5, 10], spread: 6 };
-const SMALL_PACK_SHAPE: MonsterPackShape = { mode: 'crowd', size: [3, 6], spread: 6 };
-
-/**
- * Pack spawn shape for a monster kind: explicit `pack` context wins, else inferred from
- * ecology tags (swarm → big crowd, crowd → medium, pack → small crowd), else a loner.
- * Consumed by the design-floor monster populate to build anisotropic clusters and by the
- * monster AI wander branch to pick roam/territorial behavior.
- */
-export function monsterPackShape(kind: MonsterKind | undefined): MonsterPackShape {
-  if (kind === undefined) return DEFAULT_MONSTER_PACK_SHAPE;
-  const context = MONSTER_ECOLOGY_CONTEXT[kind];
-  if (context?.pack) return context.pack;
-  const tags = context?.tags;
-  if (tags) {
-    if (tags.includes('swarm')) return SWARM_PACK_SHAPE;
-    if (tags.includes('crowd')) return CROWD_PACK_SHAPE;
-    if (tags.includes('pack')) return SMALL_PACK_SHAPE;
-  }
-  return DEFAULT_MONSTER_PACK_SHAPE;
-}
-
-export function monsterPackMode(kind: MonsterKind | undefined): MonsterPackMode {
-  return monsterPackShape(kind).mode;
-}
-
 function ecologyTagWeight(def: MonsterEcologyDef, query: MonsterEcologyQuery): number {
   const context = MONSTER_ECOLOGY_CONTEXT[def.kind];
   if (!context) return 1;
@@ -1897,7 +1822,7 @@ function ecologyWaveAllows(def: MonsterEcologyDef, query: MonsterEcologyQuery): 
 function floorHasNativePool(query: MonsterEcologyQuery): boolean {
   for (const def of MONSTER_ECOLOGY) {
     if (excludedFromSpawn(def, query)) continue;
-    if (!def.floors.includes(query.z)) continue;
+    if (!def.floors.includes(query.floor)) continue;
     if (!ecologyWaveAllows(def, query)) continue;
     return true;
   }
@@ -1905,7 +1830,7 @@ function floorHasNativePool(query: MonsterEcologyQuery): boolean {
 }
 
 function ecologyFloorWeight(def: MonsterEcologyDef, query: MonsterEcologyQuery): number {
-  const floorFits = def.floors.includes(query.z);
+  const floorFits = def.floors.includes(query.floor);
   const mode = monsterFloorAffinityMode(query);
   if (mode === 'none') return 1;
   if (mode === 'strict') return floorFits ? 1 : 0;
@@ -1928,7 +1853,7 @@ function ecologySpawnWeight(def: MonsterEcologyDef, query: MonsterEcologyQuery):
   if (weight <= 0) return 0;
   if (query.roomType !== undefined) weight *= def.rooms.includes(query.roomType) ? 1.7 : 0.4;
   weight *= ecologyTagWeight(def, query);
-  if (DEEP.includes(query.z) && def.rooms.includes(RoomType.PRODUCTION)) weight *= 1.15;
+  if (DEEP.includes(query.floor) && def.rooms.includes(RoomType.PRODUCTION)) weight *= 1.15;
   weight *= ecologyBiasWeight(def, query);
   const pressure = Math.max(0, Math.min(4, query.routePressure ?? 0));
   if (pressure > 0) {
@@ -1954,7 +1879,7 @@ export function likelyMonsterKinds(query: MonsterEcologyQuery, limit = 5): Monst
 }
 
 export function chooseFloorMonsterKind(query: MonsterEcologyQuery): MonsterKind {
-  const rand = query.rng ?? rng;
+  const rand = query.rng ?? Math.random;
   let total = 0;
   let chosen: MonsterKind | undefined;
 
@@ -1976,7 +1901,7 @@ export function chooseFloorMonsterKind(query: MonsterEcologyQuery): MonsterKind 
   return MonsterKind.SBORKA;
 }
 
-export function chooseMonsterRareDrop(kind: MonsterKind, rand = rng): MonsterRareDrop | undefined {
+export function chooseMonsterRareDrop(kind: MonsterKind, rand = Math.random): MonsterRareDrop | undefined {
   const def = getMonsterEcology(kind);
   if (!def) return undefined;
   for (const drop of def.rareDrops) {

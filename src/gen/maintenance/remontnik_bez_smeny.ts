@@ -1,10 +1,9 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
-import { currentFloorRunEntry } from '../../systems/procedural_floors';
 /* ── Ремонтник Без Смены: local shortcut/tool route encounter ─── */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
-  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, MonsterKind, Occupation, QuestType, RoomType, Tex, msg,
+  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, FloorLevel,
+  MonsterKind, Occupation, QuestType, RoomType, Tex, msg,
   type Entity, type GameState, type Room, type WorldContainer, type WorldEvent,
   type WorldEventType,
 } from '../../core/types';
@@ -77,7 +76,7 @@ const REMONTNIK_DEF: PlotNpcDef = {
 registerSideQuest(NPC_ID, REMONTNIK_DEF, [
   {
     id: WORK_ORDER_QUEST,
-    giverId: getPlotNpcNumericId(NPC_ID)!,
+    giverNpcId: NPC_ID,
     type: QuestType.FETCH,
     desc: 'Ремонтник Без Смены: «Бланк обхода лифта на стол. Без бумаги короткий ход опять станет стеной, а ты держи дверь.»',
     targetItem: 'elevator_override_form',
@@ -118,8 +117,7 @@ function addContainer(
     id,
     x: wx,
     y: wy,
-    // @ts-ignore
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     roomId: room.id,
     zoneId: ctx.world.zoneMap[ci],
     ...container,
@@ -198,7 +196,6 @@ function dressRooms(ctx: MaintContentCtx, left: Room, closet: Room, right: Room)
 }
 
 function addRemontnikContainers(ctx: MaintContentCtx, closet: Room, npcId: number): { lockerId: number; cartId: number } {
-  // @ts-ignore
   const cartId = addContainer(ctx, closet, closet.x + 2, closet.y + 3, {
     kind: ContainerKind.TOOL_LOCKER,
     name: 'Наряд-тележка Ремонтника: положить деталь или герметик',
@@ -208,7 +205,6 @@ function addRemontnikContainers(ctx: MaintContentCtx, closet: Room, npcId: numbe
     discovered: true,
     tags: [CONTENT_TAG, 'remontnik_cart', 'maintenance', 'repair', 'route_denial', 'tools'],
   });
-  // @ts-ignore
   const lockerId = addContainer(ctx, closet, closet.x + closet.w - 3, closet.y + 3, {
     kind: ContainerKind.TOOL_LOCKER,
     name: 'Личный шкаф смены, которой нет',
@@ -321,7 +317,7 @@ function publishOutcome(state: GameState, source: WorldEvent, site: RemontnikSit
   ].filter(Boolean);
   publishEvent(state, {
     type: outcomeType(outcome),
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     zoneId: site.zoneId,
     roomId: site.roomId,
     x: site.shortcutX + 0.5,
@@ -347,7 +343,7 @@ function publishOutcome(state: GameState, source: WorldEvent, site: RemontnikSit
       sourceType: source.type,
       shortcutCells: site.shortcutCells,
       mainRouteOpen: true,
-      roomDefId: CLOSET_ROOM,
+      roomName: CLOSET_ROOM,
       lockerId: site.lockerId,
       cartId: site.cartId,
       rumorTags: ['repair', 'maintenance', 'route_denial'],
@@ -357,7 +353,7 @@ function publishOutcome(state: GameState, source: WorldEvent, site: RemontnikSit
 
 function resolveOutcome(state: GameState, source: WorldEvent, outcome: RemontnikOutcome, itemId?: string): void {
   const site = activeRemontnik;
-  if (!site || currentFloorRunEntry(state)!.themeTags.includes('maintenance') || site.outcome) return;
+  if (!site || state.currentFloor !== FloorLevel.MAINTENANCE || site.outcome) return;
   site.outcome = outcome;
   setShortcutOpen(site, outcome !== 'welded');
   if (outcome === 'welded' || outcome === 'killed') wakeMachinery(site, state, outcome);

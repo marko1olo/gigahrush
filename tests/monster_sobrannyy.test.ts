@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, MonsterKind, RoomType, Tex, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, FloorLevel, MonsterKind, RoomType, Tex, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { DEF, generateSprite } from '../src/entities/sobrannyy';
 import { getMonsterEcology } from '../src/data/monster_ecology';
@@ -99,6 +99,7 @@ test('sobrannyy definition, ecology, and sprite describe a rare composite brute'
 
   assert.equal(DEF.kind, MonsterKind.SOBRANNYY);
   assert.deepEqual(DEF.aiFlags, ['meatGrowth']);
+  assert.deepEqual(DEF.floors, [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL]);
   assert.equal(ecology?.rare, true);
   assert.equal((ecology?.spawnWeight ?? 1) < 0.65, true, 'should be rarer than Betonnik in generic ecology');
   assert.match(DEF.counterplay ?? '', /слиз|гермодвер|дроб|огн/);

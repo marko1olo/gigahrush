@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
+import { FloorLevel } from '../src/core/types';
 import { World } from '../src/core/world';
 import { isMapCellExplored, resetMapExploration, updateMapExploration } from '../src/systems/map_exploration';
 import { registerRouteCue, tryUseRouteCue } from '../src/systems/route_cues';
@@ -20,7 +21,7 @@ function registerPaidRouteAdviceCue(world: World): void {
     y: 12.5,
     targetX: 12.5,
     targetY: 12.5,
-    z: -6,
+    floor: FloorLevel.LIVING,
     roomId: 0,
     targetRoomId: 0,
     label: 'живая карта',
@@ -37,7 +38,7 @@ test('paid route cue spends money without revealing hidden map cells', () => {
   const { world, hiddenIdx } = makePaidRouteAdviceWorld();
   resetMapExploration(world);
   const player = makeTestPlayer({ x: 12.5, y: 12.5, money: 150 });
-  const state = makeGameState({ currentZ: 0 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
   updateMapExploration(world, player, state);
   assert.equal(isMapCellExplored(world, hiddenIdx), false);
 
@@ -53,7 +54,7 @@ test('paid route cue does not charge without enough money', () => {
   const { world, hiddenIdx } = makePaidRouteAdviceWorld();
   resetMapExploration(world);
   const player = makeTestPlayer({ x: 12.5, y: 12.5, money: 10 });
-  const state = makeGameState({ currentZ: 0 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
   updateMapExploration(world, player, state);
   registerPaidRouteAdviceCue(world);
 

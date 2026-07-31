@@ -15,7 +15,6 @@ import {
   type TerritoryOwner,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { rng } from '../../core/rand';
 
 export interface MinistryMacroGeometry {
   nextRoomId: number;
@@ -591,7 +590,7 @@ function carveArchiveSubgraph(world: World, spec: ArchiveSubgraphSpec, carpetCel
   addArchiveNodeMarks(world, cx(startX), cy(startY));
 
   while (frontiers.length > 0 && visitedCount < total) {
-    const pickIdx = Math.floor(rng() * frontiers.length);
+    const pickIdx = Math.floor(Math.random() * frontiers.length);
     const edge = frontiers[pickIdx];
     frontiers[pickIdx] = frontiers[frontiers.length - 1];
     frontiers.pop();
@@ -605,9 +604,9 @@ function carveArchiveSubgraph(world: World, spec: ArchiveSubgraphSpec, carpetCel
 
   const extraChords = Math.max(2, Math.floor(total * 0.14));
   for (let i = 0; i < extraChords; i++) {
-    const gx = Math.floor(rng() * spec.cols);
-    const gy = Math.floor(rng() * spec.rows);
-    const horizontal = rng() < 0.5;
+    const gx = Math.floor(Math.random() * spec.cols);
+    const gy = Math.floor(Math.random() * spec.rows);
+    const horizontal = Math.random() < 0.5;
     const nx = gx + (horizontal ? 1 : 0);
     const ny = gy + (horizontal ? 0 : 1);
     if (nx >= spec.cols || ny >= spec.rows) continue;

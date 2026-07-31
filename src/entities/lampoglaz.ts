@@ -1,6 +1,6 @@
 /* ── Lampoglaz: light-linked corridor turret ─────────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -16,6 +16,7 @@ export const DEF: MonsterDef = {
   projSpeed: 13,
   projSprite: 0,
   aiFlags: ['lightLock'],
+  floors: [FloorLevel.LIVING, FloorLevel.MINISTRY],
   counterplay: 'Не стойте в светлой полосе: темный угол, выключенная линия или шкаф между вами срывают зеленый захват.',
   lootHint: 'ламповая линза, фарфоровый ободок, стеклянная пыль, редкий предохранитель',
 };

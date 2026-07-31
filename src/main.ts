@@ -1,29 +1,11 @@
-import { getPlotNpcNumericId } from './data/npc_packages';
-import { zForBaseFloor } from './data/design_floors';
+import { countAmmo, removeItem, publishPlayerItemEvent } from './systems/inventory';
 /* ── ГИГАХРУЩ — main entry point ──────────────────────────────── */
 import './index.css';
 import './systems/demos_runtime';
 import { registerPwaServiceWorker } from './pwa';
-import {
-  setOnlineMessageHandler,
-  sendOnlineMessage,
-  sendPeerAction,
-  isOnlineHost,
-  isOnlinePeer,
-  isOnlineConnected,
-  maybeSendPeerInput,
-  getOnlineSlot,
-  compactEntity,
-  shouldSendHostSync,
-  getPeerGen,
-  getPeerActorGen,
-  notePeerActorState,
-  type PeerActorState,
-  type SyncEntity,
-} from './systems/online_client';
 
 import {
-  W, Cell, DoorState, Tex, RoomType, LiftDirection,
+  W, Cell, DoorState, FloorLevel, Tex, RoomType, LiftDirection,
   type CharacterSex, type Entity, type GameClock, type GameState, type Item, type Needs, type Quest, type RPGStats, type WorldContainer,
   type PlayerDamageSourceKind, type WorldEventPrivacy, type WorldEventSeverity, type PlayerAlife,
   EntityType, Faction, MonsterKind, Occupation, ProjType, QuestType, AIGoal,
@@ -31,29 +13,24 @@ import {
 } from './core/types';
 import { World, replaceWorldFromGeneration } from './core/world';
 import { safeParseJson } from './core/json';
-import { rng, hashSeed, randSeed, xorshift32, irand, mathRng } from './core/rand';
+import { hashSeed, randSeed } from './core/rand';
 import { canActorOccupy, unstuckActorFromBlockers } from './systems/movement_collision';
 import { selectMeleeTarget } from './systems/melee_targeting';
 import { updateProceduralScreens } from './gen/procedural_screens';
-import { updateCritters, getCritterRenderEnabled } from './render/critters';
 import { generateProceduralFloor } from './gen/procedural_floor';
 import { generateDesignFloor, isDesignFloorId } from './gen/design_floors/manifest';
 import { injectFastElevators } from './gen/fast_elevators';
 import { stampCeilingHeights } from './gen/ceiling_heights';
-import { fillVisualSlotsForWorldFeatures } from './gen/visual_cell_slots';
-import { syncNextEntityId } from './gen/content_manifest_utils';
 import {
   floorInstanceGenerationExtrasForKey,
   floorInstanceSamosborReplacementAllowed,
   generateFloorInstance,
 } from './gen/floor_instances/manifest';
 import {
-  // @ts-ignore
   FLOOR_MESSAGE_COLORS,
-  // @ts-ignore
   FLOOR_NAMES,
   generateFloor,
-  isValidZ,
+  isFloorLevel,
   resetGeneratedFloorPopulationState,
   type FloorGeneration,
 } from './gen/floor_manifest';
@@ -63,7 +40,6 @@ import { Spr, monsterSpr } from './render/sprite_index';
 import {
   SCR_W, SCR_H, initWebGL, renderSceneGL, updateWorldData, updateDynamicData,
   disposeWebGL, setDynamicSkyTexture, getRenderSceneDebugStats, rebuildProceduralSpriteCache, type DynamicSkyTexture,
-  webglContextLost, webglNeedsReinit, clearWebGLReinitFlag,
 } from './render/webgl';
 import { drawHUD, drawPointerCaptureGate } from './render/hud';
 import { drawFeedbackMenu } from './render/feedback_ui';
@@ -80,24 +56,21 @@ import { containerMenuGridLayout, craftMenuLayout, fullscreenInventoryLayout, tr
 import { updateNeeds } from './systems/needs';
 import { startTutorial } from './systems/tutorial';
 import { updateAI, tryMonsterProjectileStagger, getAiStats, type AiStats } from './systems/ai';
-import { markNavigationCellsDirty, prewarmNavigationTreeAsync, prewarmBehaviorFlowFields, behaviorFlowFieldCount } from './systems/ai/pathfinding';
-import { createWorkerRegionNextSolver } from './systems/ai/nav_worker_pool';
 import { resolveBreachChargeExplosion } from './systems/breach_charge';
-import { dropMonsterRareLoot, dropMonsterLoot } from './systems/monster_drops';
+import { dropMonsterRareLoot } from './systems/monster_drops';
 import { generateNpcTradeItems } from './data/occupation_profiles';
 import { generateTalkText } from './systems/dialogue';
 import { updateSamosbor, rebuildWorld, clearFogInZone, updateIstotitBellCompulsion, getSamosborWarningSnapshot } from './systems/samosbor';
 import { getActiveSamosborVariant } from './systems/samosbor_variants_runtime';
 import { cleanCellHazardsNear, getCellHazardMoveMultiplier, tickCellHazards } from './systems/cell_hazards';
-import { musicSystem } from './systems/music';
-
 import { adjustMonsterProjectileDamage, recordMonsterMeleeDeath, recordMonsterProjectileDeath } from './systems/monster_counterplay';
 import { applyMonsterArmorHit } from './systems/monster_armor';
-import { applyHitStaggerAndKnockback , calculateReloadTime } from './systems/combat';
+import { applyHitStaggerAndKnockback } from './systems/combat';
 import {
-  pickupNearby, pickupDrop, useItem, dropItem, getWeaponStats, equippedCombatItemId,
+  pickupNearby, useItem, dropItem, getWeaponStats, equippedCombatItemId,
+  addItem,
   consumeDurability, consumeAmmo, consumeToolDurability, getEquippedToolDurability,
-  countAmmo, removeItem, publishPlayerItemEvent, updateInventoryConditions,
+  updateInventoryConditions,
 } from './systems/inventory';
 import { createInput, bindInput } from './input';
 import { createMobileControls, type MobileControls } from './mobile';
@@ -152,12 +125,7 @@ import {
   mapLegendRowCount,
   uiSettingsRowAt,
   uiSettingsRowCount,
-  toggleMasterAudioEnabled,
-  adjustMusicVolume,
-  adjustSfxVolume,
-  resetAudioSettings,
 } from './systems/ui_orchestrator';
-import { checkPerformance } from './systems/fps_monitor';
 import { freshNeeds, ITEMS, WEAPON_STATS, type WeaponStats } from './data/catalog';
 import { INVENTORY_GRID_COLS, INVENTORY_GRID_ROWS, MAX_INVENTORY_SLOTS } from './data/inventory_limits';
 import { getStack, itemEquipSlot } from './data/items';
@@ -165,6 +133,7 @@ import { designFloorAmbientLight } from './data/design_floor_profiles';
 import {
   themeForDesignFloor,
   themeForProceduralSpec,
+  themeForStoryFloor,
   type FloorThemeProfile,
 } from './data/floor_theme_profiles';
 import {
@@ -201,7 +170,7 @@ import {
   playGauss, playPlasma, playBFG, playFlame, playPsiBeam,
   playProjectileImpact, playEnergyImpact, playProjectileBodyHit,
   startAmbientDrone, setListenerPos, playSoundAt, playHudBarChange,
-  setAudioSuspendedForPage, setAudioSuspendedForPlatform, setAudioSuspendedForPlatformMute, syncAudioSettings, setAudioSuspendedForTitle,
+  setAudioSuspendedForPage, setAudioSuspendedForPlatform,
   type HudBarAudioId,
 } from './systems/audio';
 import {
@@ -218,7 +187,7 @@ import {
   toggleActiveQuest,
   updateKillQuestPressure,
 } from './systems/quests';
-import { applyPickedStoryItemOutcomes, applyStoryItemOutcomes, spawnStoryDeathDrops } from './systems/plot_outcomes';
+import { applyPickedStoryItemOutcomes, applyStoryItemOutcomes, spawnStoryDeathDrops } from './systems/story_outcomes';
 import { handleDiceInput, isDiceGameOpen } from './systems/dice';
 import { handleDominoInput, isDominoGameOpen } from './systems/domino';
 import { handleCheckersInput, isCheckersGameOpen } from './systems/checkers';
@@ -236,7 +205,7 @@ import { applyContractFloorHooks, notifyCleanupToolUse } from './systems/contrac
 import { cleanupToolProfile } from './systems/liquidator_cleanup_items';
 import { cleanSurfaceArea as cleanWorldSurfaceArea } from './systems/surface_cleanup';
 import { updateScriptedArrivals } from './systems/scripted_arrivals';
-import { applyDesignRouteGates } from './systems/design_route_gates';
+import { applyStoryRouteGates } from './systems/story_route_gates';
 import { setDoorState, damageDoor } from './systems/door_state';
 import {
   freshRPG, awardXP, xpForMonsterKill, xpForNpcKill,
@@ -292,22 +261,16 @@ import {
   publishWeaponNoise,
   resetNoiseRecords,
 } from './systems/noise';
-import { notifyActorDamaged, resetCombatStimulus } from './systems/combat_stimulus';
+import { notifyActorDamaged } from './systems/combat_stimulus';
 import { canSpawnEntityType, entitySoftLimit, entitySpawnSlots, remainingActiveActorSpawnSlots } from './systems/entity_limits';
 import { clearRoomMemory, tickRoomMemory } from './systems/room_memory';
-import { resetNpcMemoryStore } from './systems/npc_memory';
-import { resetBarkState } from './systems/ai/barks';
-import { resetMetroCooldown } from './systems/metro';
-import { clearActiveBet } from './systems/arena_betting';
-import { resetMonsterBaits } from './systems/monster_bait';
 import { UV_SPOTLIGHT_FX_SECONDS, UV_SPOTLIGHT_ID, useUvSpotlight, uvSpotlightRenderIntensity } from './systems/uv_spotlight';
 import { CHALK_ITEM_ID, drawEquippedChalkPixel } from './systems/chalk';
 import { isRidingRailTrain, updateRailTrains } from './systems/rail_trains';
 import { updateCarnivorousFungus } from './systems/carnivorous_fungus';
 import { hladonColdMoveMultiplier, updateHladonColdPocket } from './systems/hladon';
 import { tryCoverSeroburmalineSource, updateSeroburmalineExposure } from './systems/seroburmaline';
-import { updateRouteCues, resetRouteCueHud } from './systems/route_cues';
-import { resetRumorEvents } from './systems/rumor';
+import { updateRouteCues } from './systems/route_cues';
 import { updateDangerField } from './systems/danger_field';
 import {
   resetMapExploration,
@@ -351,26 +314,17 @@ import {
   invalidateFloorMemory,
   restoreFloorMemoryFromSave,
   takeFloorMemory,
+  hasFloorMemory,
   type FloorLiftAnchor,
   type FloorMemoryLoad,
   type FloorRouteLiftMirror,
 } from './systems/floor_memory';
-import { withPreservedGenerationRuntime } from './systems/generation_runtime_guard';
-import {
-  packFloorForNetwork,
-  serializeFloorSnapshot,
-  chunkFloorSnapshot,
-  deserializeFloorSnapshot,
-  unpackFloorFromNetwork,
-  reassembleFloorSnapshot,
-} from './systems/floor_serialization';
 import {
   commitFloorRunEntry,
   currentFloorRunEntry,
   ensureFloorRunState,
   floorRunArrivalLead,
   floorRunEntryDanger,
-  floorRunEntryForDesignFloor,
   floorRunEntryForFloorKey,
   floorRunEntryForZ,
   floorRunSaveHasRestorableRoute,
@@ -410,18 +364,11 @@ import { clearWrongDoorRemaps, tryUseWrongDoorRemap, updateWrongDoorRemaps } fro
 import {
   containerAccessInfo,
   ensureRoomContainers,
-  firstNearbyContainer,
   putIntoContainer,
   restoreValidContainers,
   takeFromContainer,
   tickContainerAudits,
 } from './systems/containers';
-import {
-  containerSyncPayload,
-  resolvePeerContainerAtCell,
-  buildRemoteContainer,
-  type ContainerSyncPayload,
-} from './systems/online_containers';
 import { normalizeGameEconomy, primeTradePriceCache } from './systems/economy';
 import {
   addTradeAskFromSlot,
@@ -459,7 +406,6 @@ import {
   rebuildEntityIndexAfterSpawnCleanup,
   rebuildEntityIndexForSimulation,
   getEntityIndex,
-  ensureEntityIndex,
   type EntityIndexDebugStats,
 } from './systems/entity_index';
 import {
@@ -509,16 +455,8 @@ import {
   isNetSphereOpen,
   openNetSphere,
   reportNetSphereEvent,
-  setNetSphereChatHandler,
   tickNetSphere,
-  hashNetGen,
-  _test_storage
 } from './systems/net_sphere';
-
-// We add local system message directly via the internal net sphere storage logic 
-// but since `addLocalSystemMessage` is private in `net_sphere.ts`, we'll just push directly to runtime
-// Wait, `net_sphere.ts` does not export `addLocalSystemMessage`.
-// We can just use `msg(state, '...')` instead, which shows it on the HUD!
 import {
   claimNetTerminalGenFleshDrop,
   closeNetTerminalGen,
@@ -563,19 +501,15 @@ import {
   markPlatformGameplayStart,
   markPlatformGameplayStop,
   markPlatformReady,
+  togglePlatformAudioMuted,
   savePlatformRawGameSave,
-  showPlatformFullscreenAd,
-  isGamePushPortalTarget,
 } from './systems/platform_bridge';
-import { addFactionRel, addFactionRelMutual, initFactionRelations, resetPlayerFactionRelations, restoreFactionRelations } from './data/relations';
+import { addFactionRel, addFactionRelMutual, initFactionRelations } from './data/relations';
 import { createRuntimeCamera, resetRuntimeCamera, runtimeCameraView, startDeathCamera, updateRuntimeCamera, startTrailerCamera, updateTrailerCamera, startCinematicCamera } from './systems/camera';
 import { onHeraldKilled, onCreatorKilled, onHellArrival, tryCreateVoiceQuest, onVoidEntry } from './data/plot_events';
 import { randomTip } from './data/tips';
-import { drawLoadingScreen } from './render/loading_screen';
 import {
   PROCEDURAL_FLOOR_ZS,
-  FLOOR_RUN_VOID_Z,
-  makeProceduralFloorSpec,
   proceduralFloorKey,
   type FloorAnomalyId,
   type ProceduralFloorSpec,
@@ -617,26 +551,7 @@ import {
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const hudCanvas = document.getElementById('hud') as HTMLCanvasElement;
 const ctx = hudCanvas.getContext('2d')!;
-const loadingCanvas = document.getElementById('loadingCanvas') as HTMLCanvasElement | null;
-let loadingWorker: Worker | null = null;
-let loadingWorkerAck = false;
-let isFirstBootLoading = true;
-if (loadingCanvas && typeof loadingCanvas.transferControlToOffscreen === 'function') {
-  const offscreen = loadingCanvas.transferControlToOffscreen();
-  loadingWorker = new Worker(new URL('./loading_worker.ts', import.meta.url), { type: 'module' });
-  loadingWorker.onmessage = (e) => {
-    if (e.data?.type === 'started') loadingWorkerAck = true;
-  };
-  loadingWorker.postMessage({ type: 'init', canvas: offscreen }, [offscreen]);
-}
 registerPwaServiceWorker();
-
-// Web Worker pool that bakes the navigation next-hop matrix (step 4, ~98% of
-// nav-bake cost) across cores behind the loading screen. Built once, reused for
-// every floor/samosbor rebake; workers spawn lazily on the first bake. In a
-// no-Worker environment the solver rejects and the bake falls back to the
-// synchronous kernel, so behavior is identical, just single-cored.
-const _navSolver = createWorkerRegionNextSolver();
 const PLAYER_NAME_KEY = 'gigahrush_player_name';
 const PLAYER_AGE_KEY = 'gigahrush_player_age';
 const PLAYER_SEX_KEY = 'gigahrush_player_sex';
@@ -656,7 +571,7 @@ function hasValidSaveGame(): boolean {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
-    const parsed = safeParseJson(raw);
+    const parsed = JSON.parse(raw);
     return saveShapeVersionStatus(parsed) === 'current';
   } catch {
     return false;
@@ -678,8 +593,9 @@ let playerAge = loadPlayerAge();
 let playerSex = loadPlayerSex();
 let titlePlayerAgeText = String(playerAge);
 let titleRunSeedText = '';
-const TRAILER_ZS = Array.from({ length: 101 }, (_, i) => i - 50);
-let titleTrailerFloorIdx = Math.floor(mathRng() * TRAILER_ZS.length);
+const TRAILER_FLOORS = [2, 1, 3, 4, 0, 5]; // LIVING, KVARTIRY, MAINTENANCE, HELL, MINISTRY, VOID
+const TRAILER_FLOOR_NAMES = ['LIVING', 'KVARTIRY', 'MAINTENANCE', 'HELL', 'MINISTRY', 'VOID'];
+let titleTrailerFloorIdx = 0;
 let titleStartNeedsInit = true;
 let titleMode: TitleScreenMode = 'setup';
 let titleSetupSel = 0;
@@ -697,830 +613,6 @@ let pointerCaptureGateReason: PointerCaptureGateReason = 'released';
 installCanvasLocalization();
 setLocalizationLanguage(titleLanguageId);
 setActiveActorSoftLimit(titleActiveActorSoftLimit);
-
-// ── Online multiplayer message handler ──────────────────────
-let onlinePeerFloorReady = false;
-const _lastPeerActor = new Map<number, Record<string, unknown>>();  // delta-merge: last received actor state per slot
-const _peerAckedGen = new Map<number, number>();  // last processed peer gen per slot
-const _peerAckedActorGen = new Map<number, number>();  // last changed peer actor payload reconciled by host
-const _peerNextFireAt = new Map<number, number>();  // wall-clock ms gate: next allowed peer attack per slot
-const _peerNextToolAt = new Map<number, number>(); // host-side peer world-tool effect gate
-
-// Peer-side transient remote container copy: a single reserved synthetic id kept
-// only in containerById (never containerMap/containers → no world mesh). Backs the
-// container menu the peer views for a host-owned container. Its cell is remembered
-// so take/put/close requests can be addressed back to the host by (cx, cy).
-const PEER_REMOTE_CONTAINER_ID = -777001;
-const ONLINE_PLAYER_SPRITE_SCALE = 0.65;
-let _peerRemoteContainerCell: { x: number; y: number } | null = null;
-
-// Peer-side floor checkpoint reassembly (chunks arrive in order from host).
-let _snapChunks: (string | undefined)[] | null = null;
-let _snapTotal = 0;
-let _snapReceived = 0;
-let _snapSpawnX = W / 2;
-let _snapSpawnY = W / 2;
-let _peerPendingFireAction = false;
-let _peerPendingReloadAction = false;
-let _peerPendingToolUse: 'edge' | 'hold' | undefined;
-
-function spawnPeerProjectile(actor: Entity, weaponId: string, ws: WeaponStats): void {
-  const cos = Math.cos(actor.angle);
-  const sin = Math.sin(actor.angle);
-  const pellets = ws.pellets ?? 1;
-  const spread = ws.spread ?? 0;
-  const pt = ws.projType ?? ProjType.NORMAL;
-  for (let p = 0; p < pellets; p++) {
-    const ang = actor.angle + (rng() - 0.5) * spread;
-    const spd = ws.projSpeed ?? 15;
-    const proj: Entity = {
-      id: nextEntityId.v++,
-      type: EntityType.PROJECTILE,
-      x: actor.x + cos * 0.85,
-      y: actor.y + sin * 0.85,
-      angle: ang, pitch: 0,
-      alive: true, speed: 0,
-      sprite: ws.projSprite ?? Spr.BULLET,
-      vx: Math.cos(ang) * spd,
-      vy: Math.sin(ang) * spd,
-      vz: (actor.pitch ?? 0) * spd * 0.5 + (pt === ProjType.FLAME ? (rng() - 0.5) * 0.8 : 0),
-      projDmg: ws.dmg,
-      projLife: pt === ProjType.GRENADE ? 1.5 : pt === ProjType.FLAME ? 0.7 : 3.0,
-      ownerId: actor.id,
-      weapon: weaponId,
-      spriteScale: pt === ProjType.BFG ? 0.6 : pt === ProjType.FLAME ? (0.55 + rng() * 0.25) : pt === ProjType.GRENADE ? 0.35 : 0.25,
-      spriteZ: 0.5,
-      projType: pt,
-      projGore: pt === ProjType.GRENADE || pt === ProjType.BFG ? 3
-        : (weaponId === 'shotgun' || weaponId === 'chainsaw') ? 3
-        : (weaponId === 'ak47' || weaponId === 'machinegun' || weaponId === 'nailgun' || weaponId === 'gauss' || weaponId === 'plasma') ? 2
-        : pt === ProjType.FLAME ? 1 : 1,
-    };
-    if (ws.aoeRadius) { proj.aoeRadius = ws.aoeRadius; proj.aoeDmg = ws.dmg; }
-    entities.push(proj);
-  }
-}
-
-function spawnPeerPsiProjectile(actor: Entity, psiId: string, ws: WeaponStats): void {
-  const cos = Math.cos(actor.angle);
-  const sin = Math.sin(actor.angle);
-  const spd = ws.projSpeed ?? 14;
-  const proj: Entity = {
-    id: nextEntityId.v++,
-    type: EntityType.PROJECTILE,
-    x: actor.x + cos * 0.85,
-    y: actor.y + sin * 0.85,
-    angle: actor.angle,
-    pitch: 0,
-    alive: true,
-    speed: 0,
-    sprite: ws.projSprite ?? Spr.PSI_BOLT,
-    vx: Math.cos(actor.angle) * spd,
-    vy: Math.sin(actor.angle) * spd,
-    vz: (actor.pitch ?? 0) * spd * 0.5,
-    projDmg: ws.dmg,
-    projLife: 3.0,
-    ownerId: actor.id,
-    weapon: psiId,
-    spriteScale: 0.3,
-    spriteZ: 0.5,
-  };
-  if (ws.aoeRadius) { proj.aoeRadius = ws.aoeRadius; proj.aoeDmg = ws.dmg; }
-  entities.push(proj);
-}
-
-function applyPeerPsiWorldEffect(actor: Entity, psiId: string, ws: WeaponStats): void {
-  const effect = ws.psiEffect ?? '';
-  if (!ws.isRanged && (effect === 'phase' || effect === 'shield' || effect === 'mark' || effect === 'recall' || effect === 'possession')) return;
-
-  if (ws.isRanged) {
-    spawnPeerPsiProjectile(actor, psiId, ws);
-  } else {
-    const psiResult = castInstantSpell(effect, actor, entities, world, state.msgs, state.time, (e) => handleKill(e, true));
-    if (psiResult.beamLen) {
-      state.beamFx = 0.35;
-      state.beamAngle = actor.angle;
-      state.beamLen = psiResult.beamLen;
-    }
-  }
-  if (ws.psiEffect === 'beam') playPsiBeam(); else playPsiCast();
-  publishWeaponNoise(state, actor, psiId, ws);
-}
-
-function applyPeerFireAction(actor: Entity, slot: number): void {
-  const weaponId = equippedCombatItemId(actor);
-  const ws = getWeaponStats(actor, weaponId);
-  const nowMs = performance.now();
-  const nextAt = _peerNextFireAt.get(slot) ?? 0;
-  if (nowMs < nextAt) return;
-  const atkSpeedMod = actor.rpg ? agiAttackSpeedMult(actor.rpg) : 1;
-  _peerNextFireAt.set(slot, nowMs + Math.max(0.05, ws.speed * atkSpeedMod) * 1000);
-
-  if (ws.psiCost) {
-    applyPeerPsiWorldEffect(actor, weaponId, ws);
-    return;
-  }
-
-  if (ws.isRanged) {
-    if (!ws.ammoType && ws.magazineSize !== Infinity && (actor.currentMag ?? 0) <= 0) return;
-    if (ws.projType === ProjType.FLAME) reducePaupsinaWeb(actor, state.time, state.msgs, state, actor, 'fire');
-    if (ws.deletionBeam) {
-      fireDeletionBeam(world, entities, actor, state, weaponId, ws, handleKill);
-    } else {
-      spawnPeerProjectile(actor, weaponId, ws);
-    }
-    playWeaponSound(weaponId, ws);
-    publishWeaponNoise(state, actor, weaponId, ws);
-    notifyLiftArachnaNoise(world, actor, state, weaponId);
-    return;
-  }
-
-  const normalDmg = meleeDamage(actor.rpg, weaponId, ws.dmg);
-  const range = ws.range;
-  const ax = actor.x + Math.cos(actor.angle) * range;
-  const ay = actor.y + Math.sin(actor.angle) * range;
-  let hitSomething = isPaupsinaWebCuttingWeapon(weaponId)
-    ? reducePaupsinaWeb(actor, state.time, state.msgs, state, actor, 'cut')
-    : false;
-  const entityIndex = getEntityIndex();
-  const meleeQuery: Entity[] = [];
-  entityIndex.queryRadius(actor.x, actor.y, range + (ws.hitRadius ?? 0.6) + 0.5, meleeQuery, ENTITY_MASK_ACTOR);
-  const target = selectMeleeTarget(world, actor, meleeQuery, range, weaponId);
-  if (target && target.hp !== undefined) {
-    const armor = applyMonsterArmorHit(world, state, target, { damage: normalDmg, attacker: actor, weaponId });
-    const dmg = armor.damage;
-    target.hp -= dmg;
-    target.staggerTimer = 0.15;
-    const mSpd = 6;
-    const mVx = Math.cos(actor.angle) * mSpd;
-    const mVy = Math.sin(actor.angle) * mSpd;
-    spawnBloodHit(world, target.x, target.y, actor.angle, dmg, target.type === EntityType.MONSTER, mVx, mVy, 0.5);
-    if (isPlayerEntity(target)) {
-      recordPlayerDamage(state, actor, dmg, `Удар от ${actor.name || 'игрока'}: -${dmg}`, 'npc');
-      state.dmgFlash = Math.max(state.dmgFlash, Math.min(1, 0.3 + dmg / (target.maxHp ?? 100) * 1.5));
-    } else {
-      notifyActorDamaged(world, target, actor, dmg, 'player_melee', state.time, state);
-    }
-    if (target.hp <= 0) {
-      target.hp = 0;
-      target.alive = false;
-      if (!isPlayerEntity(target)) handleKill(target, true, mVx, mVy, 1);
-    }
-    hitSomething = true;
-  }
-  if (!hitSomething) {
-    const attackIdx = world.idx(Math.floor(ax), Math.floor(ay));
-    if (world.cells[attackIdx] === Cell.DOOR && world.doors.has(attackIdx)) {
-      hitSomething = true;
-      if (damageDoor(world, world.doors.get(attackIdx)!, normalDmg)) updateWorldData(world);
-    }
-  }
-  if (weaponId === 'chainsaw') playChainsaw(); else playAttack();
-  publishWeaponNoise(state, actor, weaponId, ws);
-  notifyLiftArachnaNoise(world, actor, state, weaponId);
-}
-
-function peerActorSnapshot(actor = player): PeerActorState {
-  return {
-    hp: actor.hp ?? 100,
-    maxHp: actor.maxHp ?? 100,
-    alive: actor.alive,
-    weapon: actor.weapon ?? '',
-    tool: actor.tool ?? '',
-    sprite: actor.sprite,
-    spriteScale: actor.spriteScale,
-    npcVisualId: actor.npcVisualId,
-    sex: actor.sex,
-    armorDefId: actor.armorDefId,
-    money: actor.money,
-    staggerTimer: actor.staggerTimer,
-    currentMag: actor.currentMag,
-    reloading: actor.reloading,
-    reloadTimer: actor.reloadTimer,
-    attackCd: actor.attackCd,
-    inventory: actor.inventory?.map(i => i.data !== undefined ? { defId: i.defId, count: i.count, data: i.data } : { defId: i.defId, count: i.count }),
-    needs: actor.needs ? { food: actor.needs.food, water: actor.needs.water, sleep: actor.needs.sleep, pee: actor.needs.pee, poo: actor.needs.poo } : undefined,
-    rpg: actor.rpg ? { level: actor.rpg.level, xp: actor.rpg.xp, attrPoints: actor.rpg.attrPoints, str: actor.rpg.str, agi: actor.rpg.agi, int: actor.rpg.int, psi: actor.rpg.psi, maxPsi: actor.rpg.maxPsi } : undefined,
-  };
-}
-
-function sendPeerInventorySync(actor: Entity): void {
-  if (actor.peerSlot === undefined) return;
-  sendOnlineMessage({
-    type: 'peer_inventory_sync',
-    _targetSlot: actor.peerSlot,
-    weapon: actor.weapon ?? '',
-    tool: actor.tool ?? '',
-    money: actor.money,
-    inventory: actor.inventory?.map(i => i.data !== undefined ? { defId: i.defId, count: i.count, data: i.data } : { defId: i.defId, count: i.count }),
-  });
-}
-
-function applyPeerToolUse(actor: Entity, slot: number, edge: boolean): void {
-  const toolId = actor.tool ?? '';
-  if (!toolId) return;
-  if (!(actor.inventory ?? []).some(item => item.defId === toolId)) { actor.tool = ''; return; }
-  const now = performance.now();
-  if (now < (_peerNextToolAt.get(slot) ?? 0)) return;
-  const activeLightDrain = activeToolLightDrainPerSecond(toolId);
-  if (activeLightDrain > 0) {
-    _peerNextToolAt.set(slot, now + 125);
-    return;
-  }
-  if (WEAPON_STATS[toolId]?.psiCost) {
-    const psiToolStats = getWeaponStats(actor, toolId);
-    const atkSpeedMod = actor.rpg ? agiAttackSpeedMult(actor.rpg) : 1;
-    _peerNextToolAt.set(slot, now + Math.max(0.05, psiToolStats.speed * atkSpeedMod) * 1000);
-    applyPeerPsiWorldEffect(actor, toolId, psiToolStats);
-    return;
-  }
-  if (toolId === UV_SPOTLIGHT_ID) {
-    const inventoryBefore = actor.inventory ? structuredClone(actor.inventory) : undefined;
-    const toolBefore = actor.tool;
-    const result = useUvSpotlight(world, entities, actor, state);
-    actor.inventory = inventoryBefore;
-    actor.tool = toolBefore;
-    if (result) {
-      state.uvBeamFx = UV_SPOTLIGHT_FX_SECONDS;
-      state.uvBeamLen = result.beamLen;
-      playSoundAt(playEnergyImpact, actor.x, actor.y);
-    }
-    _peerNextToolAt.set(slot, now + 280);
-    return;
-  }
-  if (toolId === CHALK_ITEM_ID) {
-    const def = ITEMS[CHALK_ITEM_ID];
-    drawEquippedChalkPixel(world, actor, def?.durability ?? 0);
-    _peerNextToolAt.set(slot, now + 45);
-    return;
-  }
-  const lookRange = 1.4;
-  const tx = actor.x + Math.cos(actor.angle) * lookRange;
-  const ty = actor.y + Math.sin(actor.angle) * lookRange;
-  const cx = Math.floor(tx);
-  const cy = Math.floor(ty);
-  const ci = world.idx(cx, cy);
-  let changedWorld = false;
-  if (toolId === 'vacuum') {
-    let clearedFog = 0;
-    for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
-      const fi = world.idx(Math.floor(actor.x) + ox, Math.floor(actor.y) + oy);
-      if (world.fog[fi] <= 0) continue;
-      world.fog[fi] = 0;
-      clearedFog++;
-    }
-    if (clearedFog > 0) { world.markFogDirty(); changedWorld = true; }
-    _peerNextToolAt.set(slot, now + 150);
-  } else if (toolId === 'jackhammer') {
-    if (!world.hermoWall[ci] && !world.aptMask[ci] && world.cells[ci] === Cell.WALL) {
-      setCellToFloor(cx, cy);
-      notifyLiftArachnaNoise(world, actor, state, 'jackhammer');
-      changedWorld = true;
-    }
-    _peerNextToolAt.set(slot, now + 200);
-  } else if (edge && toolId === 'door_kit') {
-    if (!world.aptMask[ci] && world.cells[ci] === Cell.FLOOR) {
-      const l = world.cells[world.idx(cx - 1, cy)], r = world.cells[world.idx(cx + 1, cy)];
-      const u = world.cells[world.idx(cx, cy - 1)], d = world.cells[world.idx(cx, cy + 1)];
-      if ((l === Cell.WALL && r === Cell.WALL && u !== Cell.WALL && d !== Cell.WALL)
-        || (u === Cell.WALL && d === Cell.WALL && l !== Cell.WALL && r !== Cell.WALL)) {
-        const roomA = world.roomMap[world.idx(cx - 1, cy)] >= 0 ? world.roomMap[world.idx(cx - 1, cy)] : world.roomMap[world.idx(cx, cy - 1)];
-        const roomB = world.roomMap[world.idx(cx + 1, cy)] >= 0 ? world.roomMap[world.idx(cx + 1, cy)] : world.roomMap[world.idx(cx, cy + 1)];
-        world.cells[ci] = Cell.DOOR;
-        world.markCellsDirty();
-        world.doors.set(ci, { idx: ci, state: DoorState.CLOSED, roomA, roomB, keyId: '', timer: 0 });
-        addRuntimeDoorToRoom(roomA, ci); addRuntimeDoorToRoom(roomB, ci);
-        changedWorld = true;
-      }
-    }
-    _peerNextToolAt.set(slot, now + 250);
-  } else if (edge && toolId === 'block_kit') {
-    const pci = world.idx(Math.floor(actor.x), Math.floor(actor.y));
-    if (ci !== pci && !world.aptMask[ci] && !world.hermoWall[ci] && (world.cells[ci] === Cell.FLOOR || world.cells[ci] === Cell.DOOR)) {
-      if (world.cells[ci] === Cell.DOOR) world.removeDoorAt(ci);
-      world.cells[ci] = Cell.WALL;
-      world.markCellsDirty();
-      const room = world.roomAt(actor.x, actor.y);
-      world.wallTex[ci] = room?.wallTex ?? Tex.CONCRETE;
-      world.markWallTexDirty();
-      changedWorld = true;
-    }
-    _peerNextToolAt.set(slot, now + 250);
-  } else {
-    const cleanupTool = cleanupToolProfile(toolId);
-    if (cleanupTool) {
-      const cleaned = cleanSurfaceArea(tx, ty, cleanupTool.surfaceRadius);
-      const cleanedHazards = cleanCellHazardsNear(world, tx, ty, cleanupTool.hazardRadius, state, actor, cleanupTool.hazardReason);
-      if (cleaned > 0 || cleanedHazards > 0) notifyCleanupToolUse(actor, world, state, tx, ty, cleaned, cleanedHazards);
-      changedWorld = cleaned > 0 || cleanedHazards > 0;
-      _peerNextToolAt.set(slot, now + cleanupTool.cooldown * 1000);
-    }
-  }
-  if (changedWorld) updateWorldData(world);
-}
-
-setOnlineMessageHandler((msgData: any) => {
-  if (msgData.type === 'chat_ping') {
-    const text = msgData.text || '';
-    const duration = Math.max(0, Math.min(6, Math.max(2.5, text.length * 0.12)));
-    if (duration > 0 && entities) {
-      for (let i = 0; i < entities.length; i++) {
-        const e = entities[i];
-        if (e.id === player?.id) continue;
-        if ((e.peerSlot !== undefined || e.netGen) && (e.netGen === msgData.netGen || e.name === msgData.nickname)) {
-          e.activeBark = { text, until: state.time + duration, color: '#cca', skipTranslate: true };
-          break;
-        }
-      }
-    }
-  }
-
-  // ── HOST: peer joined → spawn remote actor, send floor seed ──
-  if (msgData.type === 'peer_join' && isOnlineHost()) {
-    const peerSlot = msgData._peerSlot;
-    state.msgs.push(msg(`Игрок ${peerSlot} подключился.`, state.time, '#8cf'));
-
-    // Spawn peer at host player position (guaranteed passable)
-    const spawnX = player.x, spawnY = player.y;
-
-    const remoteActor: Entity = {
-      id: nextEntityId.v++,
-      type: EntityType.NPC,
-      x: spawnX, y: spawnY,
-      angle: -Math.PI / 2, pitch: 0,
-      alive: true,
-      speed: HUMANOID_BASE_MOVE_SPEED,
-      sprite: Occupation.TRAVELER,
-      spriteScale: ONLINE_PLAYER_SPRITE_SCALE,
-      needs: freshNeeds(),
-      hp: 100, maxHp: 100,
-      money: 100,
-      inventory: [],
-      weapon: '', tool: '',
-      name: msgData.nickname || `Игрок ${peerSlot}`,
-      netGen: msgData.netGen,
-      rpg: freshRPG(1),
-      faction: Faction.PLAYER,
-      peerSlot,
-      ...playerAlifeFields(),
-    } as Entity;
-    entities.push(remoteActor);
-
-    // Full-floor checkpoint: pack the host's live, mutated World + entities and
-    // stream it to the peer in order. The peer restores this verbatim instead of
-    // regenerating from seed, so runtime mutations (doors, containers, loot,
-    // route lifts, carved passages) can never desync. Seed is still sent as a
-    // fallback identity hint.
-    const runSeed = ensureFloorRunState(state).runSeed;
-    const snapshot = packFloorForNetwork(world, entities, {
-      z: state.currentZ,
-      runSeed,
-      floorKey: currentFloorMemoryKey(),
-      spawnX, spawnY,
-      samosborCount: state.samosborCount,
-      gameTime: state.time,
-      nextEntityId: nextEntityId.v,
-    });
-    const chunks = chunkFloorSnapshot(serializeFloorSnapshot(snapshot));
-    sendOnlineMessage({
-      type: 'floor_snapshot_begin',
-      _targetSlot: peerSlot,
-      total: chunks.length,
-      z: state.currentZ,
-      runSeed,
-      peerSlot,
-      spawnX, spawnY,
-    });
-    for (let i = 0; i < chunks.length; i++) {
-      sendOnlineMessage({
-        type: 'floor_snapshot_chunk',
-        _targetSlot: peerSlot,
-        i,
-        data: chunks[i],
-      });
-    }
-  }
-
-  // ── HOST: apply peer input to remote actor (delta-merge) ──
-  if (msgData.type === 'peer_input' && isOnlineHost()) {
-    const actor = entities.find(e => e.peerSlot === msgData._peerSlot && e.alive);
-    if (actor) {
-      // Validate position — only accept if the target cell is passable
-      const nx = world.wrap(msgData.x);
-      const ny = world.wrap(msgData.y);
-      if (!world.solid(Math.floor(nx), Math.floor(ny))) {
-        actor.x = nx;
-        actor.y = ny;
-      }
-      actor.angle = msgData.angle ?? actor.angle;
-      actor.pitch = msgData.pitch ?? actor.pitch;
-      // Delta-merge: compare with last snapshot, only apply fields peer changed
-      const a = msgData.actor;
-      if (a) {
-        const slot = msgData._peerSlot as number;
-        const prev = _lastPeerActor.get(slot);
-        const peerChanged = (key: string): boolean => {
-          if (!prev) return true; // first message — apply all
-          return JSON.stringify((a as Record<string, unknown>)[key]) !== JSON.stringify((prev as Record<string, unknown>)[key]);
-        };
-        if (peerChanged('hp')) actor.hp = a.hp;
-        if (peerChanged('maxHp')) actor.maxHp = a.maxHp;
-        if (peerChanged('alive')) actor.alive = a.alive;
-        if (peerChanged('weapon')) actor.weapon = a.weapon;
-        if (peerChanged('tool')) actor.tool = a.tool;
-        if (peerChanged('sprite')) actor.sprite = a.sprite;
-        if (peerChanged('spriteScale')) actor.spriteScale = a.spriteScale;
-        if (peerChanged('npcVisualId')) actor.npcVisualId = a.npcVisualId;
-        if (peerChanged('sex')) actor.sex = a.sex;
-        actor.faction = Faction.PLAYER;
-        if (peerChanged('armorDefId')) actor.armorDefId = a.armorDefId;
-        if (peerChanged('money')) actor.money = a.money;
-        if (peerChanged('staggerTimer')) actor.staggerTimer = a.staggerTimer;
-        if (peerChanged('currentMag')) actor.currentMag = a.currentMag;
-        if (peerChanged('reloading')) actor.reloading = a.reloading;
-        if (peerChanged('reloadTimer')) actor.reloadTimer = a.reloadTimer;
-        if (peerChanged('attackCd')) actor.attackCd = a.attackCd;
-        if (peerChanged('inventory')) actor.inventory = a.inventory;
-        if (peerChanged('needs') && a.needs && actor.needs) Object.assign(actor.needs, a.needs);
-        if (peerChanged('rpg') && a.rpg && actor.rpg) Object.assign(actor.rpg, a.rpg);
-        _lastPeerActor.set(slot, structuredClone(a));
-        if (typeof msgData.gen === 'number') _peerAckedGen.set(slot, msgData.gen);
-        if (typeof msgData.actorGen === 'number') _peerAckedActorGen.set(slot, msgData.actorGen);
-        const action = msgData.action as { fire?: boolean; reload?: boolean; toolUse?: 'edge' | 'hold' } | undefined;
-        if (action?.fire) applyPeerFireAction(actor, slot);
-        if (action?.toolUse) applyPeerToolUse(actor, slot, action.toolUse === 'edge');
-      }
-    }
-  }
-
-  // ── HOST: peer shared-world action (interact/container/drop) — reliable, not throttled ──
-  if (msgData.type === 'peer_action' && isOnlineHost()) {
-    const actor = entities.find(e => e.peerSlot === msgData._peerSlot && e.alive);
-    if (actor) {
-      // ── Peer interact: doors + item pickup ──
-      if (msgData.interact) {
-        let handled = false;
-        // Try door first
-        const lx = actor.x + Math.cos(actor.angle) * 1.5;
-        const ly = actor.y + Math.sin(actor.angle) * 1.5;
-        const cx = Math.floor(world.wrap(lx));
-        const cy = Math.floor(world.wrap(ly));
-        const idx = world.idx(cx, cy);
-        if (world.cells[idx] === Cell.DOOR && world.doors.has(idx)) {
-          const door = world.doors.get(idx)!;
-          if (door.state === DoorState.CLOSED) {
-            setDoorState(world, door, DoorState.OPEN);
-            door.timer = 0; handled = true;
-          } else if (door.state === DoorState.OPEN) {
-            setDoorState(world, door, DoorState.CLOSED); handled = true;
-          } else if (door.state === DoorState.HERMETIC_CLOSED && !state.samosborActive) {
-            setDoorState(world, door, DoorState.HERMETIC_OPEN);
-            door.timer = 0; handled = true;
-          } else if (door.state === DoorState.HERMETIC_OPEN) {
-            setDoorState(world, door, DoorState.HERMETIC_CLOSED); handled = true;
-          } else if (door.state === DoorState.LOCKED) {
-            const keyId = door.keyId || 'key';
-            if (actor.inventory?.some((i: { defId: string }) => i.defId === keyId)) {
-              setDoorState(world, door, DoorState.OPEN);
-              door.timer = 0; handled = true;
-              state.msgs.push(msg(`Игрок ${actor.peerSlot} отпер дверь ключом`, state.time, '#4a4'));
-            }
-          }
-        }
-        // Try item pickup if door wasn't toggled
-        if (!handled) {
-          let bestDrop: Entity | null = null;
-          let bestD2 = 2.5 * 2.5; // max 2.5 cell range
-          for (const e of entities) {
-            if (e.type !== EntityType.ITEM_DROP || !e.alive) continue;
-            const d2 = world.dist2(actor.x, actor.y, e.x, e.y);
-            if (d2 < bestD2) { bestDrop = e; bestD2 = d2; }
-          }
-          if (bestDrop) {
-            const result = pickupDrop(world, bestDrop, actor, state.msgs, state.time, state);
-            if (result.pickedAny) sendPeerInventorySync(actor);
-            handled = result.handled;
-          }
-        }
-        // Try opening / searching a container in front of the peer. Host is the
-        // sole authority: it resolves (or lazily generates) the container and
-        // sends the peer a transient inventory copy to view — the peer never
-        // generates anything (floor seed is non-deterministic) and never spawns
-        // a world mesh for it.
-        if (!handled) {
-          // Prefer the cell the peer faces (matches the local look-direction
-          // targeting and lets "обыскать" generate loot on the faced feature),
-          // then fall back to a nearby container.
-          const container = resolvePeerContainerAtCell(world, state.currentZ, Math.floor(cx), Math.floor(cy))
-            ?? firstNearbyContainer(world, actor, state)
-            ?? resolvePeerContainerAtCell(world, state.currentZ, Math.floor(actor.x), Math.floor(actor.y));
-          if (container) {
-            container.lastOpenedBy = actor.id;
-            container.lastOpenedAt = state.time;
-            sendOnlineMessage({
-              type: 'container_open',
-              _targetSlot: actor.peerSlot,
-              container: containerSyncPayload(container),
-            });
-          }
-        }
-      }
-
-      // ── Peer drop item ──
-      if (msgData.drop) {
-        const dropX = actor.x + Math.cos(actor.angle) * 3.0;
-        const dropY = actor.y + Math.sin(actor.angle) * 3.0;
-        const defId = msgData.defId as string;
-        const count = Math.max(1, Math.floor((msgData.count as number) || 1));
-        if (defId) {
-          removeItem(actor, defId, count);
-          if (actor.weapon === defId) actor.weapon = '';
-          if (actor.tool === defId) actor.tool = '';
-          entities.push({
-            id: nextEntityId.v++, type: EntityType.ITEM_DROP,
-            x: dropX, y: dropY, angle: 0, pitch: 0, alive: true, speed: 0, sprite: Spr.ITEM_DROP,
-            inventory: [{ defId, count, data: msgData.data }],
-          } as Entity);
-          state.msgs.push(msg(`Игрок ${actor.peerSlot} выбросил предмет`, state.time, '#aa6'));
-        }
-      }
-
-      // ── Peer container: take / put / close — host-authoritative ──
-      // Peer sends the container's cell + slot; host resolves the real container
-      // there, runs the real take/put against the peer actor (all theft/karma/
-      // purchase/event side effects stay host-owned), then echoes fresh contents
-      // back to that peer. Peer inventory reconciles via entity_sync. On close
-      // the host just drops any transient generated loot bookkeeping — the
-      // container itself lives in the host world.
-      if (msgData.container) {
-        const op = msgData.container as { op: string; cx: number; cy: number; slot?: number };
-        if (op.op !== 'close') {
-          const container = resolvePeerContainerAtCell(world, state.currentZ, op.cx, op.cy);
-          if (container) {
-            const slot = Math.max(0, Math.floor(op.slot ?? 0));
-            let inventoryChanged = false;
-            if (op.op === 'take') {
-              inventoryChanged = takeFromContainer(container, actor, slot, 1, { state, world, entities });
-            } else if (op.op === 'put') {
-              inventoryChanged = putIntoContainer(container, actor, slot, 1, { state, world, entities });
-            }
-            sendOnlineMessage({
-              type: 'container_sync',
-              container: containerSyncPayload(container),
-            });
-            if (inventoryChanged) sendPeerInventorySync(actor);
-          }
-        }
-      }
-    }
-  }
-
-  if (msgData.type === 'floor_snapshot_begin' && isOnlinePeer()) {
-    state.msgs.push(msg('Получаю этаж хоста...', state.time, '#8cf'));
-    _snapTotal = Math.max(0, Math.floor(msgData.total ?? 0));
-    _snapChunks = new Array(_snapTotal);
-    _snapReceived = 0;
-    _snapSpawnX = msgData.spawnX ?? W / 2;
-    _snapSpawnY = msgData.spawnY ?? W / 2;
-    onlinePeerFloorReady = false;
-  }
-
-  if (msgData.type === 'floor_snapshot_chunk' && isOnlinePeer() && _snapChunks) {
-    const i = Math.floor(msgData.i ?? -1);
-    if (i >= 0 && i < _snapTotal && _snapChunks[i] === undefined) {
-      _snapChunks[i] = typeof msgData.data === 'string' ? msgData.data : '';
-      _snapReceived++;
-    }
-    if (_snapReceived < _snapTotal) return;
-    // All chunks in — reassemble, unpack, and swap in the host's floor.
-    const serialized = reassembleFloorSnapshot(_snapChunks, _snapTotal);
-    _snapChunks = null;
-    const snapshot = serialized !== null ? deserializeFloorSnapshot(serialized) : null;
-    const unpacked = snapshot ? unpackFloorFromNetwork(snapshot) : null;
-    if (!unpacked) {
-      state.msgs.push(msg('Ошибка распаковки этажа хоста.', state.time, '#f44'));
-      return;
-    }
-    const spawnX = _snapSpawnX, spawnY = _snapSpawnY;
-    const peerMySlot = getOnlineSlot();
-    scheduleLoading(() => {
-      // Re-stamp the derived, non-serialized layers that generation owns
-      // (mirrors loadFloorForTarget for memory-restored floors).
-      injectFastElevators(unpacked.world);
-      fillVisualSlotsForWorldFeatures(unpacked.world, unpacked.meta.runSeed);
-      stampCeilingHeights(unpacked.world);
-      state.currentZ = unpacked.meta.z;
-      world = replaceWorldFromGeneration(world, { world: unpacked.world });
-      entities = unpacked.entities;
-      // Never mint a local id that collides with a host-authored entity.
-      nextEntityId.v = Math.max(nextEntityId.v, unpacked.meta.nextEntityId, syncNextEntityId(entities, nextEntityId.v));
-
-      // Create local player actor for camera attachment
-      const localPlayer: Entity = {
-        id: nextEntityId.v++,
-        type: EntityType.NPC,
-        x: spawnX, y: spawnY,
-        angle: -Math.PI / 2, pitch: 0,
-        alive: true,
-        speed: HUMANOID_BASE_MOVE_SPEED,
-        sprite: Occupation.TRAVELER,
-        spriteScale: ONLINE_PLAYER_SPRITE_SCALE,
-        needs: freshNeeds(),
-        hp: 100, maxHp: 100,
-        money: 100,
-        inventory: [],
-        weapon: '', tool: '',
-        name: 'Вы',
-        netGen: getNetSphereSnapshot().netGen,
-        rpg: freshRPG(1),
-        faction: Faction.PLAYER,
-        peerSlot: peerMySlot,
-        ...playerAlifeFields(),
-      } as Entity;
-      entities.push(localPlayer);
-      player = localPlayer;
-      setCurrentPlayerEntity(player);
-      finishLoadedFloorVisuals();
-      rebuildEntityIndex(entities, 'load');
-      onlinePeerFloorReady = true;
-      state.msgs.push(msg('Этаж загружен. Синхронизация...', state.time, '#8cf'));
-    });
-  }
-
-  // ── PEER: entity sync from host — patch in-place, lerp positions ──
-  if (msgData.type === 'entity_sync' && isOnlinePeer() && onlinePeerFloorReady) {
-    const syncEntities: SyncEntity[] = msgData.entities;
-    if (!syncEntities) return;
-
-    const mySlot = getOnlineSlot();
-    const seenIds = new Set<number>();
-    for (const se of syncEntities) {
-      seenIds.add(se.id);
-      if (se.peerSlot === mySlot) {
-        // Only snap position if far from host truth (>6 cells = teleport/correction)
-        // and the host has already processed our latest movement packet.
-        const hostAcked = se.ackPeerGen !== undefined && se.ackPeerGen >= getPeerGen();
-        const pdx = world.delta(player.x, se.x);
-        const pdy = world.delta(player.y, se.y);
-        if (hostAcked && pdx * pdx + pdy * pdy > 36) {
-          player.x = se.x;
-          player.y = se.y;
-        }
-        const hostAckedActor = se.ackPeerActorGen !== undefined && se.ackPeerActorGen >= getPeerActorGen();
-        if (hostAckedActor) {
-          player.hp = se.hp;
-          player.maxHp = se.maxHp;
-          player.staggerTimer = se.staggerTimer;
-          player.currentMag = se.currentMag;
-          player.reloading = se.reloading;
-          player.reloadTimer = se.reloadTimer;
-          player.attackCd = se.attackCd;
-          if (se.syncInventory) player.inventory = se.syncInventory;
-        }
-        // Death is always accepted unconditionally
-        if (!se.alive) player.alive = false;
-        continue;
-      }
-      // Find existing entity by id
-      let existing: Entity | undefined;
-      for (let i = 0; i < entities.length; i++) {
-        if (entities[i].id === se.id && entities[i] !== player) { existing = entities[i]; break; }
-      }
-      if (existing) {
-        // Lerp position for smooth movement (blend toward target)
-        const LERP = 0.4;
-        const dx = world.delta(existing.x, se.x);
-        const dy = world.delta(existing.y, se.y);
-        if (dx * dx + dy * dy < 16) { // only lerp if close (< 4 cells)
-          existing.x = world.wrap(existing.x + dx * LERP);
-          existing.y = world.wrap(existing.y + dy * LERP);
-        } else {
-          existing.x = se.x; existing.y = se.y; // teleport if far
-        }
-        existing.angle = se.angle; existing.pitch = se.pitch;
-        existing.alive = se.alive; existing.hp = se.hp; existing.maxHp = se.maxHp;
-        // Sync non-simulated cosmetics
-        existing.name = se.name; existing.peerSlot = se.peerSlot; existing.netGen = se.netGen;
-        existing.sprite = se.sprite; existing.spriteScale = se.spriteScale; existing.weapon = se.weapon; existing.tool = se.tool;
-        existing.sex = se.sex as Entity['sex']; existing.npcVisualId = se.npcVisualId;
-        existing.faction = se.faction; existing.staggerTimer = se.staggerTimer;
-        existing.currentMag = se.currentMag; existing.reloading = se.reloading; existing.reloadTimer = se.reloadTimer; existing.attackCd = se.attackCd;
-        existing.speed = se.speed; existing.monsterKind = se.monsterKind;
-        existing.inventory = se.dropDefId ? [{ defId: se.dropDefId, count: se.dropCount ?? 1, data: se.dropData }] : undefined;
-      } else {
-        // New entity — add it
-        entities.push({
-          id: se.id, type: se.type,
-          x: se.x, y: se.y, angle: se.angle, pitch: se.pitch,
-          alive: se.alive, hp: se.hp, maxHp: se.maxHp,
-          sprite: se.sprite, weapon: se.weapon, tool: se.tool,
-          name: se.name, peerSlot: se.peerSlot, netGen: se.netGen,
-          sex: se.sex, npcVisualId: se.npcVisualId,
-          faction: se.faction, staggerTimer: se.staggerTimer,
-          currentMag: se.currentMag, reloading: se.reloading, reloadTimer: se.reloadTimer, attackCd: se.attackCd,
-          speed: se.speed, monsterKind: se.monsterKind,
-          inventory: se.dropDefId ? [{ defId: se.dropDefId, count: se.dropCount ?? 1, data: se.dropData }] : undefined,
-        } as Entity);
-      }
-    }
-    // Remove entities not in sync (except local player)
-    for (let i = entities.length - 1; i >= 0; i--) {
-      if (entities[i] === player) continue;
-      if (!seenIds.has(entities[i].id)) entities.splice(i, 1);
-    }
-    rebuildEntityIndex(entities, 'load');
-  }
-
-  // ── PEER: door state sync from host ──
-  if (msgData.type === 'door_sync' && isOnlinePeer() && onlinePeerFloorReady) {
-    const doors: { idx: number; state: number }[] = msgData.doors;
-    if (doors) {
-      for (const ds of doors) {
-        const door = world.doors.get(ds.idx);
-        if (door && door.state !== ds.state) {
-          setDoorState(world, door, ds.state as DoorState);
-        }
-      }
-    }
-  }
-
-  // ── PEER: host-authoritative inventory correction (pickup/container) ──
-  if (msgData.type === 'peer_inventory_sync' && isOnlinePeer() && onlinePeerFloorReady) {
-    player.weapon = typeof msgData.weapon === 'string' ? msgData.weapon : '';
-    player.tool = typeof msgData.tool === 'string' ? msgData.tool : '';
-    player.money = typeof msgData.money === 'number' ? msgData.money : player.money;
-    player.inventory = Array.isArray(msgData.inventory) ? msgData.inventory : undefined;
-    notePeerActorState(peerActorSnapshot());
-  }
-
-  // ── PEER: host opened/searched a container → show its inventory copy ──
-  // The copy lives ONLY in containerById under a fixed synthetic id, so it backs
-  // the menu but never enters containerMap/containers (no world mesh, no cell
-  // collision). Same "inventory as a synced copy" model the peer already uses.
-  if (msgData.type === 'container_open' && isOnlinePeer() && onlinePeerFloorReady) {
-    const payload = msgData.container as ContainerSyncPayload | undefined;
-    if (payload) {
-      const copy = buildRemoteContainer(world, payload, PEER_REMOTE_CONTAINER_ID);
-      world.containerById.set(PEER_REMOTE_CONTAINER_ID, copy);
-      state.showContainerMenu = true;
-      state.containerMenuTarget = PEER_REMOTE_CONTAINER_ID;
-      state.containerCursorX = 0;
-      state.containerCursorY = 0;
-      state.containerSide = 'container';
-      _peerRemoteContainerCell = { x: copy.x, y: copy.y };
-      syncPauseState();
-    }
-  }
-
-  // ── PEER: fresh contents for the open container copy (after take/put) ──
-  if (msgData.type === 'container_sync' && isOnlinePeer() && onlinePeerFloorReady) {
-    const payload = msgData.container as ContainerSyncPayload | undefined;
-    if (payload && state.showContainerMenu && state.containerMenuTarget === PEER_REMOTE_CONTAINER_ID &&
-        _peerRemoteContainerCell && _peerRemoteContainerCell.x === payload.cx && _peerRemoteContainerCell.y === payload.cy) {
-      const copy = buildRemoteContainer(world, payload, PEER_REMOTE_CONTAINER_ID);
-      world.containerById.set(PEER_REMOTE_CONTAINER_ID, copy);
-      _peerRemoteContainerCell = { x: copy.x, y: copy.y };
-    }
-  }
-
-  // ── HOST: peer disconnected ──
-  if (msgData.type === 'peer_disconnected' && isOnlineHost()) {
-    // Remove remote actor for the disconnected peer
-    const slot = msgData.slot;
-    const idx = entities.findIndex(e => e.peerSlot === slot);
-    if (idx >= 0) {
-      entities.splice(idx, 1);
-      rebuildEntityIndex(entities, 'load');
-    }
-    _lastPeerActor.delete(slot);
-    _peerAckedGen.delete(slot);
-    _peerAckedActorGen.delete(slot);
-    _peerNextFireAt.delete(slot);
-    _peerNextToolAt.delete(slot);
-    state.msgs.push(msg(`Игрок ${slot} отключился.`, state.time, '#f88'));
-  }
-
-  // ── PEER: host disconnected ──
-  if (msgData.type === 'host_disconnected' && isOnlinePeer()) {
-    state.msgs.push(msg('Хост отключился. Сессия завершена.', state.time, '#f44'));
-    onlinePeerFloorReady = false;
-  }
-
-  // ── Server error (room not found, no welcome) ──
-  if (msgData.type === 'server_error') {
-    onlinePeerFloorReady = false;
-    const reason = msgData.reason === 'no_welcome'
-      ? 'Комната не найдена — хост не отвечает.'
-      : `Ошибка сервера: ${msgData.reason ?? 'неизвестная'}`;
-    state.msgs.push(msg(reason, state.time, '#f44'));
-  }
-
-  // ── Connection lost ──
-  if (msgData.type === 'disconnected') {
-    onlinePeerFloorReady = false;
-    state.msgs.push(msg('Соединение потеряно.', state.time, '#f44'));
-  }
-});
 
 function looksLikeNetGenName(value: string): boolean {
   const clean = value.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 32);
@@ -1793,7 +885,7 @@ function titleSetupRows(cursorOn: boolean): TitleSetupRowView[] {
     });
   }
   rows.push(
-    { field: 'trailer', label: 'РЕЖИМ ТРЕЙЛЕРА', value: 'ЭТАЖ ' + TRAILER_ZS[titleTrailerFloorIdx], hint: 'Технический демо-режим. Enter: запуск, Влево/Вправо: карта', selected: selected('trailer') },
+    { field: 'trailer', label: 'РЕЖИМ ТРЕЙЛЕРА', value: TRAILER_FLOOR_NAMES[titleTrailerFloorIdx], hint: 'Технический демо-режим. Enter: запуск, Влево/Вправо: карта', selected: selected('trailer') },
     { field: 'language', label: lang.setupLanguageLabel, value: titleLanguageDef(titleLanguageId).name, hint: lang.setupLanguageHint, selected: selected('language') },
     { field: 'name', label: lang.nameLabel, value: `${shownName}${nameCursor}`, hint: lang.setupNameHint, selected: selected('name') },
     { field: 'age', label: lang.ageLabel, value: `${shownAge}${ageCursor}`, hint: lang.setupAgeHint, selected: selected('age') },
@@ -1939,8 +1031,7 @@ function resize() {
   const cssHeight = Math.max(1, Math.round(viewport?.height ?? window.innerHeight ?? document.documentElement.clientHeight));
   const cssLeft = Math.round(viewport?.offsetLeft ?? 0);
   const cssTop = Math.round(viewport?.offsetTop ?? 0);
-  for (const el of [canvas, hudCanvas, loadingCanvas]) {
-    if (!el) continue;
+  for (const el of [canvas, hudCanvas]) {
     el.style.width = `${cssWidth}px`;
     el.style.height = `${cssHeight}px`;
     el.style.left = `${cssLeft}px`;
@@ -1954,12 +1045,6 @@ function resize() {
   if (canvas.height !== height) canvas.height = height;
   if (hudCanvas.width !== width) hudCanvas.width = width;
   if (hudCanvas.height !== height) hudCanvas.height = height;
-  if (loadingWorker) {
-    loadingWorker.postMessage({ type: 'resize', width: cssWidth, height: cssHeight });
-  } else if (loadingCanvas) {
-    if (loadingCanvas.width !== width) loadingCanvas.width = width;
-    if (loadingCanvas.height !== height) loadingCanvas.height = height;
-  }
   mobileControls?.refresh();
 }
 
@@ -1994,45 +1079,22 @@ if (typeof ResizeObserver === 'function') {
 }
 scheduleResize();
 
-/* ── Generate assets (lazy — deferred until first initGame) ───── */
-let textures: ReturnType<typeof generateTextures> = [];
-let sprites:  ReturnType<typeof generateSprites>  = [];
-let assetsReady = false;
-
-function ensureAssets(): void {
-  if (assetsReady) return;
-  textures = generateTextures();
-  sprites  = generateSprites();
-  assetsReady = true;
-}
+/* ── Generate assets ──────────────────────────────────────────── */
+const textures = generateTextures();
+const sprites  = generateSprites();
 
 /* ── Game initialization ──────────────────────────────────────── */
 let world: World;
 let entities: Entity[];
 let player: Entity;
 let state: GameState;
-
-if (typeof window !== 'undefined') {
-  Object.defineProperty(window, 'world', { get: () => world });
-  Object.defineProperty(window, 'state', { get: () => state });
-  Object.defineProperty(window, 'entities', { get: () => entities });
-  Object.defineProperty(window, 'player', { get: () => player });
-}
-let nextEntityId = { v: 1000000 };
+let nextEntityId = { v: 1 };
 let prevPlayerActorId = -1;
 let prevPlayerActorHp = 100; // track current player actor HP changes for damage flash
 let lastProjectileHitMsgTick = -999;
 let runtimeCamera = createRuntimeCamera();
-// Which key-floor cinematics have already played this run. Floors are no longer
-// retained in floorMemory, so this bounded set replaces the old "!hasFloorMemory"
-// visited proxy that gated one-shot cinematics; persisted (capped) in the save so a
-// reload or lift-revisit does not replay them.
-const playedCinematicKeys = new Set<string>();
-const MAX_PLAYED_CINEMATIC_KEYS = 32;
 let pendingLoad: (() => void) | null = null; // deferred heavy generation callback
-let pendingLoadStarted = false; // true = loading worker was started
-let pendingLoadWaitTime = 0;
-let pendingLoadAckYielded = 0;
+let pendingLoadDrawn = false; // true = loading screen was painted, next frame runs the callback
 let platformGameplayMarkedActive = false;
 let currentTip = randomTip();
 let activeSkyProvider: (DynamicSkyTexture & { update(deltaSeconds: number): boolean }) | null = null;
@@ -2052,7 +1114,7 @@ const PLAYER_BAR_AUDIO_SLEEP_COOLDOWN = 4.0;
 
 initPlatformBridge({
   onPauseChange: setPlatformPause,
-  onAudioMuteChange: setAudioSuspendedForPlatformMute,
+  onAudioMuteChange: setAudioSuspendedForPlatform,
   onLanguageDetected: (lang: string) => {
     const isRu = lang === 'ru' || lang === 'be' || lang === 'kk' || lang === 'uk' || lang === 'uz';
     const nextLang = isRu ? 'ru' : 'en';
@@ -2062,40 +1124,6 @@ initPlatformBridge({
     }
   },
 });
-
-setNetSphereChatHandler((nickname, text, chatNetGen, createdAt) => {
-  if (!isOnlineConnected()) return;
-
-  const ageSec = createdAt ? Math.max(0, (Date.now() - createdAt) / 1000) : 0;
-
-  const isPlayerMatch = chatNetGen 
-    ? hashNetGen(player?.netGen || '') === chatNetGen 
-    : player?.name === nickname;
-
-  if (isPlayerMatch && player) {
-    const duration = Math.max(0, Math.min(6, Math.max(2.5, text.length * 0.12)) - ageSec);
-    if (duration > 0) player.activeBark = { text, until: state.time + duration, color: '#cca', skipTranslate: true };
-    // Do not return early. In local testing (two tabs), both players share the same netGen.
-    // If we return here, the receiver won't attach the bubble to the sender's remote entity.
-  }
-  if (entities) {
-    for (let i = 0; i < entities.length; i++) {
-      const e = entities[i];
-      if (e.id === player?.id) continue;
-      
-      const isEntityMatch = chatNetGen 
-        ? hashNetGen(e.netGen || '') === chatNetGen 
-        : e.name === nickname;
-      
-      if ((e.peerSlot !== undefined || e.netGen) && isEntityMatch) {
-        const duration = Math.max(0, Math.min(6, Math.max(2.5, text.length * 0.12)) - ageSec);
-        if (duration > 0) e.activeBark = { text, until: state.time + duration, color: '#cca', skipTranslate: true };
-        break;
-      }
-    }
-  }
-});
-
 type PlayerBarAudioValues = Record<HudBarAudioId, number>;
 const playerBarAudio = {
   initialized: false,
@@ -2122,7 +1150,7 @@ function playerBarAudioValues(actor = player): PlayerBarAudioValues {
 function floorThemeForRunEntry(entry: FloorRunEntry): FloorThemeProfile {
   if (entry.spec) return themeForProceduralSpec(entry.spec);
   if (entry.designFloorId) return themeForDesignFloor(entry.designFloorId);
-  return themeForDesignFloor('living');
+  return themeForStoryFloor(entry.storyFloor ?? entry.baseFloor);
 }
 
 function currentVisualDetailProfile(entry: FloorRunEntry): ResolvedVisualDetailProfile {
@@ -2130,7 +1158,8 @@ function currentVisualDetailProfile(entry: FloorRunEntry): ResolvedVisualDetailP
   const seed = entry.spec?.seed ?? runSeed;
   const key = [
     entry.z,
-    entry.themeTags,
+    entry.baseFloor,
+    entry.storyFloor ?? '',
     entry.designFloorId ?? '',
     entry.spec?.key ?? '',
     seed,
@@ -2165,7 +1194,7 @@ function currentVisualSurfaceProfile(entry: FloorRunEntry): ResolvedVisualSurfac
     mode,
     theme.floorKey,
     theme.routeZ ?? '',
-    theme.themeTags,
+    theme.baseFloor,
     entry.designFloorId ?? '',
     entry.spec?.key ?? '',
     seed,
@@ -2209,7 +1238,7 @@ function makeCurrentPlayer(actor: Entity | undefined): boolean {
   return true;
 }
 
-function randomDeathContinuationNpc(random: () => number = rng): Entity | undefined {
+function randomDeathContinuationNpc(random: () => number = Math.random): Entity | undefined {
   let selected: Entity | undefined;
   let seen = 0;
   for (const candidate of entities) {
@@ -2264,7 +1293,7 @@ function continueDeathAsFloorNpc(): boolean {
 function continueDeathAsAlifePopulationNpc(): boolean {
   const excluded = new Set<number>();
   if (player.alifeId !== undefined) excluded.add(player.alifeId);
-  const snapshot = randomAliveAlifeNpcSnapshot(state, rng, excluded);
+  const snapshot = randomAliveAlifeNpcSnapshot(state, Math.random, excluded);
   if (!snapshot) {
     state.msgs.push(msg('В A-Life не осталось живого человека для продолжения пути.', state.time, '#f84'));
     return false;
@@ -2277,21 +1306,21 @@ function continueDeathAsAlifePopulationNpc(): boolean {
 
   endPsiPossession(entities, player, undefined, state.time, 'reset');
   captureCurrentAlifeFloor();
+  captureCurrentFloorMemory();
   clearPseudoliftActive(state, entities);
-  const fromFloor = state.currentZ;
+  const fromFloor = state.currentFloor;
   commitFloorRunEntry(state, targetEntry);
-  state.currentZ = targetEntry.z;
-  if (targetEntry.themeTags.includes('void')) setVoidEntryFromFloor(state, fromFloor);
+  state.currentFloor = targetEntry.baseFloor;
+  if (targetEntry.baseFloor === FloorLevel.VOID) setVoidEntryFromFloor(state, fromFloor);
   else setVoidEntryFromFloor(state, undefined);
-  const floorInstances = ensureFloorInstanceState(state, targetEntry.z);
+  const floorInstances = ensureFloorInstanceState(state, targetEntry.baseFloor);
   floorInstances.current = null;
-  floorInstances.lastStableFloor = targetEntry.z;
+  floorInstances.lastStableFloor = targetEntry.baseFloor;
 
   scheduleLoading(() => {
     resetNoiseRecords();
     resetGeneratedFloorPopulationState();
-    // @ts-ignore
-    const loaded = loadFloorForTarget(targetEntry.z, targetEntry);
+    const loaded = loadFloorForTarget(targetEntry.baseFloor, targetEntry);
     const gen = loaded.generation;
 
     world = replaceWorldFromGeneration(null, gen);
@@ -2304,9 +1333,7 @@ function continueDeathAsAlifePopulationNpc(): boolean {
     nextEntityId.v = __maxId + 1;
     materializeCurrentAlifeFloor(snapshot.floorKey);
 
-    let host = getEntityIndex().byAlifeId.get(snapshot.id);
-    if (host && (!host.alive || host.type !== EntityType.NPC)) host = undefined;
-    host ??= entities.find(e => e.type === EntityType.NPC && e.alifeId === snapshot.id && e.alive);
+    let host = entities.find(e => e.type === EntityType.NPC && e.alifeId === snapshot.id && e.alive);
     if (!host) {
       const spawn = safeSpawnNear(snapshot.x ?? gen.spawnX, snapshot.y ?? gen.spawnY, gen.spawnX, gen.spawnY);
       host = materializeAlifeArrival(state, world, entities, nextEntityId, snapshot.id, {
@@ -2320,9 +1347,7 @@ function continueDeathAsAlifePopulationNpc(): boolean {
       return;
     }
 
-    // Death-continuation: faction↔faction politics persist; only the player's
-    // personal standing resets (the reborn body is a new social identity). SB4.
-    resetPlayerFactionRelations();
+    initFactionRelations();
     initFactionControl(world);
     ensureProceduralSpriteSeeds(entities);
     applyContractFloorHooks(state, world, entities, nextEntityId, host);
@@ -2332,13 +1357,13 @@ function continueDeathAsAlifePopulationNpc(): boolean {
     floorTeleportCd = 0;
     resetPsiState();
     clearLiftArachnaActive(state);
-    ensureRoomContainers(world, state.currentZ);
+    ensureRoomContainers(world, state.currentFloor);
     ensureProductionRooms(state, world);
     prepareEditableFloor(undefined, false, !loaded.fromMemory);
     resetMapForLoadedFloor(loaded);
     updateMapExploration(world, player, state);
     restoreVoidReturnPortalForCurrentWorld();
-    applyDesignRouteGates(world, player, state);
+    applyStoryRouteGates(world, player, state);
     publishEvent(state, {
       type: 'floor_transition',
       zoneId: world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
@@ -2352,7 +1377,7 @@ function continueDeathAsAlifePopulationNpc(): boolean {
       tags: ['floor', 'floor_transition', 'death_continuation', floorRunEntryFloorKey(targetEntry)],
       data: {
         fromFloor,
-        toFloor: targetEntry.themeTags,
+        toFloor: targetEntry.baseFloor,
         floorZ: targetEntry.z,
         routeId: floorRunEntryRouteId(targetEntry),
         continuedAsAlifeId: snapshot.id,
@@ -2443,7 +1468,7 @@ const ATTACK_FEEDBACK_MIN_INTERVAL = 0.18;
 setWorldLogSpatialContextProvider(() => {
   if (!started || typeof state === 'undefined' || typeof world === 'undefined' || typeof player === 'undefined') return undefined;
   return {
-    z: state.currentZ,
+    floor: state.currentFloor,
     playerX: player.x,
     playerY: player.y,
     audibleRadiusMeters: hearingRadiusMetersForActor(player, state.npcLogRadiusMeters),
@@ -2471,7 +1496,7 @@ interface VoidReturnPortalState {
   openedTick: number;
   creatorId: number;
   playerMustLeaveCell?: boolean;
-  enteredFromFloor?: number;
+  enteredFromFloor?: FloorLevel;
   usedAt?: number;
   voidSpikeCarried?: boolean;
   voidSpikeResolved?: boolean;
@@ -2479,7 +1504,7 @@ interface VoidReturnPortalState {
 
 type VoidReturnPortalHost = GameState & {
   voidReturnPortal?: VoidReturnPortalState;
-  voidEntryFromFloor?: number;
+  voidEntryFromFloor?: FloorLevel;
 };
 
 function finiteNumber(value: unknown, fallback: number): number {
@@ -2491,7 +1516,7 @@ function normalizeVoidReturnPortalState(input: unknown): VoidReturnPortalState |
   const src = input as Partial<VoidReturnPortalState>;
   const cell = Math.floor(finiteNumber(src.cell, -1));
   if (cell < 0 || cell >= W * W) return undefined;
-  const enteredFromFloor = isValidZ(src.enteredFromFloor) ? src.enteredFromFloor : undefined;
+  const enteredFromFloor = isFloorLevel(src.enteredFromFloor) ? src.enteredFromFloor : undefined;
   return {
     active: src.active === true,
     used: src.used === true,
@@ -2529,7 +1554,7 @@ function clearVoidReturnPortalState(targetState: GameState = state): void {
 
 function setVoidEntryFromFloor(targetState: GameState, value: unknown): void {
   const host = targetState as VoidReturnPortalHost;
-  if (isValidZ(value)) host.voidEntryFromFloor = value;
+  if (isFloorLevel(value)) host.voidEntryFromFloor = value;
   else delete host.voidEntryFromFloor;
 }
 
@@ -2558,9 +1583,9 @@ function creatorKillQuestSatisfied(): boolean {
 }
 
 function isVoidReturnPortalFloor(targetState: GameState = state): boolean {
-  if (targetState.currentZ !== FLOOR_RUN_VOID_Z) return false;
+  if (targetState.currentFloor !== FloorLevel.VOID) return false;
   const entry = currentFloorRunEntry(targetState);
-  return !entry || (entry.themeTags.includes('void') && !entry.designFloorId && !entry.spec);
+  return !entry || (entry.storyFloor === FloorLevel.VOID && !entry.designFloorId && !entry.spec);
 }
 
 function removeCreatorFromResolvedVoid(): void {
@@ -2603,7 +1628,7 @@ function restoreVoidReturnPortalForCurrentWorld(): boolean {
   return true;
 }
 
-function openVoidReturnPortalFromCreator(creator: Entity, enteredFromFloor?: number): void {
+function openVoidReturnPortalFromCreator(creator: Entity, enteredFromFloor?: FloorLevel): void {
   const cell = world.idx(Math.floor(creator.x), Math.floor(creator.y));
   const entryFloor = enteredFromFloor ?? (state as VoidReturnPortalHost).voidEntryFromFloor;
   const playerCell = world.idx(Math.floor(player.x), Math.floor(player.y));
@@ -2625,7 +1650,7 @@ function openVoidReturnPortalFromCreator(creator: Entity, enteredFromFloor?: num
   state.msgs.push(msg('Перед входом можно оставить Пустотный шип Жану, если он у вас.', state.time, '#8cf'));
   publishEvent(state, {
     type: 'floor_transition',
-    z: 200,
+    floor: FloorLevel.VOID,
     zoneId,
     x: x + 0.5,
     y: y + 0.5,
@@ -2679,7 +1704,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
   portal.voidSpikeCarried = hasVoidSpike();
   portal.voidSpikeResolved = voidSpikeResolved();
 
-  const fromFloor = state.currentZ;
+  const fromFloor = state.currentFloor;
   captureCurrentAlifeFloor();
   const savedInventory = player.inventory ? [...player.inventory] : [];
   const savedNeeds = player.needs ? { ...player.needs } : freshNeeds();
@@ -2699,17 +1724,18 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
   const voidSpikeWasCarried = portal.voidSpikeCarried;
   const voidSpikeWasResolved = portal.voidSpikeResolved;
   const voidSpikeTag = voidSpikeWasResolved ? 'void_spike_left' : voidSpikeWasCarried ? 'void_spike_carried' : 'void_spike_absent';
+  captureCurrentFloorMemory();
 
-  state.currentZ = zForBaseFloor(100);
+  state.currentFloor = FloorLevel.LIVING;
   state.gameWon = false;
   state.gameOver = false;
   resetRuntimeCamera(runtimeCamera);
   clearVoidReturnPortalState(state);
   setVoidEntryFromFloor(state, undefined);
-  forceFloorRunStory(state, 100);
-  const floorInstances = ensureFloorInstanceState(state, 100);
+  forceFloorRunStory(state, FloorLevel.LIVING);
+  const floorInstances = ensureFloorInstanceState(state, FloorLevel.LIVING);
   floorInstances.current = null;
-  floorInstances.lastStableFloor = 100;
+  floorInstances.lastStableFloor = FloorLevel.LIVING;
   state.msgs.push(msg(
     voidSpikeWasResolved
       ? 'Возврат принят. Последствие осталось в Пустоте. Жилая зона принимает вас обратно.'
@@ -2722,7 +1748,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
 
   scheduleLoading(() => {
     resetGeneratedFloorPopulationState();
-    const loaded = loadFloorForTarget(["living"], null);
+    const loaded = loadFloorForTarget(FloorLevel.LIVING, null);
     const gen = loaded.generation;
     world = replaceWorldFromGeneration(null, gen);
     entities = gen.entities;
@@ -2761,8 +1787,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
     applyContractFloorHooks(state, world, entities, nextEntityId, player);
     syncPlayerRuntimeBaselines();
 
-    // Faction relations persist across floor transitions (SB4); only per-cell
-    // faction control is rebuilt for the new floor geometry.
+    initFactionRelations();
     initFactionControl(world);
     ensureProceduralSpriteSeeds(entities);
     state.samosborTimer = nextFloorRunSamosborCooldown(state);
@@ -2774,7 +1799,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
 
     publishEvent(state, {
       type: 'floor_transition',
-      z: 100,
+      floor: FloorLevel.LIVING,
       zoneId: world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
       x: player.x,
       y: player.y,
@@ -2787,7 +1812,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
       tags: ['floor', 'floor_transition', 'void', 'return_portal', 'used', 'freeplay', voidSpikeTag],
       data: {
         fromFloor,
-        toFloor: 100,
+        toFloor: FloorLevel.LIVING,
         portalCell,
         openedAt,
         openedTick,
@@ -2798,7 +1823,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
       },
     });
 
-    ensureRoomContainers(world, state.currentZ);
+    ensureRoomContainers(world, state.currentFloor);
     ensureProductionRooms(state, world);
     prepareEditableFloor();
     resetMapForLoadedFloor(loaded);
@@ -2858,11 +1883,11 @@ interface SmokeDebugSnapshot {
   npcMenuTab: GameState['npcMenuTab'];
   mapMode: number;
   mobileControlsEnabled: boolean;
-  currentZ: number;
+  currentFloor: FloorLevel;
   questCount: number;
   currentObjectiveLine: string;
   currentObjectiveSource: string;
-  currentObjectiveTargetPlotNpcId: number | undefined;
+  currentObjectiveTargetPlotNpcId: string;
   canInteractAhead: boolean;
   interactionPrompt: string;
   interactionPromptEnabled: boolean;
@@ -2910,23 +1935,8 @@ declare global {
 }
 
 function installSmokeDebugHook(): void {
-  if (typeof window === 'undefined') return;
-  Object.defineProperty(window, '__debugState', {
-    get: () => (typeof state !== 'undefined' ? state : undefined),
-    configurable: true,
-  });
-  Object.defineProperty(window, '__alife', {
-    get: () => (typeof state !== 'undefined' ? (state as any).alife : undefined),
-    configurable: true,
-  });
-  Object.defineProperty(window, '__world', {
-    get: () => (typeof world !== 'undefined' ? world : undefined),
-    configurable: true,
-  });
-  (window as any).__gigahrushState = () => (typeof state !== 'undefined' ? state : null);
-  (window as any).__gigahrushWorld = () => (typeof world !== 'undefined' ? world : null);
-  (window as any).__gigahrushEntities = () => (typeof entities !== 'undefined' ? entities : null);
   if (!smokeDebug) return;
+  if (typeof window === 'undefined') return;
   window.__gigahrushSmokeState = () => {
     if (!started || pendingLoad || typeof state === 'undefined') return null;
     return smokeSnapshot();
@@ -2998,11 +2008,11 @@ function smokeSnapshot(): SmokeDebugSnapshot {
       npcMenuTab: state.npcMenuTab,
       mapMode: state.mapMode,
       mobileControlsEnabled: mobileControls?.isEnabled() === true,
-      currentZ: state.currentZ,
+      currentFloor: state.currentFloor,
       questCount: state.quests.length,
       currentObjectiveLine: objective?.line ?? '',
       currentObjectiveSource: objective?.source ?? '',
-      currentObjectiveTargetPlotNpcId: objective?.targetNpcId,
+      currentObjectiveTargetPlotNpcId: objective?.targetPlotNpcId ?? '',
       canInteractAhead: interaction !== null,
       interactionPrompt: interaction?.prompt.trim() ?? '',
       interactionPromptEnabled: uiElementEnabled('interaction_prompt'),
@@ -3065,8 +2075,8 @@ function spawnSmokeStressPopulation(count: number): void {
   const monsterKinds = [MonsterKind.ZOMBIE, MonsterKind.TVAR, MonsterKind.SBORKA, MonsterKind.SHADOW];
   let spawned = 0;
   for (let attempt = 0; attempt < spawnTarget * 24 && spawned < spawnTarget; attempt++) {
-    const x = Math.floor(rng() * W);
-    const y = Math.floor(rng() * W);
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
     const ci = world.idx(x, y);
     if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.WATER) continue;
     if (world.dist2(player.x, player.y, x + 0.5, y + 0.5) < 8 * 8) continue;
@@ -3076,7 +2086,7 @@ function spawnSmokeStressPopulation(count: number): void {
         type: EntityType.NPC,
         x: x + 0.5,
         y: y + 0.5,
-        angle: rng() * Math.PI * 2,
+        angle: Math.random() * Math.PI * 2,
         pitch: 0,
         alive: true,
         speed: 1.05,
@@ -3091,7 +2101,7 @@ function spawnSmokeStressPopulation(count: number): void {
         occupation: Occupation.TRAVELER,
         questId: -1,
         isTraveler: true,
-        ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: rng() * 4, combatScanCd: rng() * 1.5 },
+        ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: Math.random() * 4, combatScanCd: Math.random() * 1.5 },
         inventory: [],
         rpg: randomRPG(2),
       });
@@ -3103,7 +2113,7 @@ function spawnSmokeStressPopulation(count: number): void {
         type: EntityType.MONSTER,
         x: x + 0.5,
         y: y + 0.5,
-        angle: rng() * Math.PI * 2,
+        angle: Math.random() * Math.PI * 2,
         pitch: 0,
         alive: true,
         speed: 1.1,
@@ -3113,7 +2123,7 @@ function spawnSmokeStressPopulation(count: number): void {
         maxHp: 80,
         monsterKind: kind,
         attackCd: 0,
-        ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: rng() * 4, combatScanCd: rng() * 1.5 },
+        ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: Math.random() * 4, combatScanCd: Math.random() * 1.5 },
         rpg: randomRPG(2),
       });
       monsterBudget--;
@@ -3178,43 +2188,48 @@ function prepareEditableFloor(mirror?: FloorRouteLiftMirror, normalizeRouteLifts
 function drawLoading(): void {
   setCanvasTextGlitchPressure();
   currentTip = randomTip();
-  drawLoadingScreen(ctx, hudCanvas.width, hudCanvas.height, performance.now(), isFirstBootLoading, '', 0, 0, currentTip);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, hudCanvas.width, hudCanvas.height);
+  ctx.fillStyle = '#aaa';
+  ctx.font = `${Math.round(hudCanvas.height / 20)}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText('ЗАГРУЗКА...', hudCanvas.width / 2, hudCanvas.height / 2);
+  const tipSize = Math.max(14, Math.round(hudCanvas.height / 40));
+  ctx.font = `${tipSize}px monospace`;
+  ctx.fillStyle = '#777';
+  const maxW = hudCanvas.width * 0.85;
+  const words = currentTip.split(' ');
+  const lines: string[] = [];
+  let line = words[0];
+  for (let i = 1; i < words.length; i++) {
+    const test = line + ' ' + words[i];
+    if (ctx.measureText(test).width > maxW) {
+      lines.push(line);
+      line = words[i];
+    } else {
+      line = test;
+    }
+  }
+  lines.push(line);
+  const lineH = tipSize * 1.3;
+  const startY = hudCanvas.height / 2 + Math.round(hudCanvas.height / 12);
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], hudCanvas.width / 2, startY + i * lineH);
+  }
+  ctx.textAlign = 'left';
 }
 
 function scheduleLoading(fn: () => void): void {
   pendingLoad = fn;
-  pendingLoadStarted = false;
-  loadingWorkerAck = false;
-  pendingLoadWaitTime = 0;
-  pendingLoadAckYielded = 0;
+  pendingLoadDrawn = false;
 }
 
-function loadingProgress(stage: string, pct: number): void {
-  loadingWorker?.postMessage({ type: 'progress', stage, pct });
-  // Crash breadcrumb. iOS/WebKit Jetsam can kill the tab mid-generation with
-  // ZERO console output, so we cannot see which phase OOMs. Persist the current
-  // phase synchronously; a post-crash reload leaves it set (it is only cleared
-  // on a fully successful load), so the last value = the phase that died.
-  // Diagnose after a crash from the console: localStorage.getItem('gigahrush_loadstage')
-  try {
-    if (pct >= 100) localStorage.removeItem('gigahrush_loadstage');
-    else localStorage.setItem('gigahrush_loadstage', pct + '% ' + stage);
-  } catch { /* localStorage unavailable — ignore */ }
-}
-
-function initGame(runSeedOverride?: number, initialZ: number = 0, isTutorial: boolean = false): void {
-  const _t0 = performance.now();
+function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLevel.LIVING, isTutorial: boolean = false): void {
   resetRuntimeCamera(runtimeCamera);
   clearFloorMemory();
-  playedCinematicKeys.clear();
   resetNoiseRecords();
-  musicSystem.reset();
   const initialRunSeed = normalizeFloorRunSeed(runSeedOverride);
-  const _t1 = performance.now();
-  loadingProgress('Рисуем лабиринт этажа', 5);
-  const gen = generateFloor(initialZ, initialRunSeed, isTutorial);
-  const _t2 = performance.now();
-  loadingProgress('Подготовка мира', 50);
+  const gen = generateFloor(initialFloor, initialRunSeed, isTutorial);
   injectFastElevators(gen.world);
   stampCeilingHeights(gen.world);
   world = replaceWorldFromGeneration(null, gen);
@@ -3255,21 +2270,13 @@ function initGame(runSeedOverride?: number, initialZ: number = 0, isTutorial: bo
   initFactionControl(world);
   resetGeneratedFloorPopulationState();
   clearRoomMemory();
-  resetNpcMemoryStore();
-  resetBarkState();
-  resetMetroCooldown();
-  clearActiveBet();
-  resetCombatStimulus();
-  resetMonsterBaits();
-  resetRouteCueHud();
-  resetRumorEvents();
 
   state = {
     tick: 0,
     time: 0,
     clock: { hour: 8, minute: 0, totalMinutes: 0 },
     samosborActive: false,
-    samosborTimer: isTutorial ? 999999 : 120 + rng() * 60,
+    samosborTimer: isTutorial ? 999999 : 120 + Math.random() * 60,
     samosborCount: 0,
     paused: false,
     gameOver: false,
@@ -3282,7 +2289,7 @@ function initGame(runSeedOverride?: number, initialZ: number = 0, isTutorial: bo
     quests: [],
     activeQuestId: undefined,
     nextQuestId: 1,
-    currentZ: initialZ,
+    currentFloor: initialFloor,
     fogSpreadTimer: 0,
     showMenu: false,
     menuSel: 0,
@@ -3332,7 +2339,7 @@ function initGame(runSeedOverride?: number, initialZ: number = 0, isTutorial: bo
     mapLegendSel: 0,
     mapLegendScroll: 0,
     npcLogRadiusMeters: 100,
-    msgLog: [{ text: 'Добро пожаловать в ГИГАХРУЩ. Закройте дверь.', color: '#aaa', day: 0, hour: 8, minute: 0, z: initialZ, distanceMeters: 0 }],
+    msgLog: [{ text: 'Добро пожаловать в ГИГАХРУЩ. Закройте дверь.', color: '#aaa', day: 0, hour: 8, minute: 0, floor: initialFloor, distanceMeters: 0 }],
     dmgFlash: 0,
     dmgSeed: 0,
     deathTimer: 0,
@@ -3351,8 +2358,6 @@ function initGame(runSeedOverride?: number, initialZ: number = 0, isTutorial: bo
   setVoidEntryFromFloor(state, undefined);
   netReportedSamosborCount = state.samosborCount;
   netDeathReported = false;
-  lastAttackFeedbackAt = -999;
-  lastProjectileHitMsgTick = -999;
   ensureBankingState(state);
   ensureStockMarketState(state);
   closeNetSphere();
@@ -3360,67 +2365,31 @@ function initGame(runSeedOverride?: number, initialZ: number = 0, isTutorial: bo
   resetComputerState();
   resetNetHackState();
   closeMapEditorAndRefreshWorld();
-  setFloorRunState(state, { runSeed: initialRunSeed }, initialZ);
+  setFloorRunState(state, { runSeed: initialRunSeed }, initialFloor);
   if (runSeedOverride !== undefined) {
     setAlifeState(state, { seed: runSeedOverride });
   }
   state.samosborTimer = nextFloorRunSamosborCooldown(state);
-  ensureFloorInstanceState(state, initialZ);
+  ensureFloorInstanceState(state, initialFloor);
   ensureLiftArachnaState(state);
   ensureNetTerminalGenState(state);
   ensureMapEditorPatchState(state);
-  const _t3 = performance.now();
-  loadingProgress('Заселяем этаж', 55);
   materializeCurrentAlifeFloor();
-  const _t3a = performance.now();
-  ensureRoomContainers(world, state.currentZ);
-  const _t3b = performance.now();
+  ensureRoomContainers(world, state.currentFloor);
   ensureProductionRooms(state, world);
-  const _t3c = performance.now();
-  loadingProgress('Расставляем лифты и двери', 70);
   prepareEditableFloor();
-  const _t3d = performance.now();
   resetMapExploration(world);
   updateMapExploration(world, player, state);
   ensureProceduralSpriteSeeds(entities);
   resetPsiState();
-  const _t4 = performance.now();
 
-  // Generate assets on first load (runs behind loading screen)
-  loadingProgress('Генерируем текстуры', 82);
-  ensureAssets();
-  const _t5 = performance.now();
   // Initialize / reinitialize WebGL with current world data
-  loadingProgress('Запускаем рендер', 90);
   disposeWebGL();
   initWebGL(canvas, textures, sprites, world);
-  const _t6 = performance.now();
-  loadingProgress('Финальные штрихи', 96);
   finishLoadedFloorVisuals(gen);
   rebuildEntityIndex(entities, 'load');
-  // Nav region-tree bake is deferred to the async prewarm in the loading
-  // orchestration (gameLoop phase 2), which runs step 4 across the worker pool
-  // behind the still-animating loading screen. Baking here synchronously would
-  // freeze the main thread ~10 s (and trip the mobile watchdog). See
-  // prewarmNavigationTreeAsync.
-  loadingProgress('Запекаем карты путей', 98);
-  loadingProgress('Готово', 100);
-  const _t7 = performance.now();
-
-  console.log(
-    `[initGame timing] total=${(_t7-_t0)|0}ms | ` +
-    `generateFloor=${(_t2-_t1)|0}ms | ` +
-    `stateSetup=${(_t3-_t2)|0}ms | ` +
-    `alife=${(_t3a-_t3)|0}ms | ` +
-    `roomContainers=${(_t3b-_t3a)|0}ms | ` +
-    `productionRooms=${(_t3c-_t3b)|0}ms | ` +
-    `editableFloor=${(_t3d-_t3c)|0}ms | ` +
-    `mapExploration+rest=${(_t4-_t3d)|0}ms | ` +
-    `ensureAssets=${(_t5-_t4)|0}ms | ` +
-    `initWebGL=${(_t6-_t5)|0}ms | ` +
-    `finishVisuals=${(_t7-_t6)|0}ms`
-  );
 }
+
 
 /* ── Input ────────────────────────────────────────────────────── */
 const input = createInput();
@@ -3464,29 +2433,9 @@ let netDeathReported = false;
 const MSG_LOG_SYNC_DEDUPE_SCAN = 32;
 
 function bootInitialGameOrTitle(): void {
-  // Crash breadcrumb readout. The mobile web inspector console is unreliable, so
-  // if the previous load died mid-generation (Jetsam OOM, no console output),
-  // surface the dying phase here — BEFORE the trailer load below overwrites it.
-  // Cleared automatically on any fully successful load, so it only fires after a
-  // real crash. Temporary diagnostic; remove once the WebKit crash is pinned.
-  try {
-    const crashed = localStorage.getItem('gigahrush_loadstage');
-    if (crashed) alert('Прошлая загрузка упала на фазе:\n' + crashed);
-  } catch { /* localStorage unavailable — ignore */ }
-  // Gameplay-heartbeat forensic: if the previous session left the "alive" flag set
-  // (no clean pagehide) and a ring, the tab died mid-play — surface the final-seconds
-  // trend so it's readable on the phone without devtools. See recordHeartbeat.
-  try {
-    if (localStorage.getItem('gigahrush_hb_alive') === '1') {
-      const raw = localStorage.getItem('gigahrush_hb');
-      if (raw) alert('Прошлая сессия оборвалась (краш?). Последние сек:\n' + formatHeartbeatRing(raw));
-    }
-    localStorage.removeItem('gigahrush_hb_alive');
-  } catch { /* localStorage unavailable — ignore */ }
-  setAudioSuspendedForTitle(true);
   scheduleLoading(() => {
-    const floorZ = TRAILER_ZS[titleTrailerFloorIdx];
-    initGame(undefined, floorZ);
+    const floor = TRAILER_FLOORS[titleTrailerFloorIdx] as FloorLevel;
+    initGame(undefined, floor);
     state.trailerMode = true;
     titleStartNeedsInit = true;
   });
@@ -3509,8 +2458,8 @@ function msgAlreadyLogged(m: (typeof state.msgs)[number], distanceMeters: number
     if (entry.text !== m.text || entry.color !== m.color) continue;
     if (entry.day !== m.day || entry.hour !== m.hour || entry.minute !== m.minute) continue;
     if (!sameOptionalNumber(entry.distanceMeters, distanceMeters)) continue;
-    const messageFloor = m.z ?? state.currentZ;
-    if (entry.z !== undefined && entry.z !== messageFloor) continue;
+    const messageFloor = m.floor ?? state.currentFloor;
+    if (entry.floor !== undefined && entry.floor !== messageFloor) continue;
     if (!sameOptionalNumber(entry.actorId, m.actorId)) continue;
     if (!sameOptionalNumber(entry.targetId, m.targetId)) continue;
     if (!sameOptionalNumber(entry.roomId, m.roomId)) continue;
@@ -3528,32 +2477,8 @@ function syncMsgLog(): void {
     let writeIdx = _prevMsgCount;
     for (let i = _prevMsgCount; i < msgs.length; i++) {
       const m = msgs[i];
-      if (state.tutorialMode) {
-        const pid = getCurrentPlayerId() ?? player?.id ?? 0;
-        const isForPlayerOrSystem =
-          m.actorId === undefined ||
-          m.actorId === 0 ||
-          m.actorId === pid ||
-          m.targetId === 0 ||
-          m.targetId === pid ||
-          m.text.includes('Вы') ||
-          m.text.includes('вас') ||
-          m.text.includes('вам') ||
-          m.text.includes('Вам') ||
-          m.text.includes('Вас');
-        if (!isForPlayerOrSystem) continue;
-      }
-      // Filter out non-player item pickups from stenosvodka until NPC Markov pickup barks are ready
-      if (m.text.startsWith('Подобрано:')) {
-        const pid = getCurrentPlayerId() ?? player?.id ?? 0;
-        const isFromPlayer =
-          m.actorId === undefined ||
-          m.actorId === 0 ||
-          m.actorId === pid;
-        if (!isFromPlayer) continue;
-      }
       const location = {
-        z: m.z ?? state.currentZ,
+        floor: m.floor ?? state.currentFloor,
         x: m.x,
         y: m.y,
         actorId: m.actorId,
@@ -3573,7 +2498,7 @@ function syncMsgLog(): void {
         day: m.day,
         hour: m.hour,
         minute: m.minute,
-        z: location.z,
+        floor: location.floor,
         x: location.x,
         y: location.y,
         actorId: location.actorId,
@@ -3609,7 +2534,7 @@ function roundPlayerDamage(amount: number): number {
 }
 
 function unattributedPlayerDamageSource(): { kind: PlayerDamageSourceKind; label: string } {
-  if (currentFloorRunEntry(state).themeTags.includes('void')) return { kind: 'void', label: 'Правило Пустоты' };
+  if (state.currentFloor === FloorLevel.VOID) return { kind: 'void', label: 'Правило Пустоты' };
   if (state.samosborActive) return { kind: 'samosbor', label: 'Самосбор' };
   return { kind: 'hazard', label: 'Неопознанная опасность' };
 }
@@ -4014,6 +2939,9 @@ function handlePlayerAttack(_dt: number): void {
   const weaponId = equippedCombatItemId(player);
   const ws = getWeaponStats(player, weaponId);
 
+  // Calculate reload speed mod (agility)
+  const reloadSpeedMod = player.rpg ? (1 + (player.rpg.agi * 0.05)) : 1;
+
   // Reload Logic
   if (player.reloading) {
     player.reloadTimer = Math.max(0, (player.reloadTimer ?? 0) - _dt);
@@ -4042,10 +2970,10 @@ function handlePlayerAttack(_dt: number): void {
   if (input.reload && !player.reloading && ((player.currentMag ?? 0) < (ws.magazineSize ?? 1))) {
     if (ws.magazineSize !== Infinity && countAmmo(player, weaponId) > 0) {
       player.reloading = true;
-      player.reloadTimer = calculateReloadTime(ws.reloadTime ?? 1, player.rpg?.agi ?? 0);
+      player.reloadTimer = (ws.reloadTime ?? 1) / reloadSpeedMod;
     } else if (ws.magazineSize === 1) { // melee weapons
       player.reloading = true;
-      player.reloadTimer = calculateReloadTime(ws.reloadTime ?? 1, player.rpg?.agi ?? 0);
+      player.reloadTimer = (ws.reloadTime ?? 1) / reloadSpeedMod;
     }
   }
 
@@ -4054,7 +2982,7 @@ function handlePlayerAttack(_dt: number): void {
     if (!ws.psiCost && (player.currentMag ?? 0) <= 0 && ws.magazineSize !== Infinity) {
       if (countAmmo(player, weaponId) > 0 || ws.magazineSize === 1) {
         player.reloading = true;
-        player.reloadTimer = calculateReloadTime(ws.reloadTime ?? 1, player.rpg?.agi ?? 0);
+        player.reloadTimer = (ws.reloadTime ?? 1) / reloadSpeedMod;
       } else {
         // can't reload, no ammo
         player.attackCd = 0.5; // stop spam
@@ -4085,7 +3013,7 @@ function handlePlayerAttack(_dt: number): void {
           const spread = ws.spread ?? 0;
           const pt = ws.projType ?? ProjType.NORMAL;
           for (let p = 0; p < pellets; p++) {
-            const ang = player.angle + (rng() - 0.5) * spread;
+            const ang = player.angle + (Math.random() - 0.5) * spread;
             const spd = ws.projSpeed ?? 15;
             const proj: Entity = {
               id: nextEntityId.v++,
@@ -4099,12 +3027,12 @@ function handlePlayerAttack(_dt: number): void {
               sprite: ws.projSprite ?? Spr.BULLET,
               vx: Math.cos(ang) * spd,
               vy: Math.sin(ang) * spd,
-              vz: player.pitch * spd * 0.5 + (pt === ProjType.FLAME ? (rng() - 0.5) * 0.8 : 0),
+              vz: player.pitch * spd * 0.5 + (pt === ProjType.FLAME ? (Math.random() - 0.5) * 0.8 : 0),
               projDmg: ws.dmg,
               projLife: pt === ProjType.GRENADE ? 1.5 : pt === ProjType.FLAME ? 0.7 : 3.0,
               ownerId: player.id,
               weapon: weaponId,
-              spriteScale: pt === ProjType.BFG ? 0.6 : pt === ProjType.FLAME ? (0.55 + rng() * 0.25) : pt === ProjType.GRENADE ? 0.35 : 0.25,
+              spriteScale: pt === ProjType.BFG ? 0.6 : pt === ProjType.FLAME ? (0.55 + Math.random() * 0.25) : pt === ProjType.GRENADE ? 0.35 : 0.25,
               spriteZ: 0.5,
               projType: pt,
               projGore: pt === ProjType.GRENADE || pt === ProjType.BFG ? 3
@@ -4145,7 +3073,7 @@ function handlePlayerAttack(_dt: number): void {
         ? reducePaupsinaWeb(player, state.time, state.msgs, state, player, 'cut')
         : false;
       const entityIndex = getEntityIndex();
-      entityIndex.queryRadius(player.x, player.y, range + (ws.hitRadius ?? 0.6) + 0.5, meleeHitQuery, ENTITY_MASK_ACTOR);
+      entityIndex.queryRadius(ax, ay, 1.2, meleeHitQuery, ENTITY_MASK_ACTOR);
       const meleeTarget = selectMeleeTarget(world, player, meleeHitQuery, range, weaponId);
       if (meleeTarget) {
         const e = meleeTarget;
@@ -4210,7 +3138,7 @@ function handlePlayerAttack(_dt: number): void {
       if (ws.magazineSize === 1) {
         player.currentMag = 0;
         player.reloading = true;
-        player.reloadTimer = calculateReloadTime(ws.reloadTime ?? ws.speed, player.rpg?.agi ?? 0);
+        player.reloadTimer = (ws.reloadTime ?? ws.speed) / reloadSpeedMod;
         player.attackCd = 0;
       } else if (ws.magazineSize !== Infinity) {
         player.currentMag = Math.max(0, (player.currentMag ?? 1) - 1);
@@ -4236,209 +3164,6 @@ function playerActions(_dt: number): void {
   handlePlayerAttack(_dt);
 }
 
-function peerLocalMeleeWouldHit(weaponId: string, ws: WeaponStats): boolean {
-  const range = ws.range;
-  const ax = player.x + Math.cos(player.angle) * range;
-  const ay = player.y + Math.sin(player.angle) * range;
-  const entityIndex = getEntityIndex();
-  entityIndex.queryRadius(player.x, player.y, range + (ws.hitRadius ?? 0.6) + 0.5, meleeHitQuery, ENTITY_MASK_ACTOR);
-  if (selectMeleeTarget(world, player, meleeHitQuery, range, weaponId)) return true;
-  const attackIdx = world.idx(Math.floor(ax), Math.floor(ay));
-  return world.cells[attackIdx] === Cell.DOOR && world.doors.has(attackIdx);
-}
-
-function tickPeerLocalCombatResources(dt: number): { fire: boolean; reload: boolean } {
-  const wantsAttack = input.attack || input.mouseAttack;
-  let fire = false;
-  let reload = false;
-  player.attackCd = Math.max(0, (player.attackCd ?? 0) - dt);
-
-  const weaponId = equippedCombatItemId(player);
-  const ws = getWeaponStats(player, weaponId);
-
-  if (player.reloading) {
-    player.reloadTimer = Math.max(0, (player.reloadTimer ?? 0) - dt);
-    if (player.reloadTimer <= 0) {
-      if (ws.magazineSize !== Infinity && ws.ammoType) {
-        const needed = (ws.magazineSize ?? 1) - (player.currentMag ?? 0);
-        const actual = Math.min(Math.max(0, needed), countAmmo(player, weaponId));
-        if (actual > 0) {
-          removeItem(player, ws.ammoType, actual);
-          player.currentMag = (player.currentMag ?? 0) + actual;
-          publishPlayerItemEvent(state, player, 'ammo_consumed', ws.ammoType, actual, 0);
-        }
-      } else if (ws.magazineSize === Infinity) {
-        player.currentMag = Infinity;
-      } else {
-        player.currentMag = ws.magazineSize ?? 1;
-      }
-      player.reloading = false;
-      reload = true;
-    }
-  }
-
-  if (input.reload && !player.reloading && ((player.currentMag ?? 0) < (ws.magazineSize ?? 1))) {
-    if (ws.magazineSize !== Infinity && countAmmo(player, weaponId) > 0) {
-      player.reloading = true;
-      player.reloadTimer = calculateReloadTime(ws.reloadTime ?? 1, player.rpg?.agi ?? 0);
-      reload = true;
-    } else if (ws.magazineSize === 1) {
-      player.reloading = true;
-      player.reloadTimer = calculateReloadTime(ws.reloadTime ?? 1, player.rpg?.agi ?? 0);
-      reload = true;
-    }
-  }
-
-  if (wantsAttack && !player.reloading && player.attackCd! <= 0 && !ws.psiCost && (player.currentMag ?? 0) <= 0 && ws.magazineSize !== Infinity) {
-    if (countAmmo(player, weaponId) > 0 || ws.magazineSize === 1 || !ws.ammoType) {
-      player.reloading = true;
-      player.reloadTimer = calculateReloadTime(ws.reloadTime ?? 1, player.rpg?.agi ?? 0);
-      reload = true;
-    } else {
-      player.attackCd = 0.5;
-    }
-  }
-
-  if (wantsAttack && player.attackCd! <= 0 && !player.reloading && (ws.psiCost || ws.magazineSize === Infinity || (player.currentMag ?? 0) > 0)) {
-    const atkSpeedMod = player.rpg ? agiAttackSpeedMult(player.rpg) : 1;
-    if (!weaponId) {
-      player.attackCd = ws.speed * atkSpeedMod;
-      fire = true;
-    } else if (ws.psiCost) {
-      const cost = ws.psiCost ?? 0;
-      if (player.rpg && player.rpg.psi >= cost) {
-        player.rpg.psi -= cost;
-        player.attackCd = ws.speed * atkSpeedMod;
-        fire = true;
-      } else {
-        player.attackCd = 0.5;
-      }
-    } else if (ws.isRanged) {
-      if (consumeAmmo(player, state, weaponId)) {
-        player.attackCd = ws.speed * atkSpeedMod;
-        fire = true;
-      } else {
-        player.attackCd = 0.5;
-      }
-    } else {
-      if (peerLocalMeleeWouldHit(weaponId, ws) && consumeDurability(player, state.msgs, state.time, state, weaponId)) playBreak();
-      if (ws.magazineSize === 1) {
-        player.currentMag = 0;
-        player.reloading = true;
-        player.reloadTimer = calculateReloadTime(ws.reloadTime ?? ws.speed, player.rpg?.agi ?? 0);
-        player.attackCd = 0;
-        reload = true;
-      } else if (ws.magazineSize !== Infinity) {
-        player.currentMag = Math.max(0, (player.currentMag ?? 1) - 1);
-        player.attackCd = ws.speed * atkSpeedMod;
-      } else {
-        player.attackCd = ws.speed * atkSpeedMod;
-      }
-      fire = true;
-    }
-  }
-
-  return { fire, reload };
-}
-
-function tickPeerLocalToolResources(dt: number): 'edge' | 'hold' | undefined {
-  if (!player.alive) {
-    _prevToolUse = input.use || input.mouseUse;
-    return undefined;
-  }
-  if (_toolActionCd > 0) _toolActionCd = Math.max(0, _toolActionCd - dt);
-  const toolId = player.tool ?? '';
-  const wantsToolUse = input.use || input.mouseUse;
-  const useEdge = wantsToolUse && !_prevToolUse;
-  _prevToolUse = wantsToolUse;
-  if (!toolId) return undefined;
-  if (!(player.inventory ?? []).some(item => item.defId === toolId)) { player.tool = ''; return undefined; }
-
-  const passiveLightDrain = passiveToolLightDrainPerSecond(toolId);
-  if (passiveLightDrain > 0) {
-    consumeToolDurability(player, dt * passiveLightDrain, state.msgs, state.time, state);
-    return undefined;
-  }
-  const activeLightDrain = activeToolLightDrainPerSecond(toolId);
-  if (activeLightDrain > 0) {
-    if (wantsToolUse) consumeToolDurability(player, dt * activeLightDrain, state.msgs, state.time, state);
-    return wantsToolUse ? (useEdge ? 'edge' : 'hold') : undefined;
-  }
-  const psiToolStats = WEAPON_STATS[toolId]?.psiCost ? getWeaponStats(player, toolId) : undefined;
-  if (psiToolStats) {
-    if (!wantsToolUse || _toolActionCd > 0) return undefined;
-    const cost = psiToolStats.psiCost ?? 0;
-    const atkSpeedMod = player.rpg ? agiAttackSpeedMult(player.rpg) : 1;
-    if (player.rpg && player.rpg.psi >= cost) {
-      player.rpg.psi -= cost;
-      _toolActionCd = psiToolStats.speed * atkSpeedMod;
-      return useEdge ? 'edge' : 'hold';
-    }
-    _toolActionCd = 0.5;
-    return undefined;
-  }
-  if (!wantsToolUse || _toolActionCd > 0) return undefined;
-  const lookRange = 1.4;
-  const tx = player.x + Math.cos(player.angle) * lookRange;
-  const ty = player.y + Math.sin(player.angle) * lookRange;
-  const cx = Math.floor(tx);
-  const cy = Math.floor(ty);
-  const ci = world.idx(cx, cy);
-  if (toolId === UV_SPOTLIGHT_ID) {
-    const charge = getEquippedToolDurability(player);
-    if (charge && charge.cur > 0) {
-      consumeToolDurability(player, 1, state.msgs, state.time, state);
-      _toolActionCd = 0.28;
-      return useEdge ? 'edge' : 'hold';
-    }
-    _toolActionCd = 0.35;
-    return undefined;
-  }
-  if (toolId === CHALK_ITEM_ID) {
-    consumeToolDurability(player, 0.1, state.msgs, state.time, state);
-    _toolActionCd = 0.04;
-    return useEdge ? 'edge' : 'hold';
-  }
-  if (toolId === 'vacuum') {
-    let hasFog = false;
-    for (let oy = -1; oy <= 1 && !hasFog; oy++) for (let ox = -1; ox <= 1; ox++) {
-      if (world.fog[world.idx(Math.floor(player.x) + ox, Math.floor(player.y) + oy)] > 0) { hasFog = true; break; }
-    }
-    if (hasFog) consumeToolDurability(player, 1, state.msgs, state.time, state);
-    _toolActionCd = 0.15;
-    return hasFog ? (useEdge ? 'edge' : 'hold') : undefined;
-  }
-  if (toolId === 'jackhammer') {
-    const canBreak = !world.hermoWall[ci] && !world.aptMask[ci] && world.cells[ci] === Cell.WALL;
-    if (canBreak) consumeToolDurability(player, 1, state.msgs, state.time, state);
-    _toolActionCd = canBreak ? 0.2 : 0.25;
-    return canBreak ? (useEdge ? 'edge' : 'hold') : undefined;
-  }
-  if (toolId === 'door_kit' && useEdge) {
-    const l = world.cells[world.idx(cx - 1, cy)], r = world.cells[world.idx(cx + 1, cy)];
-    const u = world.cells[world.idx(cx, cy - 1)], d = world.cells[world.idx(cx, cy + 1)];
-    const canPlace = !world.aptMask[ci] && world.cells[ci] === Cell.FLOOR
-      && ((l === Cell.WALL && r === Cell.WALL && u !== Cell.WALL && d !== Cell.WALL)
-        || (u === Cell.WALL && d === Cell.WALL && l !== Cell.WALL && r !== Cell.WALL));
-    if (canPlace) consumeToolDurability(player, 1, state.msgs, state.time, state);
-    return canPlace ? 'edge' : undefined;
-  }
-  if (toolId === 'block_kit' && useEdge) {
-    const pci = world.idx(Math.floor(player.x), Math.floor(player.y));
-    const canPlace = ci !== pci && !world.aptMask[ci] && !world.hermoWall[ci] && (world.cells[ci] === Cell.FLOOR || world.cells[ci] === Cell.DOOR);
-    if (canPlace) consumeToolDurability(player, 1, state.msgs, state.time, state);
-    return canPlace ? 'edge' : undefined;
-  }
-  const cleanupTool = cleanupToolProfile(toolId);
-  if (cleanupTool) {
-    consumeToolDurability(player, cleanupTool.wear, state.msgs, state.time, state);
-    _toolActionCd = cleanupTool.cooldown;
-    return useEdge ? 'edge' : 'hold';
-  }
-  if ((toolId === 'cleaning_kit' || toolId === 'vacuum') && useEdge) return 'edge';
-  return undefined;
-}
-
 /* ── Drop inventory as ITEM_DROP entities at death position ──── */
 function dropEntityInventory(e: Entity): void {
   if (!e.inventory || e.inventory.length === 0) return;
@@ -4447,8 +3172,8 @@ function dropEntityInventory(e: Entity): void {
     if (!canSpawnEntityType(entities, EntityType.ITEM_DROP)) break;
     entities.push({
       id: nextEntityId.v++, type: EntityType.ITEM_DROP,
-      x: e.x + (rng() - 0.5) * 0.5,
-      y: e.y + (rng() - 0.5) * 0.5,
+      x: e.x + (Math.random() - 0.5) * 0.5,
+      y: e.y + (Math.random() - 0.5) * 0.5,
       angle: 0, pitch: 0, alive: true, speed: 0, sprite: Spr.ITEM_DROP,
       inventory: [{ defId: item.defId, count: item.count, data: item.data }],
     });
@@ -4470,10 +3195,10 @@ function isActiveKillQuestTarget(e: Entity): boolean {
     if (q.done || q.type !== QuestType.KILL) continue;
     if (e.type === EntityType.MONSTER) {
       if (q.targetMonsterKind === e.monsterKind) return true;
-      if (q.targetMonsterKind === undefined && q.targetNpcId === undefined && q.targetNpcId === undefined) return true;
+      if (q.targetMonsterKind === undefined && q.targetNpcId === undefined && q.targetPlotNpcId === undefined) return true;
     } else if (e.type === EntityType.NPC) {
       if (q.targetNpcId === e.id) return true;
-      if (q.targetNpcId && e.id === q.targetNpcId) return true;
+      if (q.targetPlotNpcId && e.plotNpcId === q.targetPlotNpcId) return true;
     }
   }
   return false;
@@ -4531,15 +3256,7 @@ function handleKill(e: Entity, killerIsPlayer: boolean, pvx = 0, pvy = 0, goreLe
   }
   if (e.monsterKind !== undefined) {
     if (killerIsPlayer) notifyKill(e.monsterKind, state);
-    const dropRng = xorshift32(((state.time * 1000) + e.id) >>> 0);
-    const regularLoot = dropMonsterLoot(e, entities, nextEntityId, dropRng);
-    if (regularLoot.length > 0) {
-      for (const loot of regularLoot) {
-        const def = ITEMS[loot.itemDefId];
-        state.msgs.push(msg(`С монстра упало: ${def?.name ?? loot.itemDefId}${loot.amount > 1 ? ' ×' + loot.amount : ''}.`, state.time, '#9cf'));
-      }
-    }
-    const rareLoot = killerIsPlayer ? dropMonsterRareLoot(e, entities, nextEntityId, dropRng) : undefined;
+    const rareLoot = killerIsPlayer ? dropMonsterRareLoot(e, entities, nextEntityId) : undefined;
     if (rareLoot) {
       const def = ITEMS[rareLoot.itemId];
       state.msgs.push(msg(`На месте боя осталось: ${def?.name ?? rareLoot.itemId}${rareLoot.count > 1 ? ' ×' + rareLoot.count : ''}.`, state.time, '#9cf'));
@@ -4549,14 +3266,14 @@ function handleKill(e: Entity, killerIsPlayer: boolean, pvx = 0, pvy = 0, goreLe
       awardXP(player, xpForMonsterKill(e.monsterKind, e.rpg?.level ?? 1), state.msgs, state.time);
     }
     // Herald killed — check if the Podad lower route is now open.
-    if (e.monsterKind === MonsterKind.HERALD && killerIsPlayer && currentFloorRunEntry(state).themeTags.includes('hell')) {
+    if (e.monsterKind === MonsterKind.HERALD && killerIsPlayer && state.currentFloor === FloorLevel.HELL) {
       if (onHeraldKilled(e, world, state)) {
-        applyDesignRouteGates(world, player, state);
+        applyStoryRouteGates(world, player, state);
         updateWorldData(world);
       }
     }
     // Creator killed — spawn return portal
-    if (e.monsterKind === MonsterKind.CREATOR && killerIsPlayer && currentFloorRunEntry(state).themeTags.includes('void')) {
+    if (e.monsterKind === MonsterKind.CREATOR && killerIsPlayer && state.currentFloor === FloorLevel.VOID) {
       if (onCreatorKilled(e, world, state)) {
         checkQuests(player, world, entities, state, state.msgs);
         openVoidReturnPortalFromCreator(e);
@@ -4565,7 +3282,7 @@ function handleKill(e: Entity, killerIsPlayer: boolean, pvx = 0, pvy = 0, goreLe
     }
   } else if (e.type === EntityType.NPC && killerIsPlayer) {
     awardXP(player, xpForNpcKill(e.rpg?.level ?? 1), state.msgs, state.time);
-    if (e.id) notifyNpcKill(e.id, state);
+    if (e.plotNpcId) notifyNpcKill(e.plotNpcId, state);
   }
   const contentDeath = runContentEntityDeathHooks({ world, entities, player, state, nextEntityId, killed: e, killerIsPlayer });
   if (contentDeath.worldChanged) updateWorldData(world);
@@ -4591,8 +3308,8 @@ function applyFlameBackdraft(x: number, y: number, actor: Entity | undefined): v
   state.dmgFlash = Math.max(state.dmgFlash, 0.12);
   state.dmgSeed = 3;
   if (actor?.id !== player.id || world.dist2(player.x, player.y, x, y) > 1.6 * 1.6) return;
-  if (isDebugOnePunchManEnabled(state)) {
-    keepDebugOnePunchManAlive(player, state);
+  if (isDebugOnePunchManEnabled()) {
+    keepDebugOnePunchManAlive(player);
     return;
   }
   player.hp = Math.max(1, (player.hp ?? 1) - 1);
@@ -4609,18 +3326,16 @@ function burnCollateralNearFlame(x: number, y: number, radius: number, actor: En
     if (!drop.alive || drop.type !== EntityType.ITEM_DROP || !inv?.length) continue;
     if (world.dist2(x, y, drop.x, drop.y) > r2) continue;
     let slot = undefined;
-    let slotIndex = -1;
     for (let j = 0; j < inv.length; j++) {
       if (FLAME_COLLATERAL_ITEMS.has(inv[j].defId)) {
         slot = inv[j];
-        slotIndex = j;
         break;
       }
     }
     if (!slot) continue;
     const def = ITEMS[slot.defId];
     slot.count--;
-    if (slot.count <= 0) inv.splice(slotIndex, 1);
+    if (slot.count <= 0) inv.splice(inv.indexOf(slot), 1);
     if (inv.length === 0) drop.alive = false;
     publishEvent(state, {
       type: 'collateral_damage',
@@ -4780,21 +3495,9 @@ function updateProjectiles(dt: number): void {
     const baseDmg = p.projDmg ?? 0;
     const hitRadius = pt === ProjType.FLAME ? 0.8 : 0.6;
     entityIndex.queryPathRadius(prevX, prevY, wx, wy, hitRadius, projectileHitQuery, ENTITY_MASK_ACTOR, pt === ProjType.FLAME ? FLAME_HIT_QUERY_CAP : PROJECTILE_HIT_QUERY_CAP);
-
-    if (pt === ProjType.FLAME) {
-      for (const e of projectileHitQuery) {
-        if (!e.alive) continue;
-        if (e.type !== EntityType.MONSTER && e.type !== EntityType.NPC) continue;
-        const hitT = projectilePathHitT({ x0: prevX, y0: prevY, x1: wx, y1: wy, e, radius: hitRadius });
-        if (hitT <= blockingT + 0.000001) {
-          if (processProjectileEntityCollision(p, e, pt, hitT, prevX, wx, prevY, wy, prevSpriteZ, nextSpriteZ, baseDmg)) {
-            break;
-          }
-        }
-      }
-    } else {
-      let nearestHit: Entity | undefined;
-      let nearestHitT = Infinity;
+    let nearestHit: Entity | undefined;
+    let nearestHitT = Infinity;
+    if (pt !== ProjType.FLAME) {
       for (const e of projectileHitQuery) {
         if (!e.alive) continue;
         if (e.type !== EntityType.MONSTER && e.type !== EntityType.NPC) continue;
@@ -4804,11 +3507,18 @@ function updateProjectiles(dt: number): void {
           nearestHitT = hitT;
         }
       }
-      if (nearestHit !== undefined && nearestHitT <= blockingT + 0.000001) {
-        processProjectileEntityCollision(p, nearestHit, pt, nearestHitT, prevX, wx, prevY, wy, prevSpriteZ, nextSpriteZ, baseDmg);
+    }
+    for (const e of projectileHitQuery) {
+      if (!e.alive) continue;
+      if (e.type !== EntityType.MONSTER && e.type !== EntityType.NPC) continue;
+      if (pt !== ProjType.FLAME && e !== nearestHit) continue;
+      const hitT = pt === ProjType.FLAME ? projectilePathHitT({ x0: prevX, y0: prevY, x1: wx, y1: wy, e, radius: hitRadius }) : nearestHitT;
+      if (hitT <= blockingT + 0.000001) {
+        if (processProjectileEntityCollision(p, e, pt, hitT, prevX, wx, prevY, wy, prevSpriteZ, nextSpriteZ, baseDmg)) {
+          break;
+        }
       }
     }
-
     if (!p.alive) continue;
 
     if (wallHit && wallHit.t <= floorHitT + 0.000001) {
@@ -4901,9 +3611,9 @@ function processProjectileEntityCollision(
       projectileType: pt,
     });
     const dmg = armor.damage;
-    const debugImmortalPlayerHit = isPlayerEntity(e) && isDebugOnePunchManEnabled(state);
+    const debugImmortalPlayerHit = isPlayerEntity(e) && isDebugOnePunchManEnabled();
     if (debugImmortalPlayerHit) {
-      keepDebugOnePunchManAlive(e, state);
+      keepDebugOnePunchManAlive(e);
     } else {
       e.hp -= dmg;
       if (p.x !== undefined && p.y !== undefined) {
@@ -4991,8 +3701,8 @@ function triggerExplosion(p: Entity, pt: ProjType): void {
         aoe: true,
       });
       const finalDmg = armor.damage;
-      if (isPlayerEntity(e) && isDebugOnePunchManEnabled(state)) {
-        keepDebugOnePunchManAlive(e, state);
+      if (isPlayerEntity(e) && isDebugOnePunchManEnabled()) {
+        keepDebugOnePunchManAlive(e);
         hits++;
         continue;
       }
@@ -5030,8 +3740,8 @@ function triggerExplosion(p: Entity, pt: ProjType): void {
   // Radial debris marks around explosion center
   const debrisCount = pt === ProjType.BFG ? 12 : 8;
   for (let i = 0; i < debrisCount; i++) {
-    const ang = (i / debrisCount) * Math.PI * 2 + (rng() - 0.5) * 0.5;
-    const dist = 0.5 + rng() * (radius * 0.5);
+    const ang = (i / debrisCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+    const dist = 0.5 + Math.random() * (radius * 0.5);
     const debX = p.x + Math.cos(ang) * dist;
     const debY = p.y + Math.sin(ang) * dist;
     const dcx = Math.floor(((debX % W) + W) % W);
@@ -5042,8 +3752,8 @@ function triggerExplosion(p: Entity, pt: ProjType): void {
       const debrisR = pt === ProjType.BFG ? 10 : 15;
       const debrisG = pt === ProjType.BFG ? 30 : 10;
       const debrisB = pt === ProjType.BFG ? 10 : 5;
-      stampMark(world, dcx, dcy, dfx, dfy, 0.12 + rng() * 0.15, markType,
-        seed + i + 100, debrisR, debrisG, debrisB, 150 + Math.floor(rng() * 60));
+      stampMark(world, dcx, dcy, dfx, dfy, 0.12 + Math.random() * 0.15, markType,
+        seed + i + 100, debrisR, debrisG, debrisB, 150 + Math.floor(Math.random() * 60));
     }
   }
 
@@ -5079,8 +3789,8 @@ function checkRestart(): void {
   }
 }
 
-function movePlayerToMetroRoom(roomDefId: string): boolean {
-  const room = world.getRoomByName(roomDefId);
+function movePlayerToMetroRoom(roomName: string): boolean {
+  const room = world.rooms.find(r => r?.name === roomName);
   if (!room) return false;
 
   for (let y = room.y + 1; y < room.y + room.h - 1; y++) {
@@ -5164,7 +3874,7 @@ function currentRouteLocalSamosborPatchGeneration(patchSeed: number): FloorGener
 
 function currentLocalSamosborPatchGeneration(): FloorGeneration {
   const patchSeed = currentSamosborPatchSeed();
-  return currentRouteLocalSamosborPatchGeneration(patchSeed) ?? generateFloor(state.currentZ, patchSeed, state.tutorialMode);
+  return currentRouteLocalSamosborPatchGeneration(patchSeed) ?? generateFloor(state.currentFloor, patchSeed, state.tutorialMode);
 }
 
 function scheduleLocalSamosborPatch(fn: () => void): void {
@@ -5175,14 +3885,14 @@ function scheduleLocalSamosborPatch(fn: () => void): void {
   });
 }
 
-function floorTargetAllowsNpcPopulation(entry: ReturnType<typeof currentFloorRunEntry> | null | undefined, z: number): boolean {
-  return z !== 200 && (!entry || floorRunEntryAllowsNpcs(entry));
+function floorTargetAllowsNpcPopulation(entry: ReturnType<typeof currentFloorRunEntry> | null | undefined, floor: FloorLevel): boolean {
+  return floor !== FloorLevel.VOID && (!entry || floorRunEntryAllowsNpcs(entry));
 }
 
 function currentFloorAllowsNpcPopulation(): boolean {
   const activeInstance = getActiveFloorInstance(state);
   if (activeInstance) return floorInstanceAllowsNpcs(activeInstance.id);
-  return floorTargetAllowsNpcPopulation(currentFloorRunEntry(state), state.currentZ);
+  return floorTargetAllowsNpcPopulation(currentFloorRunEntry(state), state.currentFloor);
 }
 
 function captureCurrentAlifeFloor(): void {
@@ -5190,9 +3900,6 @@ function captureCurrentAlifeFloor(): void {
 }
 
 function materializeCurrentAlifeFloor(floorKey = currentAlifeFloorKey(state)): void {
-  if (state) {
-    state.time += irand(100, 200);
-  }
   materializeAlifeFloorPopulation(state, world, entities, nextEntityId, floorKey);
   normalizeHumanoidBaseMoveSpeeds(entities);
 }
@@ -5203,26 +3910,13 @@ function currentFloorMemoryKey(): string {
   return floorRunEntryFloorKey(currentFloorRunEntry(state));
 }
 
-function floorMemoryKeyForTarget(z: number | readonly string[], entry: FloorRunEntry | null | undefined): string {
+function floorMemoryKeyForTarget(floor: FloorLevel, entry: FloorRunEntry | null | undefined): string {
   const active = getActiveFloorInstance(state);
-  if (!entry && active?.worldKey && active.themeTags === z) return active.worldKey;
-  return entry ? floorRunEntryFloorKey(entry) : floorMemoryKeyForStoryFloor(typeof z === 'number' ? z : 0);
-}
-
-// Resolve the current live floor's (z, entry) the same way loadGame reconstructs
-// its (floor, generatedRunEntry) target, so the delta base regenerated at save
-// time is byte-identical to the one regenerated at load time.
-function currentFloorTarget(): { z: number | readonly string[]; entry: FloorRunEntry | null } {
-  const activeInstance = getActiveFloorInstance(state);
-  const runEntry = currentFloorRunEntry(state);
-  return {
-    z: activeInstance?.themeTags ?? runEntry.themeTags ?? state.currentZ,
-    entry: activeInstance ? null : runEntry,
-  };
+  if (!entry && active?.worldKey && active.baseFloor === floor) return active.worldKey;
+  return entry ? floorRunEntryFloorKey(entry) : floorMemoryKeyForStoryFloor(floor);
 }
 
 function captureCurrentFloorMemory(): void {
-  const { z: baseZ, entry: baseEntry } = currentFloorTarget();
   captureFloorMemory(
     currentFloorMemoryKey(),
     world,
@@ -5232,32 +3926,38 @@ function captureCurrentFloorMemory(): void {
     state.time,
     state.samosborCount,
     activeSkyProvider ? { skyProvider: activeSkyProvider } : undefined,
-    // Delta base: regenerate this floor's pristine geometry so the save stores only
-    // the runtime diff. Preserve live module singletons a throwaway regen would
-    // clobber (kvartiry uprising state). Lazy — invoked only at save serialization
-    // (entryForSave); the transient base World is unreferenced once the delta is
-    // computed, before the save JSON.stringify.
-    () => withPreservedGenerationRuntime(() => generateFloorForTarget(baseZ, baseEntry).world),
   );
 }
 
-function generateFloorForTarget(z: number | readonly string[], entry: FloorRunEntry | null | undefined): FloorGeneration {
-  const gen = generateFloorForTargetInner(z, entry);
+function captureFloorMemoryByKey(key: string): void {
+  captureFloorMemory(
+    key,
+    world,
+    entities,
+    player.x,
+    player.y,
+    state.time,
+    state.samosborCount,
+    activeSkyProvider ? { skyProvider: activeSkyProvider } : undefined,
+  );
+}
+
+function generateFloorForTarget(floor: FloorLevel, entry: FloorRunEntry | null | undefined): FloorGeneration {
+  const gen = generateFloorForTargetInner(floor, entry);
   injectFastElevators(gen.world);
   stampCeilingHeights(gen.world);
   return gen;
 }
 
-function generateFloorForTargetInner(z: number | readonly string[], entry: FloorRunEntry | null | undefined): FloorGeneration {
+function generateFloorForTargetInner(floor: FloorLevel, entry: FloorRunEntry | null | undefined): FloorGeneration {
   const activeInstance = getActiveFloorInstance(state);
-  if (!entry && activeInstance?.themeTags === z) {
+  if (!entry && activeInstance?.baseFloor === floor) {
     return generateFloorInstance(activeInstance.id, ensureFloorRunState(state).runSeed, activeInstance.seed);
   }
   if (entry?.spec) return generateProceduralFloor(entry.spec);
   const runSeed = ensureFloorRunState(state).runSeed;
   if (entry?.designFloorId) return generateDesignFloor(entry.designFloorId, runSeed);
-  const targetZ = typeof z === 'number' ? z : (entry?.z ?? 0);
-  return generateFloor(targetZ, runSeed, state.tutorialMode);
+  return generateFloor(floor, runSeed, state.tutorialMode);
 }
 
 function floorMemoryGenerationExtrasForKey(key: string): Record<string, unknown> | undefined {
@@ -5278,19 +3978,9 @@ function floorMemoryGenerationExtrasForKey(key: string): Record<string, unknown>
   return hasExtras ? extras : undefined;
 }
 
-function loadFloorForTarget(z: number | readonly string[], entry: FloorRunEntry | null | undefined): FloorMemoryLoad {
-  const memoryKey = floorMemoryKeyForTarget(z, entry);
-  // Lazy base for a delta-encoded snapshot: the pristine floor regenerated from
-  // (z, entry), identical to the save-time base. takeFloorMemory invokes it only
-  // when the stored entry is a delta — never on a miss or a full snapshot — so an
-  // ordinary load still generates the floor exactly once. No runtime-singleton
-  // guard here: a real floor load *wants* fresh module state.
-  let memoBase: World | null | undefined;
-  const getBase = (): World | null => {
-    if (memoBase === undefined) memoBase = generateFloorForTarget(z, entry).world;
-    return memoBase;
-  };
-  const restored = takeFloorMemory(memoryKey, getBase);
+function loadFloorForTarget(floor: FloorLevel, entry: FloorRunEntry | null | undefined): FloorMemoryLoad {
+  const memoryKey = floorMemoryKeyForTarget(floor, entry);
+  const restored = takeFloorMemory(memoryKey);
   if (restored) {
     // The fast-elevator grid is absolute and deterministic, so re-stamp it on
     // memory-restored floors too (idempotent: same fixed cells every load).
@@ -5302,7 +3992,7 @@ function loadFloorForTarget(z: number | readonly string[], entry: FloorRunEntry 
   }
   return {
     fromMemory: false,
-    generation: generateFloorForTarget(z, entry),
+    generation: generateFloorForTarget(floor, entry),
   };
 }
 
@@ -5316,19 +4006,18 @@ function switchFloor(
   overrideArrivalColor?: string,
   allowElevatorAnomaly = true,
   targetZ?: number,
-  targetEntry?: FloorRunEntry | null,
-  spawnAtDefault = false,
 ): void {
   closeCraftMenu();
   restorePlayerBeforeWorldBoundary();
-  const fromFloor = state.currentZ;
+  const fromFloor = state.currentFloor;
   captureCurrentAlifeFloor();
-  // Fast elevator / debug teleport: jump straight to an arbitrary route floor,
-  // bypassing single-step route resolution and elevator anomaly machinery.
-  const directTargetEntry = targetEntry ?? (targetZ !== undefined ? floorRunEntryForZ(state, targetZ) : null);
-  if ((targetZ !== undefined || targetEntry !== undefined) && !directTargetEntry) return;
+  const departingMemoryKey = currentFloorMemoryKey();
+  // Fast elevator: jump straight to an arbitrary route floor, bypassing the
+  // single-step route resolution and elevator anomaly machinery.
+  const directTargetEntry = targetZ !== undefined ? floorRunEntryForZ(state, targetZ) : null;
+  if (targetZ !== undefined && !directTargetEntry) return;
   const fastTravel = directTargetEntry !== null;
-  let nextFloor: number;
+  let nextFloor: FloorLevel;
   const activeFloorInstance = (allowElevatorAnomaly && !fastTravel) ? getActiveFloorInstance(state) : null;
   let runEntry = fastTravel
     ? directTargetEntry
@@ -5337,15 +4026,15 @@ function switchFloor(
       : null;
 
   if (runEntry) {
-    nextFloor = runEntry.z;
+    nextFloor = runEntry.baseFloor;
   } else {
-    // Non-lift routes move sequentially by 2 through the Z coordinates
+    // Non-lift routes such as metro keep the old authored-floor behavior.
     if (direction === LiftDirection.DOWN) {
-      if (state.currentZ <= FLOOR_RUN_VOID_Z) return;
-      nextFloor = state.currentZ - 2;
+      if (state.currentFloor >= FloorLevel.HELL) return;
+      nextFloor = (state.currentFloor + 1) as FloorLevel;
     } else {
-      if (state.currentZ >= 34) return; // 34 is Upper Bureau
-      nextFloor = state.currentZ + 2;
+      if (state.currentFloor <= FloorLevel.MINISTRY) return;
+      nextFloor = (state.currentFloor - 1) as FloorLevel;
     }
   }
   resolveLiftArachnaDeparture(world, player, state);
@@ -5353,8 +4042,8 @@ function switchFloor(
   const liftZoneId = world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))];
   const route = (allowElevatorAnomaly && !fastTravel)
     ? resolveElevatorRoute(state, fromFloor, nextFloor, direction, liftZoneId)
-    : { targetFloorZ: nextFloor, activeInstance: null, anomaly: false, leavingInstance: false, exitedInstance: null };
-  nextFloor = route.targetFloorZ;
+    : { targetFloor: nextFloor, activeInstance: null, anomaly: false, leavingInstance: false, exitedInstance: null };
+  nextFloor = route.targetFloor;
   if (runEntry && (allowElevatorAnomaly || fastTravel)) {
     commitFloorRunEntry(state, runEntry);
   }
@@ -5365,7 +4054,7 @@ function switchFloor(
     spreadElevatorInstanceRumor(world, entities, player, state, route.activeInstance);
   }
   let departureLiftAnchors: FloorLiftAnchor[] = [];
-  if (!activeFloorInstance && runEntry) {
+  if (allowElevatorAnomaly && !activeFloorInstance && runEntry) {
     ensureCurrentRouteLiftLayout();
     departureLiftAnchors = collectFloorLiftAnchors(world, direction, ROUTE_LIFTS_PER_DIRECTION);
   }
@@ -5385,14 +4074,14 @@ function switchFloor(
   const savedRpg = player.rpg ? { ...player.rpg } : freshRPG(1);
   const savedStatuses = player.statuses ? [...player.statuses] : undefined;
   const savedMoney = player.money ?? 100;
+  captureFloorMemoryByKey(departingMemoryKey);
 
-  state.currentZ = nextFloor;
-  if (nextFloor === 200) setVoidEntryFromFloor(state, fromFloor);
+  state.currentFloor = nextFloor;
+  if (nextFloor === FloorLevel.VOID) setVoidEntryFromFloor(state, fromFloor);
   else setVoidEntryFromFloor(state, undefined);
 
   // Defer heavy generation — game loop will show loading screen first
   scheduleLoading(() => {
-    loadingProgress('Рисуем лабиринт этажа', 5);
     resetNoiseRecords();
     resetGeneratedFloorPopulationState();
     const loaded = loadFloorForTarget(nextFloor, generatedRunEntry);
@@ -5406,24 +4095,18 @@ function switchFloor(
       if (id > __maxId) __maxId = id;
     }
     nextEntityId.v = __maxId + 1;
-    loadingProgress('Заселяем этаж', 55);
     materializeCurrentAlifeFloor(currentFloorMemoryKey());
 
     const routeLiftMirror = !activeFloorInstance && !route.activeInstance && generatedRunEntry && departureLiftAnchors.length > 0
       ? { direction: returnDirection, anchors: departureLiftAnchors }
       : undefined;
-    if (!route.activeInstance && !getActiveFloorInstance(state)) {
+    if (!route.activeInstance && allowElevatorAnomaly) {
       ensureFloorRouteLiftLayout(world, savedX, savedY, currentRouteLiftDirections(), {
         countPerDirection: ROUTE_LIFTS_PER_DIRECTION,
         mirror: routeLiftMirror,
       });
     }
-    const spawn = safeSpawnNear(
-      spawnAtDefault ? gen.spawnX : savedX,
-      spawnAtDefault ? gen.spawnY : savedY,
-      gen.spawnX,
-      gen.spawnY,
-    );
+    const spawn = safeSpawnNear(savedX, savedY, gen.spawnX, gen.spawnY);
     player = {
       id: nextEntityId.v++,
       type: EntityType.NPC,
@@ -5451,8 +4134,7 @@ function switchFloor(
     applyContractFloorHooks(state, world, entities, nextEntityId, player);
     syncPlayerRuntimeBaselines();
 
-    // Faction relations persist across floor transitions (SB4); only per-cell
-    // faction control is rebuilt for the new floor geometry.
+    initFactionRelations();
     initFactionControl(world);
     ensureProceduralSpriteSeeds(entities);
     state.samosborTimer = nextFloorRunSamosborCooldown(state);
@@ -5464,14 +4146,14 @@ function switchFloor(
     const arrivalText = overrideArrivalText ?? (route.activeInstance
       ? `Лифт ошибся: ${floorInstanceLabel(route.activeInstance)}`
       : route.exitedInstance
-        ? `Петля разомкнулась: ${generatedRunEntry?.label ?? 'Неизвестно'}`
+        ? `Петля разомкнулась: ${generatedRunEntry?.label ?? FLOOR_NAMES[nextFloor]}`
         : generatedRunEntry?.procedural || generatedRunEntry?.designFloorId
           ? `Лифт прибыл: ${generatedRunEntry.label}`
-          : `Лифт прибыл: Уровень ${formatFloorZ(nextFloor)}`);
+          : `Лифт прибыл: ${FLOOR_NAMES[nextFloor]}`);
     state.msgs.push(msg(
       arrivalText,
       state.time,
-      overrideArrivalColor ?? (route.activeInstance ? '#f4a' : route.exitedInstance ? '#8cf' : generatedRunEntry?.color ?? '#aaa'),
+      overrideArrivalColor ?? (route.activeInstance ? '#f4a' : route.exitedInstance ? '#8cf' : generatedRunEntry?.color ?? FLOOR_MESSAGE_COLORS[nextFloor]),
     ));
     const arrivalLead = route.activeInstance
       ? `Маршрут прерван: номерной лифт ${floorInstanceLabel(route.activeInstance)}. Возврат: следующий лифт ведет к ${intendedRunEntry ? floorRunEntryLiftLabel(intendedRunEntry) : 'плановому маршруту'}.`
@@ -5527,25 +4209,24 @@ function switchFloor(
 
     // Auto-trigger voice quest when entering Hell with step 9 (kill Mancobus) done
     const enteredStoryHell = generatedRunEntry
-      ? generatedRunEntry.themeTags.includes('hell')
-      : nextFloor === 180 && !allowElevatorAnomaly;
+      ? generatedRunEntry.storyFloor === FloorLevel.HELL
+      : nextFloor === FloorLevel.HELL && !allowElevatorAnomaly;
     if (!route.activeInstance && enteredStoryHell) {
       onHellArrival(player, state);
       tryCreateVoiceQuest(world, entities, state);
     }
     const enteredStoryVoid = generatedRunEntry
-      ? generatedRunEntry.themeTags.includes('void')
-      : nextFloor === 200 && !allowElevatorAnomaly;
+      ? generatedRunEntry.storyFloor === FloorLevel.VOID
+      : nextFloor === FloorLevel.VOID && !allowElevatorAnomaly;
     if (!route.activeInstance && enteredStoryVoid) onVoidEntry(state);
-    loadingProgress('Расставляем лифты и двери', 70);
-    ensureRoomContainers(world, state.currentZ);
+    ensureRoomContainers(world, state.currentFloor);
     ensureProductionRooms(state, world);
     prepareEditableFloor(routeLiftMirror, false, !loaded.fromMemory);
     resetMapForLoadedFloor(loaded);
     updateMapExploration(world, player, state);
     ensureProceduralSpriteSeeds(entities);
     restoreVoidReturnPortalForCurrentWorld();
-    applyDesignRouteGates(world, player, state);
+    applyStoryRouteGates(world, player, state);
     if (allowElevatorAnomaly) {
       tryStartLiftArachnaEncounter(world, player, state, {
         direction,
@@ -5557,18 +4238,14 @@ function switchFloor(
     }
 
     // Update WebGL world data after floor change
-    loadingProgress('Финальные штрихи', 90);
     finishLoadedFloorVisuals(gen);
 
-    // Auto-trigger cinematic scenes on specific key floors — once per run per floor.
-    // Floors are no longer retained in floorMemory, so a bounded played-set (persisted
-    // in the save) replaces the old "!hasFloorMemory" been-here-before proxy.
-    const cinematicKey = currentFloorMemoryKey();
-    if (!playedCinematicKeys.has(cinematicKey)) {
+    // Auto-trigger cinematic scenes on specific key floors
+    if (!hasFloorMemory(currentFloorMemoryKey())) {
       const isCinematicFloor =
-        nextFloor === 100 ||
-        nextFloor === 180 ||
-        nextFloor === 200 ||
+        nextFloor === FloorLevel.LIVING ||
+        nextFloor === FloorLevel.HELL ||
+        nextFloor === FloorLevel.VOID ||
         (generatedRunEntry?.designFloorId as string) === 'liquidatorbase' ||
         (generatedRunEntry?.designFloorId as string) === 'horrorfloor' ||
         (generatedRunEntry?.designFloorId as string) === 'cave_floor' ||
@@ -5579,7 +4256,6 @@ function switchFloor(
         ));
 
       if (isCinematicFloor && !activeFloorInstance && !route.activeInstance) {
-        if (playedCinematicKeys.size < MAX_PLAYED_CINEMATIC_KEYS) playedCinematicKeys.add(cinematicKey);
         // Preset waypoints (simple flight path from player's starting position)
         const waypoints = [
           [player.x, player.y],
@@ -5589,46 +4265,176 @@ function switchFloor(
         startCinematicCamera(runtimeCamera, player.x, player.y, waypoints);
       }
     }
-
-    // Nav region-tree bake is deferred to the async prewarm in the loading
-    // orchestration (gameLoop phase 2), which runs step 4 across the worker
-    // pool behind the loading screen instead of freezing the main thread. See
-    // initGame note and prewarmNavigationTreeAsync.
-    loadingProgress('Запекаем карты путей', 96);
-    loadingProgress('Готово', 100);
   });
+}
+
+interface DebugTeleportTarget {
+  floor: FloorLevel;
+  label: string;
+  color: string;
+  z?: number;
+  designFloorId?: DesignFloorId;
+  spec?: ProceduralFloorSpec;
 }
 
 function formatFloorZ(z: number): string {
   return z > 0 ? `+${z}` : `${z}`;
 }
 
-function debugTeleportTo(
-  targetEntry: FloorRunEntry,
-  overrideArrivalText?: string,
-  overrideArrivalColor?: string,
-): void {
+function debugTeleportTo(target: DebugTeleportTarget): void {
+  restorePlayerBeforeWorldBoundary();
+  const fromFloor = state.currentFloor;
+  captureCurrentAlifeFloor();
+  const savedInventory = player.inventory ? [...player.inventory] : [];
+  const savedNeeds = player.needs ? { ...player.needs } : freshNeeds();
+  const savedHp = player.hp ?? 100;
+  const savedMaxHp = player.maxHp ?? 100;
+  const savedWeapon = player.weapon ?? '';
+  const savedTool = player.tool ?? '';
+  const savedRpg = player.rpg ? { ...player.rpg } : freshRPG(1);
+  const savedStatuses = player.statuses ? [...player.statuses] : undefined;
+  const savedMoney = player.money ?? 100;
+  const savedAngle = player.angle;
+  captureCurrentFloorMemory();
+
   state.showDebug = false;
-  const direction = targetEntry.z < state.currentZ ? LiftDirection.DOWN : LiftDirection.UP;
-  const text = overrideArrivalText ?? `[DEBUG] Телепорт: ${targetEntry.label}`;
-  const color = overrideArrivalColor ?? targetEntry.color;
-  switchFloor(direction, text, color, false, targetEntry.z, targetEntry, true);
+  state.currentFloor = target.floor;
+  clearPseudoliftActive(state, entities);
+  if (target.floor === FloorLevel.VOID) setVoidEntryFromFloor(state, fromFloor);
+  else setVoidEntryFromFloor(state, undefined);
+  if (target.spec) {
+    const run = ensureFloorRunState(state, target.floor);
+    run.currentZ = target.spec.z;
+    run.visited[floorRunEntryFloorKey(currentFloorRunEntry(state))] = true;
+  } else if (target.designFloorId && target.z !== undefined) {
+    const run = ensureFloorRunState(state, target.floor);
+    run.currentZ = target.z;
+  } else {
+    forceFloorRunStory(state, target.floor);
+  }
+  const floorInstances = ensureFloorInstanceState(state, target.floor);
+  floorInstances.current = null;
+  floorInstances.lastStableFloor = target.floor;
+
+  scheduleLoading(() => {
+    resetGeneratedFloorPopulationState();
+    const targetEntry = target.spec || target.designFloorId
+      ? currentFloorRunEntry(state)
+      : null;
+    const loaded = loadFloorForTarget(target.floor, targetEntry);
+    const gen = loaded.generation;
+
+    world = replaceWorldFromGeneration(null, gen);
+    entities = gen.entities;
+    let __maxId = 0;
+    for (let i = 0; i < entities.length; i++) {
+      const id = entities[i].id;
+      if (id > __maxId) __maxId = id;
+    }
+    nextEntityId.v = __maxId + 1;
+    materializeCurrentAlifeFloor();
+
+    player = {
+      id: nextEntityId.v++,
+      type: EntityType.NPC,
+      x: gen.spawnX,
+      y: gen.spawnY,
+      angle: savedAngle,
+      pitch: 0,
+      alive: true,
+      speed: HUMANOID_BASE_MOVE_SPEED,
+      sprite: 0,
+      needs: savedNeeds,
+      hp: savedHp,
+      maxHp: savedMaxHp,
+      inventory: savedInventory,
+      weapon: savedWeapon,
+      tool: savedTool,
+      money: savedMoney,
+      rpg: savedRpg,
+      statuses: savedStatuses,
+      name: playerDisplayName(),
+      faction: Faction.PLAYER,
+      ...playerAlifeFields(player),
+    };
+    entities.push(player);
+    applyContractFloorHooks(state, world, entities, nextEntityId, player);
+    syncPlayerRuntimeBaselines();
+
+    initFactionRelations();
+    initFactionControl(world);
+    ensureProceduralSpriteSeeds(entities);
+    state.samosborTimer = nextFloorRunSamosborCooldown(state);
+    state.samosborActive = false;
+    floorTeleportCd = 0;
+    resetPsiState();
+    clearLiftArachnaActive(state);
+
+    state.msgs.push(msg(`[DEBUG] Телепорт: ${target.label}`, state.time, target.color));
+    const transitionTags = ['floor', 'floor_transition', 'debug', target.spec ? 'procedural' : target.designFloorId ? 'design_floor' : 'story'];
+    const tagsToAdd = proceduralAnomalyEventTags(target.spec);
+    if (tagsToAdd.length > 0) {
+      const tagSet = new Set(transitionTags);
+      for (const tag of tagsToAdd) {
+        if (!tagSet.has(tag)) {
+          tagSet.add(tag);
+          transitionTags.push(tag);
+        }
+      }
+    }
+    const anomalyData = proceduralAnomalyEventData(target.spec);
+    publishEvent(state, {
+      type: 'floor_transition',
+      zoneId: world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
+      x: player.x,
+      y: player.y,
+      actorId: player.id,
+      actorName: player.name,
+      actorFaction: player.faction,
+      severity: 3,
+      privacy: 'local',
+      tags: transitionTags,
+      data: {
+        fromFloor,
+        toFloor: target.floor,
+        debugTeleport: true,
+        floorZ: target.spec?.z ?? target.z,
+        designFloor: target.designFloorId,
+        proceduralFloor: target.spec?.key,
+        proceduralSeed: target.spec?.seed,
+        proceduralDanger: target.spec?.danger,
+        ...anomalyData,
+      },
+    });
+
+    if (!target.spec && !target.designFloorId && target.floor === FloorLevel.HELL) {
+      onHellArrival(player, state);
+      tryCreateVoiceQuest(world, entities, state);
+    }
+    if (!target.spec && !target.designFloorId && target.floor === FloorLevel.VOID) onVoidEntry(state);
+
+    ensureRoomContainers(world, state.currentFloor);
+    ensureProductionRooms(state, world);
+    prepareEditableFloor();
+    resetMapForLoadedFloor(loaded);
+    updateMapExploration(world, player, state);
+    ensureProceduralSpriteSeeds(entities);
+    restoreVoidReturnPortalForCurrentWorld();
+    applyStoryRouteGates(world, player, state);
+    finishLoadedFloorVisuals(gen);
+  });
 }
 
 function debugTeleportToRandomProceduralFloor(): void {
   const run = ensureFloorRunState(state);
-  const z = PROCEDURAL_FLOOR_ZS[Math.floor(rng() * PROCEDURAL_FLOOR_ZS.length)];
-  const spec: ProceduralFloorSpec = run.specs[proceduralFloorKey(z)] ?? makeProceduralFloorSpec(run.runSeed, z);
-  run.specs[spec.key] = spec;
-  const entry: FloorRunEntry = {
-    z,
-    themeTags: spec.themeTags,
-    spec,
-    procedural: true,
+  const z = PROCEDURAL_FLOOR_ZS[Math.floor(Math.random() * PROCEDURAL_FLOOR_ZS.length)];
+  const spec = run.specs[proceduralFloorKey(z)];
+  debugTeleportTo({
+    floor: spec.baseFloor,
     label: `Этаж ${formatFloorZ(z)}: ${spec.title}`,
     color: spec.anomalyId === 'none' ? '#8cf' : '#c8f',
-  };
-  debugTeleportTo(entry);
+    spec,
+  });
 }
 
 function debugTeleportToProceduralAnomaly(anomalyId: FloorAnomalyId): void {
@@ -5637,39 +4443,38 @@ function debugTeleportToProceduralAnomaly(anomalyId: FloorAnomalyId): void {
     state.msgs.push(msg(`[DEBUG] Нет процедурного этажа для аномалии ${anomalyId}`, state.time, '#f84'));
     return;
   }
-  const entry: FloorRunEntry = {
-    z: spec.z,
-    themeTags: spec.themeTags,
-    spec,
-    procedural: true,
+  debugTeleportTo({
+    floor: spec.baseFloor,
     label: `Этаж ${formatFloorZ(spec.z)}: ${spec.title}`,
     color: '#c8f',
-  };
-  debugTeleportTo(entry);
+    spec,
+  });
 }
 
 function handleDebugCommandAction(action: DebugCommandAction): void {
   switch (action.type) {
-    
+    case 'teleport_story_floor':
+      debugTeleportTo({
+        floor: action.floor,
+        label: FLOOR_NAMES[action.floor],
+        color: FLOOR_MESSAGE_COLORS[action.floor],
+      });
+      break;
     case 'teleport_random_procedural_floor':
       debugTeleportToRandomProceduralFloor();
       break;
     case 'teleport_procedural_anomaly':
       debugTeleportToProceduralAnomaly(action.anomalyId);
       break;
-    case 'teleport_design_floor': {
-      const designFloorId: DesignFloorId = action.id;
-      const entry = floorRunEntryForDesignFloor(state, designFloorId) ?? {
-        z: action.z,
-        themeTags: action.themeTags,
-        designFloorId,
-        procedural: false,
+    case 'teleport_design_floor':
+      debugTeleportTo({
+        floor: action.floor,
         label: `Этаж ${formatFloorZ(action.z)}: ${action.label}`,
         color: action.color,
-      };
-      debugTeleportTo(entry, `[DEBUG] Телепорт: Этаж ${formatFloorZ(action.z)}: ${action.label}`, action.color);
+        z: action.z,
+        designFloorId: action.id,
+      });
       break;
-    }
     case 'refresh_world_data':
       updateWorldData(world);
       break;
@@ -5701,9 +4506,6 @@ function openNpcMenu(npc: Entity): void {
 }
 
 function openContainerMenu(container: WorldContainer): void {
-  // Online peer never opens a host-world container locally — the host drives the
-  // menu via a `container_open` message with an inventory copy (see handler).
-  if (isOnlinePeer()) return;
   state.showContainerMenu = true;
   state.containerMenuTarget = container.id;
   state.containerCursorX = 0;
@@ -5717,35 +4519,7 @@ function openContainerMenu(container: WorldContainer): void {
   }
 }
 
-/** Online peer: mirror a container take/put to the host instead of mutating a
- *  host-world container locally. The container copy carries the host cell in its
- *  x/y, so the host resolves the real container there. Contents echo back via
- *  `container_sync`; the peer's own inventory syncs through `entity_sync`. */
-function peerContainerActivate(container: WorldContainer): void {
-  const idx = state.containerCursorY * INVENTORY_GRID_COLS + state.containerCursorX;
-  if (state.containerSide === 'container') {
-    const slot = container.inventory[idx];
-    if (!slot) { state.msgs.push(msg('Пустой слот.', state.time, '#888')); return; }
-    sendPeerAction({ container: { op: 'take', cx: container.x, cy: container.y, slot: idx } });
-    state.msgs.push(msg(`Взять: ${ITEMS[slot.defId]?.name ?? slot.defId}`, state.time, '#8f8'));
-  } else {
-    const slot = player.inventory?.[idx];
-    if (!slot) { state.msgs.push(msg('Пустой слот.', state.time, '#888')); return; }
-    sendPeerAction({ container: { op: 'put', cx: container.x, cy: container.y, slot: idx } });
-    state.msgs.push(msg(`Положить: ${ITEMS[slot.defId]?.name ?? slot.defId}`, state.time, '#8cf'));
-  }
-}
-
 function closeContainerMenu(): void {
-  // Peer: destroy the transient remote container copy and tell the host we closed
-  // (symmetric with the inventory-copy model — both sides drop the copy).
-  if (isOnlinePeer() && state.containerMenuTarget === PEER_REMOTE_CONTAINER_ID) {
-    world.containerById.delete(PEER_REMOTE_CONTAINER_ID);
-    if (_peerRemoteContainerCell) {
-      sendPeerAction({ container: { op: 'close', cx: _peerRemoteContainerCell.x, cy: _peerRemoteContainerCell.y } });
-      _peerRemoteContainerCell = null;
-    }
-  }
   state.showContainerMenu = false;
   state.containerMenuTarget = -1;
   state.containerCursorX = 0;
@@ -6103,11 +4877,11 @@ function normalizeQuestTargets(q: Quest, raw: Record<string, unknown>): void {
   if (typeof raw.targetRoom === 'number' && Number.isFinite(raw.targetRoom)) {
     q.targetRoom = clampInt(raw.targetRoom, -1, -1, 100_000);
   }
-  if (isValidZ(raw.targetFloorZ)) q.targetFloorZ = raw.targetFloorZ;
+  if (isFloorLevel(raw.targetFloor)) q.targetFloor = raw.targetFloor;
   const targetRoomType = normalizeRoomType(raw.targetRoomType);
   if (targetRoomType !== undefined) q.targetRoomType = targetRoomType;
-  const targetRoomDefId = cleanSaveText(raw.targetRoomDefId, '', 96);
-  if (targetRoomDefId) q.targetRoomDefId = targetRoomDefId;
+  const targetRoomName = cleanSaveText(raw.targetRoomName, '', 96);
+  if (targetRoomName) q.targetRoomName = targetRoomName;
   const targetZoneTag = cleanSaveText(raw.targetZoneTag, '', 48);
   if (targetZoneTag) q.targetZoneTag = targetZoneTag;
   q.targetRoute = normalizeQuestTargetRoute(raw.targetRoute);
@@ -6122,12 +4896,8 @@ function normalizeQuestTargets(q: Quest, raw: Record<string, unknown>): void {
   }
   const targetNpcName = cleanSaveText(raw.targetNpcName, '', 96);
   if (targetNpcName) q.targetNpcName = targetNpcName;
-  if (typeof raw.targetNpcId === 'number' && !Number.isNaN(raw.targetNpcId)) {
-    q.targetNpcId = clampInt(raw.targetNpcId, 0, 0, 1_000_000);
-  } else if (typeof raw.targetNpcId === 'string' && raw.targetNpcId.length > 0) {
-    const numId = getPlotNpcNumericId(raw.targetNpcId)!;
-    if (numId !== undefined) q.targetNpcId = numId;
-  }
+  const targetPlotNpcId = cleanSaveText(raw.targetPlotNpcId, '', 64);
+  if (targetPlotNpcId) q.targetPlotNpcId = targetPlotNpcId;
 }
 
 function normalizeQuestRewards(q: Quest, raw: Record<string, unknown>): void {
@@ -6152,7 +4922,7 @@ function normalizeQuestMeta(q: Quest, raw: Record<string, unknown>): void {
   const contractFaction = normalizeFaction(raw.contractFaction);
   if (contractFaction !== undefined) q.contractFaction = contractFaction;
   if (raw.contractRank !== undefined) q.contractRank = clampInt(raw.contractRank, 0, 0, 10);
-  if (isValidZ(raw.visitFloorZ)) q.visitFloorZ = raw.visitFloorZ;
+  if (isFloorLevel(raw.visitFloor)) q.visitFloor = raw.visitFloor;
 }
 
 function normalizeQuestHold(q: Quest, raw: Record<string, unknown>): void {
@@ -6174,12 +4944,8 @@ function normalizeQuestEvents(q: Quest, raw: Record<string, unknown>): void {
   q.eventSeverity = normalizeEventSeverity(raw.eventSeverity);
   const eventTargetName = cleanSaveText(raw.eventTargetName);
   if (eventTargetName) q.eventTargetName = eventTargetName;
-  if (typeof raw.failOnNpcDeathId === 'number' && !Number.isNaN(raw.failOnNpcDeathId)) {
-    q.failOnNpcDeathId = clampInt(raw.failOnNpcDeathId, 0, 0, 1_000_000);
-  } else if (typeof raw.failOnNpcDeathId === 'string' && raw.failOnNpcDeathId.length > 0) {
-    const numId = getPlotNpcNumericId(raw.failOnNpcDeathId);
-    if (numId !== undefined) q.failOnNpcDeathId = numId;
-  }
+  const failOnNpcDeathPlotId = cleanSaveText(raw.failOnNpcDeathPlotId, '', 64);
+  if (failOnNpcDeathPlotId) q.failOnNpcDeathPlotId = failOnNpcDeathPlotId;
   q.abandonsSideQuestIds = normalizeStringArray(raw.abandonsSideQuestIds, 12, 96);
 }
 
@@ -6201,9 +4967,9 @@ function normalizeQuestTimeLimit(q: Quest, raw: Record<string, unknown>, nowMinu
 function isQuestValid(q: Quest): boolean {
   if (!q.done) {
     if (q.type === QuestType.FETCH && !q.targetItem) return false;
-    if (q.type === QuestType.VISIT && q.targetRoom === undefined && q.targetRoomDefId === undefined && q.targetRoute === undefined && q.visitFloorZ === undefined) return false;
-    if (q.type === QuestType.KILL && q.targetMonsterKind === undefined && !q.targetNpcId && q.killNeeded === undefined) return false;
-    if (q.type === QuestType.TALK && q.targetNpcId === undefined && !q.targetNpcId) return false;
+    if (q.type === QuestType.VISIT && q.targetRoom === undefined && q.targetRoomName === undefined && q.targetRoute === undefined && q.visitFloor === undefined) return false;
+    if (q.type === QuestType.KILL && q.targetMonsterKind === undefined && !q.targetPlotNpcId && q.killNeeded === undefined) return false;
+    if (q.type === QuestType.TALK && q.targetNpcId === undefined && !q.targetPlotNpcId) return false;
   }
   return true;
 }
@@ -6224,13 +4990,6 @@ function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
     desc,
     done,
   };
-  
-  if (typeof raw.giverPlotNpcId === 'number' && !Number.isNaN(raw.giverPlotNpcId)) {
-    q.giverId = clampInt(raw.giverPlotNpcId, 0, 0, 1_000_000);
-  } else if (typeof raw.giverPlotNpcId === 'string' && raw.giverPlotNpcId.length > 0) {
-    const numId = getPlotNpcNumericId(raw.giverPlotNpcId)!;
-    if (numId !== undefined) q.giverId = numId;
-  }
 
   normalizeQuestTargets(q, raw);
   normalizeQuestRewards(q, raw);
@@ -6267,11 +5026,7 @@ function saveGame(): void {
       voidReturnPortal: voidReturnPortalStateForSave(state),
       voidEntryFromFloor: (state as VoidReturnPortalHost).voidEntryFromFloor,
       floorMemory: floorMemoryStateForSave(),
-      playedCinematics: [...playedCinematicKeys],
     });
-    // The active-floor snapshot above was a transient capture for this save only;
-    // drop it so nothing floor-sized is retained (or re-archived) during play.
-    clearFloorMemory();
     const raw = JSON.stringify(data);
     const compactData = createPortalCompactSavePayload(data);
     const compactRaw = JSON.stringify(compactData);
@@ -6310,7 +5065,7 @@ function loadGame(): boolean {
     const data = isRecord(parsed) ? parsed : {};
     const dataPlayer = isRecord(data.player) ? data.player : {};
     const dataState = isRecord(data.state) ? data.state : {};
-    const savedFloor = isValidZ(dataState.currentZ) ? zForBaseFloor(dataState.currentZ) : (typeof dataState.currentZ === 'number' ? dataState.currentZ : zForBaseFloor(100));
+    const savedFloor = isFloorLevel(dataState.currentFloor) ? dataState.currentFloor : FloorLevel.LIVING;
     const savedFloorRun = floorRunSaveHasRestorableRoute(dataState.floorRun)
       ? dataState.floorRun as Parameters<typeof setFloorRunState>[1]
       : undefined;
@@ -6332,16 +5087,8 @@ function loadGame(): boolean {
     setAlifeState(state, dataState.alife);
     setAlifeMobilityState(state, dataState.alifeMobility);
     restoreDemosSocialFromSave(state, dataState.demosSocial);
-    playedCinematicKeys.clear();
-    if (Array.isArray(dataState.playedCinematics)) {
-      for (const key of dataState.playedCinematics) {
-        if (typeof key === 'string' && key && playedCinematicKeys.size < MAX_PLAYED_CINEMATIC_KEYS) {
-          playedCinematicKeys.add(key.slice(0, 64));
-        }
-      }
-    }
     const loadedRunEntry = currentFloorRunEntry(state);
-    const floor = loadedFloorInstances.current?.themeTags ?? loadedRunEntry.themeTags ?? savedFloor;
+    const floor = loadedFloorInstances.current?.baseFloor ?? loadedRunEntry.baseFloor ?? savedFloor;
     const generatedRunEntry = loadedFloorInstances.current ? null : loadedRunEntry;
 
     state.showMenu = false;
@@ -6364,12 +5111,6 @@ function loadGame(): boolean {
       resetNoiseRecords();
       resetGeneratedFloorPopulationState();
       clearRoomMemory();
-      resetNpcMemoryStore();
-      resetBarkState();
-      resetMetroCooldown();
-      clearActiveBet();
-      resetCombatStimulus();
-      resetMonsterBaits();
       const loaded = loadFloorForTarget(floor, generatedRunEntry);
       const gen = loaded.generation;
 
@@ -6433,12 +5174,8 @@ function loadGame(): boolean {
       state.nextQuestId = normalizedQuests.nextQuestId;
       state.tutorialMode = dataState.tutorialMode === true;
       state.tutorialStep = typeof dataState.tutorialStep === 'number' ? dataState.tutorialStep : undefined;
-      state.tutorialExitTimer = typeof dataState.tutorialExitTimer === 'number' ? dataState.tutorialExitTimer : undefined;
-      // @ts-ignore
-      state.currentZ = floor;
-      // @ts-ignore
+      state.currentFloor = floor;
       setFloorRunState(state, savedFloorRun, floor);
-      // @ts-ignore
       setFloorInstanceState(state, loadedFloorInstances, floor);
       setLiftArachnaState(state, dataState.liftArachna as Parameters<typeof setLiftArachnaState>[1]);
       setPseudoliftState(state, dataState.pseudolift as Parameters<typeof setPseudoliftState>[1]);
@@ -6451,10 +5188,6 @@ function loadGame(): boolean {
       normalizeGameEconomy(state, dataState.economy);
       (state as GameState & { banking?: BankingState }).banking = normalizeBankingState(dataState.banking);
       normalizeGameStockMarket(state, dataState.stockMarket);
-      // Overlay saved faction standing onto the base matrix (initFactionRelations
-      // ran above); malformed/absent data leaves the base intact. SB4.
-      restoreFactionRelations(dataState.factionRelations);
-      // @ts-ignore
       setProductionState(state, dataState.production, floor);
       state.samosborActive = false;
       if (savedSamosborActive) {
@@ -6485,15 +5218,15 @@ function loadGame(): boolean {
       setVoidReturnPortalState(state, dataState.voidReturnPortal);
       setVoidEntryFromFloor(state, dataState.voidEntryFromFloor);
       if (!loaded.fromMemory) replayMapEditorForCurrentFloor();
-      if (!loaded.fromMemory && Array.isArray(dataState.containers)) restoreValidContainers(world, state.currentZ, dataState.containers);
-      ensureRoomContainers(world, state.currentZ);
+      if (!loaded.fromMemory && Array.isArray(dataState.containers)) restoreValidContainers(world, state.currentFloor, dataState.containers);
+      ensureRoomContainers(world, state.currentFloor);
       ensureProductionRooms(state, world);
       placeNetTerminalGenContentForCurrentFloor();
       resetMapForLoadedFloor(loaded);
       updateMapExploration(world, player, state);
       ensureProceduralSpriteSeeds(entities);
       restoreVoidReturnPortalForCurrentWorld();
-      applyDesignRouteGates(world, player, state);
+      applyStoryRouteGates(world, player, state);
 
       state.msgs.push(msg('Игра загружена', state.time, '#4af'));
 
@@ -6563,10 +5296,7 @@ function setCellToFloor(x: number, y: number): void {
   const oldCell = world.cells[ci];
   if (oldCell === Cell.DOOR) world.removeDoorAt(ci);
   world.cells[ci] = Cell.FLOOR;
-  if (oldCell !== Cell.FLOOR) {
-    markNavigationCellsDirty([ci]);
-    world.markCellsDirty();
-  }
+  if (oldCell !== Cell.FLOOR) world.markCellsDirty();
   if (!world.floorTex[ci]) {
     const room = world.roomAt(x + 0.5, y + 0.5);
     world.floorTex[ci] = room?.floorTex ?? Tex.F_CONCRETE;
@@ -6582,6 +5312,7 @@ function addRuntimeDoorToRoom(roomId: number, doorIdx: number): void {
 function cleanSurfaceArea(cx: number, cy: number, radiusCells: number): number {
   return cleanWorldSurfaceArea(world, cx, cy, radiusCells);
 }
+
 
 function handleUvSpotlightTool(player: Entity, wantsToolUse: boolean): void {
   if (!wantsToolUse || _toolActionCd > 0) return;
@@ -6662,7 +5393,6 @@ function handleDoorKitTool(player: Entity, useEdge: boolean, cx: number, cy: num
   const roomA = world.roomMap[world.idx(cx - 1, cy)] >= 0 ? world.roomMap[world.idx(cx - 1, cy)] : world.roomMap[world.idx(cx, cy - 1)];
   const roomB = world.roomMap[world.idx(cx + 1, cy)] >= 0 ? world.roomMap[world.idx(cx + 1, cy)] : world.roomMap[world.idx(cx, cy + 1)];
   world.cells[ci] = Cell.DOOR;
-  markNavigationCellsDirty([ci]);
   world.markCellsDirty();
   world.doors.set(ci, { idx: ci, state: DoorState.CLOSED, roomA, roomB, keyId: '', timer: 0 });
   addRuntimeDoorToRoom(roomA, ci);
@@ -6690,7 +5420,6 @@ function handleBlockKitTool(player: Entity, useEdge: boolean, ci: number): void 
   }
   if (world.cells[ci] === Cell.DOOR) world.removeDoorAt(ci);
   world.cells[ci] = Cell.WALL;
-  markNavigationCellsDirty([ci]);
   world.markCellsDirty();
   const room = world.roomAt(player.x, player.y);
   world.wallTex[ci] = room?.wallTex ?? Tex.CONCRETE;
@@ -6801,16 +5530,7 @@ function updateEquippedTool(dt: number, actor = player): void {
   _prevToolUse = wantsToolUse;
   if (!toolId) return;
 
-  let hasTool = false;
-  const inv = player.inventory;
-  if (inv) {
-    for (let i = 0, len = inv.length; i < len; i++) {
-      if (inv[i].defId === toolId) {
-        hasTool = true;
-        break;
-      }
-    }
-  }
+  const hasTool = (player.inventory ?? []).some(s => s.defId === toolId);
   if (!hasTool) { player.tool = ''; return; }
 
   if (handlePsiTool(player, toolId, wantsToolUse)) return;
@@ -7164,7 +5884,7 @@ function confirmActiveMobileSelection(): void {
   } else if (state.showCraftMenu) {
     activateCraftSelection();
   } else if (state.showNpcMenu) {
-    const npc = ensureEntityIndex(entities).byId.get(state.npcMenuTarget);
+    const npc = getEntityIndex().byId.get(state.npcMenuTarget) ?? entities.find(e => e.id === state.npcMenuTarget);
     if (state.npcMenuTab === 'main') {
       activateNpcMainSelection(npc);
     } else if (state.npcMenuTab === 'talk' || state.npcMenuTab === 'quest') {
@@ -7246,7 +5966,7 @@ function runGameMenuSelection(sel: number): void {
       loadGame();
       break;
     case 'sound':
-      openUiSettingsMenu('audio');
+      togglePlatformAudioMuted();
       break;
     case 'help':
       openHelpMenu();
@@ -7397,6 +6117,18 @@ function closeHelpMenu(): void {
 
 function useInventorySelection(): void {
   const zoneId = world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))];
+  if (state.invSel === MAX_INVENTORY_SLOTS) {
+    if (player.armorDefId) {
+      const defId = player.armorDefId;
+      if (addItem(player, defId, 1)) {
+        state.msgs.push(msg(`Снята броня: ${ITEMS[defId]?.name ?? defId}`, state.time, '#8cf'));
+        player.armorDefId = undefined;
+      } else {
+        state.msgs.push(msg('Нет места в инвентаре для брони.', state.time, '#f84'));
+      }
+    }
+    return;
+  }
   const slot = player.inventory?.[state.invSel];
   if (slot && applyStoryItemOutcomes({
     trigger: 'use',
@@ -7410,23 +6142,20 @@ function useInventorySelection(): void {
 }
 
 function dropInventorySelection(): void {
-  if (isOnlinePeer()) {
-    // Peer: remove locally + tell host to spawn the drop entity
-    const slot = player.inventory?.[state.invSel];
-    if (!slot) return;
-    const defId = slot.defId;
-    const count = slot.count;
-    const data = slot.data;
-    // Unequip if needed
-    const def = ITEMS[defId];
-    if (def) {
-      const es = itemEquipSlot(def);
-      if (es === 'weapon' && player.weapon === defId) player.weapon = '';
-      if (es === 'tool' && player.tool === defId) player.tool = '';
+  if (state.invSel === MAX_INVENTORY_SLOTS) {
+    if (player.armorDefId) {
+      // Create a temporary slot and drop it using the existing logic
+      // or implement dropArmor
+      const defId = player.armorDefId;
+      const slot = { defId, count: 1 };
+      player.inventory = player.inventory || [];
+      player.inventory.push(slot); // Temporarily put it in to drop it
+      const tempIdx = player.inventory.length - 1;
+      dropItem(player, tempIdx, entities, state.msgs, state.time, nextEntityId, state, world);
+      player.armorDefId = undefined;
+      // dropItem removes the slot from inventory.
+      // Wait, let's just make it simpler
     }
-    player.inventory!.splice(state.invSel, 1);
-    state.msgs.push(msg(`Выброшено: ${def?.name ?? defId}${count > 1 ? ' ×' + count : ''}`, state.time, '#aa6'));
-    sendPeerAction(data !== undefined ? { drop: true, defId, count, data } : { drop: true, defId, count });
     return;
   }
   dropItem(player, state.invSel, entities, state.msgs, state.time, nextEntityId, state, world);
@@ -7479,7 +6208,6 @@ function activateNpcQuest(npc: Entity | undefined): void {
 }
 
 function activateContainerSelection(container: WorldContainer): void {
-  if (isOnlinePeer()) { peerContainerActivate(container); return; }
   const idx = state.containerCursorY * INVENTORY_GRID_COLS + state.containerCursorX;
     const access = containerAccessInfo(container, player, state);
   if (state.containerSide === 'container') {
@@ -7534,10 +6262,7 @@ function activateNpcMainSelection(npc: Entity | undefined): void {
       syncPauseState();
       break;
     default:
-      activateNpcCustomMenuOption({
-        state, player, npc, entities,
-        roomDefIdResolver: (x, y) => world.roomAt(x, y)?.name
-      }, option.id);
+      activateNpcCustomMenuOption({ state, player, npc, entities }, option.id);
       break;
   }
 }
@@ -7616,7 +6341,7 @@ function menuScale(): { sx: number; sy: number } {
 
 function controlsVisibleRows(): number {
   const { sy } = menuScale();
-  return Math.max(4, Math.floor((hudCanvas.height - 68 * sy) / Math.max(1, 12 * sy)));
+  return Math.max(4, Math.floor((hudCanvas.height - 58 * sy) / Math.max(1, 12 * sy)));
 }
 
 function controlMenuItemCount(): number {
@@ -7650,7 +6375,7 @@ function keepControlSelectionVisible(): void {
 
 function uiSettingsVisibleRows(): number {
   const { sy } = menuScale();
-  return Math.max(4, Math.floor((hudCanvas.height - 68 * sy) / Math.max(1, 12 * sy)));
+  return Math.max(4, Math.floor((hudCanvas.height - 58 * sy) / Math.max(1, 12 * sy)));
 }
 
 function keepUiSettingsSelectionVisible(): void {
@@ -7750,7 +6475,7 @@ function closeUiSettingsMenu(): void {
   syncPauseState();
 }
 
-function applyUiSettingsSelection(index: number, dir = 1): void {
+function applyUiSettingsSelection(index: number): void {
   const row = uiSettingsRowAt(index, state.uiSettingsView);
   if (!row) return;
   if (row.kind === 'reset_interface') {
@@ -7763,30 +6488,6 @@ function applyUiSettingsSelection(index: number, dir = 1): void {
     state.msgs.push(msg('Графика сброшена: FOV 90°, помехи критично, HUD меньше движения, 3D высокая', state.time, '#8cf'));
     return;
   }
-  if (row.kind === 'reset_audio') {
-    resetAudioSettings();
-    syncAudioSettings();
-    state.msgs.push(msg('Аудио сброшено по умолчанию', state.time, '#8cf'));
-    return;
-  }
-  if (row.kind === 'master_audio') {
-    const enabled = toggleMasterAudioEnabled();
-    syncAudioSettings();
-    state.msgs.push(msg(`ОБЩИЙ ЗВУК: ${enabled ? 'ВКЛ' : 'ВЫКЛ'}`, state.time, enabled ? '#8cf' : '#fc8'));
-    return;
-  }
-  if (row.kind === 'music_volume') {
-    const vol = adjustMusicVolume(dir);
-    syncAudioSettings();
-    state.msgs.push(msg(`Музыка: ${Math.round(vol * 100)}%`, state.time, '#8cf'));
-    return;
-  }
-  if (row.kind === 'sfx_volume') {
-    const vol = adjustSfxVolume(dir);
-    syncAudioSettings();
-    state.msgs.push(msg(`Эффекты: ${Math.round(vol * 100)}%`, state.time, '#8cf'));
-    return;
-  }
   if (row.kind === 'preset') {
     if (applyUiPreset(row.preset.id)) {
       state.msgs.push(msg(`UI пресет: ${row.preset.label}`, state.time, '#8cf'));
@@ -7794,17 +6495,17 @@ function applyUiSettingsSelection(index: number, dir = 1): void {
     return;
   }
   if (row.kind === 'mobile_sensitivity') {
-    const sensitivity = adjustMobileLookSensitivity(dir);
+    const sensitivity = adjustMobileLookSensitivity(1);
     state.msgs.push(msg(`Мобильный обзор: ${Math.round(sensitivity * 100)}%`, state.time, '#8cf'));
     return;
   }
   if (row.kind === 'camera_fov') {
-    const fov = adjustCameraFov(dir);
+    const fov = adjustCameraFov(1);
     state.msgs.push(msg(`FOV: ${fov}°`, state.time, '#8cf'));
     return;
   }
   if (row.kind === 'screen_interference') {
-    const mode = cycleScreenInterferenceMode(dir);
+    const mode = cycleScreenInterferenceMode(1);
     const label = mode === 'off' ? 'выкл' : mode === 'full' ? 'полные' : 'слабые';
     state.msgs.push(msg(`Помехи экрана: ${label}`, state.time, mode === 'off' ? '#fc8' : '#8cf'));
     return;
@@ -7815,12 +6516,12 @@ function applyUiSettingsSelection(index: number, dir = 1): void {
     return;
   }
   if (row.kind === 'visual_geometry') {
-    const mode = cycleVisualGeometryMode(dir);
+    const mode = cycleVisualGeometryMode(1);
     state.msgs.push(msg(`3D детализация: ${visualGeometryModeLabel(mode).toLowerCase()}`, state.time, mode === 'off' ? '#fc8' : '#8cf'));
     return;
   }
   if (row.kind === 'lighting_quality') {
-    const mode = cycleLightingQualityMode(dir);
+    const mode = cycleLightingQualityMode(1);
     state.msgs.push(msg(`Качество света: ${lightingQualityModeLabel(mode).toLowerCase()}`, state.time, mode === 'off' ? '#fc8' : '#8cf'));
     return;
   }
@@ -7862,6 +6563,7 @@ function applyMapLegendSelection(index: number): void {
 function pointInRect(x: number, y: number, rx: number, ry: number, rw: number, rh: number): boolean {
   return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
 }
+
 
 function handleTapControls(y: number, h: number, sy: number): void {
   const top = 34 * sy;
@@ -8073,7 +6775,7 @@ function handleTapContainerMenu(x: number, y: number, w: number, h: number): voi
 }
 
 function handleTapNpcMenu(x: number, y: number, w: number, h: number, sx: number, sy: number): void {
-  const npc = ensureEntityIndex(entities).byId.get(state.npcMenuTarget);
+  const npc = getEntityIndex().byId.get(state.npcMenuTarget) ?? entities.find(e => e.id === state.npcMenuTarget);
   if (!npc) return;
   if (state.npcMenuTab === 'main') {
     const pw = Math.min(440 * sx, w - 24 * sx);
@@ -8260,9 +6962,7 @@ function handleTitleCanvasPointerUp(e: PointerEvent): void {
   if (started || mobileControls?.isEnabled()) return;
   if (pointerCaptureGateVisible()) return;
   if (titleMode === 'feedback') {
-    if (e.button !== 2) {
-      window.open('https://t.me/gigah_rush', '_blank');
-    }
+    window.open('https://t.me/gigah_rush', '_blank');
     titleMode = 'setup';
     showTitle();
     suppressNextTitleClick = true;
@@ -8347,39 +7047,6 @@ function handleMenuInput(): void {
     return;
   }
 
-  let simulatedUp = false;
-  let simulatedDn = false;
-  let simulatedLeft = false;
-  let simulatedRight = false;
-
-  if (input.mouse.locked) {
-    const MOUSE_NAV_THRESHOLD = 60;
-    const absX = Math.abs(input.mouse.menuDx);
-    const absY = Math.abs(input.mouse.menuDy);
-
-    if (absX > MOUSE_NAV_THRESHOLD || absY > MOUSE_NAV_THRESHOLD) {
-      if (absX > absY) {
-        if (input.mouse.menuDx > 0) simulatedRight = true;
-        else simulatedLeft = true;
-        input.mouse.menuDx = 0;
-        input.mouse.menuDy = 0;
-      } else {
-        if (input.mouse.menuDy > 0) simulatedDn = true;
-        else simulatedUp = true;
-        input.mouse.menuDy = 0;
-        input.mouse.menuDx = 0;
-      }
-    }
-  } else {
-    input.mouse.menuDx = 0;
-    input.mouse.menuDy = 0;
-  }
-
-  const invUp = input.invUp || simulatedUp;
-  const invDn = input.invDn || simulatedDn;
-  const invLeft = input.invLeft || simulatedLeft;
-  const invRight = input.invRight || simulatedRight;
-
   const pointerAcceptEdge = input.menuAccept;
   const pointerCloseEdge = input.menuClose;
   const pointerWheel = input.menuWheel;
@@ -8391,10 +7058,10 @@ function handleMenuInput(): void {
   const acceptEdge = (input.escape && !prevEsc) || pointerAcceptEdge;
   const closeEdge = (input.controlClose && !prevControlClose) || pointerCloseEdge;
   const resetEdge = input.controlReset && !prevControlReset;
-  const upEdge = invUp && !prevMenuUp;
-  const dnEdge = invDn && !prevMenuDn;
-  const leftEdge = invLeft && !prevMenuLeft;
-  const rightEdge = invRight && !prevMenuRight;
+  const upEdge = input.invUp && !prevMenuUp;
+  const dnEdge = input.invDn && !prevMenuDn;
+  const leftEdge = input.invLeft && !prevMenuLeft;
+  const rightEdge = input.invRight && !prevMenuRight;
   const dropEdge = input.drop && !prevDrop;
   const invEdge = input.inv && !prevInvMenu;
   const questEdge = input.questLog && !prevQuestMenu;
@@ -8404,8 +7071,8 @@ function handleMenuInput(): void {
   const controlsEdge = input.controls && !prevControlsMenu;
   const uiSettingsEdge = input.uiSettings && !prevUiSettingsMenu;
   const dbgEdge = input.debugScreen && !prevDebug;
-  const menuUpNav = () => menuRepeatStep('up', invUp, upEdge) || wheelUpEdge;
-  const menuDownNav = () => menuRepeatStep('down', invDn, dnEdge) || wheelDnEdge;
+  const menuUpNav = () => menuRepeatStep('up', input.invUp, upEdge) || wheelUpEdge;
+  const menuDownNav = () => menuRepeatStep('down', input.invDn, dnEdge) || wheelDnEdge;
 
   if (state.showDemos) {
     if (input.textInput) {
@@ -8429,8 +7096,8 @@ function handleMenuInput(): void {
     } else if (!state.demosSearchActive) {
       const upNav = menuUpNav();
       const dnNav = menuDownNav();
-      const leftNav = menuRepeatStep('left', invLeft, leftEdge);
-      const rightNav = menuRepeatStep('right', invRight || input.drop, rightEdge || dropEdge);
+      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+      const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
       if (leftNav) {
         shiftDemosTab(-1);
         clampDemosPanelState();
@@ -8496,14 +7163,14 @@ function handleMenuInput(): void {
     closeNetSphere();
     state.paused = true;
 
-    const leftEdge = invLeft && !prevMenuLeft;
-    const rightEdge = (invRight && !prevMenuRight) || (input.drop && !prevDrop);
+    const leftEdge = input.invLeft && !prevMenuLeft;
+    const rightEdge = (input.invRight && !prevMenuRight) || (input.drop && !prevDrop);
     const mapMode = isMapEditorMapMode();
     const wheelZoom = mapMode ? Math.max(-4, Math.min(4, -pointerWheel)) : 0;
-    const upNav = mapMode ? menuRepeatStep('up', invUp, upEdge) : menuUpNav();
-    const dnNav = mapMode ? menuRepeatStep('down', invDn, dnEdge) : menuDownNav();
-    const leftNav = menuRepeatStep('left', invLeft, leftEdge);
-    const rightNav = menuRepeatStep('right', invRight || input.drop, rightEdge);
+    const upNav = mapMode ? menuRepeatStep('up', input.invUp, upEdge) : menuUpNav();
+    const dnNav = mapMode ? menuRepeatStep('down', input.invDn, dnEdge) : menuDownNav();
+    const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+    const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge);
 
     const closeEditor = () => {
       closeMapEditorAndRefreshWorld();
@@ -8553,12 +7220,12 @@ function handleMenuInput(): void {
     closeNetSphere();
     state.paused = true;
 
-    const leftEdge = invLeft && !prevMenuLeft;
-    const rightEdge = (invRight && !prevMenuRight) || (input.drop && !prevDrop);
+    const leftEdge = input.invLeft && !prevMenuLeft;
+    const rightEdge = (input.invRight && !prevMenuRight) || (input.drop && !prevDrop);
     const upNav = menuUpNav();
     const dnNav = menuDownNav();
-    const leftNav = menuRepeatStep('left', invLeft, leftEdge);
-    const rightNav = menuRepeatStep('right', invRight || input.drop, rightEdge);
+    const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+    const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge);
     const result = handleInteractableOverlayInput({
       escEdge: closeEdge,
       interactEdge: acceptEdge,
@@ -8726,8 +7393,8 @@ function handleMenuInput(): void {
       if (dnNav) state.controlSel = Math.min(controlMenuItemCount() - 1, state.controlSel + 1);
       keepControlSelectionVisible();
       const mouseSensitivitySelected = controlMouseSensitivitySelected();
-      const leftNav = !fixedControlsCommand && mouseSensitivitySelected ? menuRepeatStep('left', invLeft, leftEdge) : false;
-      const rightNav = !fixedControlsCommand && mouseSensitivitySelected ? menuRepeatStep('right', invRight, rightEdge) : false;
+      const leftNav = !fixedControlsCommand && mouseSensitivitySelected ? menuRepeatStep('left', input.invLeft, leftEdge) : false;
+      const rightNav = !fixedControlsCommand && mouseSensitivitySelected ? menuRepeatStep('right', input.invRight, rightEdge) : false;
       if (resetEdge && state.controlView === 'keys') {
         const action = selectedControlAction();
         if (action && clearControlBinding(action.id)) {
@@ -8774,21 +7441,12 @@ function handleMenuInput(): void {
     const fixedUiCommand = acceptEdge || closeEdge;
     const upNav = !fixedUiCommand && menuUpNav();
     const dnNav = !fixedUiCommand && menuDownNav();
-    const leftNav = !fixedUiCommand && menuRepeatStep('left', invLeft, leftEdge);
-    const rightNav = !fixedUiCommand && menuRepeatStep('right', invRight || input.drop, rightEdge);
-
     if (upNav) state.uiSettingsSel = Math.max(0, state.uiSettingsSel - 1);
     if (dnNav) state.uiSettingsSel = Math.min(uiSettingsRowCount(state.uiSettingsView) - 1, state.uiSettingsSel + 1);
     keepUiSettingsSelectionVisible();
-    
     if (acceptEdge) {
-      applyUiSettingsSelection(state.uiSettingsSel, 1);
-    } else if (leftNav) {
-      applyUiSettingsSelection(state.uiSettingsSel, -1);
-    } else if (rightNav) {
-      applyUiSettingsSelection(state.uiSettingsSel, 1);
+      applyUiSettingsSelection(state.uiSettingsSel);
     }
-    
     if (closeEdge) closeUiSettingsMenu();
 
     syncMenuInputBaselines();
@@ -8800,7 +7458,7 @@ function handleMenuInput(): void {
   let gameMenuOpenedThisFrame = false;
   if (closeEdge) {
     if (state.showNpcMenu) {
-      const npc = ensureEntityIndex(entities).byId.get(state.npcMenuTarget);
+      const npc = getEntityIndex().byId.get(state.npcMenuTarget) ?? entities.find(e => e.id === state.npcMenuTarget);
       if (npc && isDurakGameOpen()) handleDurakInput({ state, player, npc, input: { escEdge: true } });
       else if (npc && isDiceGameOpen()) handleDiceInput({ state, player, npc, input: { escEdge: true } });
       else if (npc && isDominoGameOpen()) handleDominoInput({ state, player, npc, input: { escEdge: true } });
@@ -8841,16 +7499,24 @@ function handleMenuInput(): void {
   else if (state.showInventory) {
     const upNav = menuUpNav();
     const dnNav = menuDownNav();
-    const leftNav = menuRepeatStep('left', invLeft, leftEdge);
-    const rightNav = menuRepeatStep('right', invRight, rightEdge);
-    if (upNav) {
-      state.invSel = wrapMenuIndex(state.invSel - INVENTORY_GRID_COLS, MAX_INVENTORY_SLOTS);
+    const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+    const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
+        if (upNav) {
+      if (state.invSel === MAX_INVENTORY_SLOTS) {
+        state.invSel = MAX_INVENTORY_SLOTS - 1;
+      } else {
+        state.invSel = wrapMenuIndex(state.invSel - INVENTORY_GRID_COLS, MAX_INVENTORY_SLOTS);
+      }
     }
     if (dnNav) {
-      state.invSel = wrapMenuIndex(state.invSel + INVENTORY_GRID_COLS, MAX_INVENTORY_SLOTS);
+      if (state.invSel >= MAX_INVENTORY_SLOTS - INVENTORY_GRID_COLS && state.invSel < MAX_INVENTORY_SLOTS) {
+        state.invSel = MAX_INVENTORY_SLOTS;
+      } else if (state.invSel !== MAX_INVENTORY_SLOTS) {
+        state.invSel = wrapMenuIndex(state.invSel + INVENTORY_GRID_COLS, MAX_INVENTORY_SLOTS);
+      }
     }
-    if (leftNav) state.invSel = wrapMenuIndex(state.invSel - 1, MAX_INVENTORY_SLOTS);
-    if (rightNav) state.invSel = wrapMenuIndex(state.invSel + 1, MAX_INVENTORY_SLOTS);
+    if (leftNav && state.invSel !== MAX_INVENTORY_SLOTS) state.invSel = wrapMenuIndex(state.invSel - 1, MAX_INVENTORY_SLOTS);
+    if (rightNav && state.invSel !== MAX_INVENTORY_SLOTS) state.invSel = wrapMenuIndex(state.invSel + 1, MAX_INVENTORY_SLOTS);
     if (acceptEdge) useInventorySelection();
     if (dropEdge) dropInventorySelection();
     // Attribute spending (1=STR, 2=AGI, 3=INT)
@@ -8914,8 +7580,8 @@ function handleMenuInput(): void {
     } else {
       const upNav = menuUpNav();
       const dnNav = menuDownNav();
-      const leftNav = menuRepeatStep('left', invLeft, leftEdge);
-      const rightNav = menuRepeatStep('right', invRight || input.drop, rightEdge || dropEdge);
+      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+      const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
       if (upNav) state.containerCursorY = Math.max(0, state.containerCursorY - 1);
       if (dnNav) state.containerCursorY = Math.min(INVENTORY_GRID_ROWS - 1, state.containerCursorY + 1);
       if (leftNav) {
@@ -8935,9 +7601,6 @@ function handleMenuInput(): void {
         }
       }
       if (acceptEdge) {
-        if (isOnlinePeer()) {
-          peerContainerActivate(container);
-        } else {
         const idx = state.containerCursorY * INVENTORY_GRID_COLS + state.containerCursorX;
         const access = containerAccessInfo(container, player, state);
         if (state.containerSide === 'container') {
@@ -8960,13 +7623,12 @@ function handleMenuInput(): void {
             state.msgs.push(msg(slot ? 'Контейнер полон.' : 'Пустой слот.', state.time, '#888'));
           }
         }
-        }
       }
     }
   }
   // ── NPC menu navigation ──────────────────────────────────
   else if (state.showNpcMenu) {
-    const npc = ensureEntityIndex(entities).byId.get(state.npcMenuTarget);
+    const npc = getEntityIndex().byId.get(state.npcMenuTarget) ?? entities.find(e => e.id === state.npcMenuTarget);
     if (state.npcMenuTab === 'main') {
       const upNav = menuUpNav();
       const dnNav = menuDownNav();
@@ -8984,8 +7646,8 @@ function handleMenuInput(): void {
       }
       const upNav = menuUpNav();
       const dnNav = menuDownNav();
-      const leftNav = menuRepeatStep('left', invLeft, leftEdge);
-      const rightNav = menuRepeatStep('right', invRight || input.drop, rightEdge || dropEdge);
+      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+      const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
       if (upNav || leftNav) state.questPage = Math.max(0, state.questPage - 1);
       if (dnNav || rightNav) state.questPage = Math.min(Math.max(0, totalQ - 1), state.questPage + 1);
       if (acceptEdge || closeEdge) state.npcMenuTab = 'main';
@@ -8993,8 +7655,8 @@ function handleMenuInput(): void {
       if (npc) {
         const upNav = menuUpNav();
         const dnNav = menuDownNav();
-        const leftNav = menuRepeatStep('left', invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', invRight || input.drop, rightEdge || dropEdge);
+        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+        const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
         const panels = ['player', 'player_offer', 'npc_offer', 'npc'] as const;
         if (state.tradeSide === 'deal') {
           if (upNav) {
@@ -9051,8 +7713,8 @@ function handleMenuInput(): void {
       }
     } else if (state.npcMenuTab === NPC_MENU_INTERFACE_TAB) {
       if (npc && isDurakGameOpen()) {
-        const leftNav = menuRepeatStep('left', invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', invRight, rightEdge);
+        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
         const result = handleDurakInput({
           state,
           player,
@@ -9061,8 +7723,8 @@ function handleMenuInput(): void {
         });
         if (result.closeInterface) closeNpcInteractionInterface(state);
       } else if (npc && isDiceGameOpen()) {
-        const leftNav = menuRepeatStep('left', invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', invRight, rightEdge);
+        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
         const result = handleDiceInput({
           state,
           player,
@@ -9071,8 +7733,8 @@ function handleMenuInput(): void {
         });
         if (result.closeInterface) closeNpcInteractionInterface(state);
       } else if (npc && isDominoGameOpen()) {
-        const leftNav = menuRepeatStep('left', invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', invRight, rightEdge);
+        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
         const result = handleDominoInput({
           state,
           player,
@@ -9081,8 +7743,8 @@ function handleMenuInput(): void {
         });
         if (result.closeInterface) closeNpcInteractionInterface(state);
       } else if (npc && isCheckersGameOpen()) {
-        const leftNav = menuRepeatStep('left', invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', invRight, rightEdge);
+        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
         const upNav = menuUpNav();
         const downNav = menuDownNav();
         const result = handleCheckersInput({
@@ -9103,8 +7765,8 @@ function handleMenuInput(): void {
     else {
       const upNav = menuUpNav();
       const dnNav = menuDownNav();
-      const leftNav = menuRepeatStep('left', invLeft, leftEdge);
-      const rightNav = menuRepeatStep('right', invRight, rightEdge);
+      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+      const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
       if (upNav) state.debugSel = Math.max(0, state.debugSel - 1);
       if (dnNav) state.debugSel = Math.min(DEBUG_COMMAND_COUNT - 1, state.debugSel + 1);
       if (leftNav) moveDebugInfoPage(-1);
@@ -9208,61 +7870,6 @@ function updateFpsMeter(now: number, frameMs: number): number {
   return displayedFps;
 }
 
-// ── Crash-forensic heartbeat (temporary diagnostic) ──────────────────────────
-// The mobile WebKit crash is silent (no console, no error). Once per ~1s of real
-// gameplay we append one compact sample to a bounded ring in localStorage, which
-// survives the process death — so the ring's tail shows what trended in the final
-// seconds and lets us tell the two failure modes apart:
-//   • worst frame ms climbing to 150-300+  → CPU watchdog (iOS kills a page whose
-//     frames run too long) → fix is temporal AI LOD.
-//   • worst ms stays fine but the ring ends abruptly → memory Jetsam (RAM ceiling).
-// `flow` also confirms on-device that the flow-field working set stays ≤3.
-// A clean exit (pagehide/beforeunload) clears the "alive" flag so normal play
-// never masquerades as a crash on the next boot. Remove once the crash is pinned.
-const HB_KEY = 'gigahrush_hb';
-const HB_ALIVE_KEY = 'gigahrush_hb_alive';
-const HB_RING_MAX = 24;
-type HbSample = { t: number; fps: number; worst: number; ent: number; flow: number; surf: number };
-const _hbRing: HbSample[] = [];
-let _hbLastFlush = 0;
-let _hbWorstMs = 0;
-let _hbAliveMarked = false;
-
-function recordHeartbeat(now: number, fps: number): void {
-  try {
-    if (!_hbAliveMarked) { localStorage.setItem(HB_ALIVE_KEY, '1'); _hbAliveMarked = true; }
-    _hbRing.push({
-      t: Math.round(now / 1000),
-      fps,
-      worst: Math.round(_hbWorstMs),
-      ent: entities.length,
-      flow: behaviorFlowFieldCount(),
-      surf: world.surfaceMap.size,
-    });
-    if (_hbRing.length > HB_RING_MAX) _hbRing.shift();
-    localStorage.setItem(HB_KEY, JSON.stringify(_hbRing));
-  } catch { /* storage disabled/full — diagnostics are best-effort */ }
-}
-
-/** Render the persisted heartbeat ring's tail as a compact phone-readable block. */
-function formatHeartbeatRing(raw: string): string {
-  try {
-    const ring = JSON.parse(raw) as HbSample[];
-    if (!Array.isArray(ring) || ring.length === 0) return '(пусто)';
-    const tail = ring.slice(-8);
-    const t0 = tail[0].t;
-    const rows = tail.map(s =>
-      `+${String(s.t - t0).padStart(2)}s ${String(s.worst).padStart(4)}ms ${String(s.fps).padStart(2)}fps ent${s.ent} flow${s.flow} surf${s.surf}`);
-    return rows.join('\n') + '\n\nworst 150-300+ → CPU watchdog; worst ок но обрыв → память';
-  } catch { return raw.slice(0, 300); }
-}
-
-if (typeof window !== 'undefined') {
-  const clearHbAlive = (): void => { try { localStorage.removeItem(HB_ALIVE_KEY); } catch { /* ignore */ } };
-  window.addEventListener('pagehide', clearHbAlive);
-  window.addEventListener('beforeunload', clearHbAlive);
-}
-
 function hudPerfDebugSnapshot(fps: number) {
   const ai = getAiStats();
   const entityStats = getEntityIndex().getDebugStats();
@@ -9346,29 +7953,10 @@ function gameLoop(now: number): void {
   // Phase 1: pendingLoad exists but not drawn yet → draw loading screen, yield to browser
   // Phase 2: pendingLoad exists and was drawn → execute heavy generation
   if (pendingLoad) {
-    if (!pendingLoadStarted) {
-      if (loadingCanvas) loadingCanvas.style.display = 'block';
-      drawLoading(); // Always draw once synchronously to prevent initial white/black flash
-      if (loadingWorker) {
-        loadingWorker.postMessage({ type: 'start', isFirstLoad: isFirstBootLoading });
-        loadingWorkerAck = false;
-      } else {
-        loadingWorkerAck = true;
-      }
-      pendingLoadStarted = true;
-      pendingLoadWaitTime = performance.now();
-      pendingLoadAckYielded = 0;
-      requestAnimationFrame(gameLoop);
-      return;
-    }
-    if (!loadingWorkerAck && performance.now() - pendingLoadWaitTime < 10000) {
-      // wait up to 10 seconds for worker to initialize and ack
-      requestAnimationFrame(gameLoop);
-      return;
-    }
-    if (loadingWorkerAck && pendingLoadAckYielded < 2) {
-      // Yield multiple frames so the browser compositor can present the worker's first frame!
-      pendingLoadAckYielded++;
+    if (!pendingLoadDrawn) {
+      // Phase 1: paint "ЗАГРУЗКА..." and yield so the browser can composite it
+      drawLoading();
+      pendingLoadDrawn = true;
       requestAnimationFrame(gameLoop);
       return;
     }
@@ -9385,46 +7973,11 @@ function gameLoop(now: number): void {
     // Phase 2: loading screen is visible, now do the heavy work
     const fn = pendingLoad;
     pendingLoad = null;
-    pendingLoadStarted = false;
-
-    // Warm the nav tree behind the still-animating loading screen, then tear the
-    // screen down. The bake's heavy step 4 runs across the worker pool (async),
-    // so the loading screen MUST stay up until it resolves — do the teardown in
-    // the continuation, never before. Guarded inside prewarm: no-op if the cache
-    // is already valid or frozen (samosbor). Universal across every
-    // scheduleLoading path (new game, floor change, teleport, restart, samosbor).
-    const finishDeferredLoad = (): void => {
-      rebuildEntityIndex(entities, 'load');
-      const done = (): void => {
-        if (loadingWorker) loadingWorker.postMessage({ type: 'stop' });
-        if (loadingCanvas) loadingCanvas.style.display = 'none';
-        isFirstBootLoading = false;
-        lastTime = performance.now(); // reset dt so we don't get a huge spike
-        requestAnimationFrame(gameLoop);
-      };
-      if (typeof world !== 'undefined') {
-        prewarmNavigationTreeAsync(world, _navSolver).then(() => {
-          // Bake the common behavior flow fields while the (worker-rendered)
-          // loading screen is still up, so the first NPC route on this floor
-          // doesn't hitch. Desktop-only; no-op on mobile and mid-samosbor.
-          prewarmBehaviorFlowFields(world);
-          done();
-        }, done);
-      } else {
-        done();
-      }
-    };
-
-    if (isGamePushPortalTarget()) {
-      showPlatformFullscreenAd().then(() => {
-        fn();
-        finishDeferredLoad();
-      });
-      return;
-    }
-
+    pendingLoadDrawn = false;
     fn();
-    finishDeferredLoad();
+    rebuildEntityIndex(entities, 'load');
+    lastTime = performance.now(); // reset dt so we don't get a huge spike
+    requestAnimationFrame(gameLoop);
     return;
   }
 
@@ -9457,106 +8010,10 @@ function gameLoop(now: number): void {
 
   const rawDt = (now - lastTime) / 1000;
   lastTime = now;
-  const frameDt = Math.max(0, Math.min(rawDt, 0.05)); // cap delta
+  const frameDt = Math.min(rawDt, 0.05); // cap delta
   uiTime += frameDt;
   let dt = frameDt;
   tickNetSphere(state, player);
-
-  const snap = getNetSphereSnapshot();
-  if (snap.netGen && player) {
-    player.netGen = snap.netGen;
-    if (snap.profile?.nickname) {
-      player.name = snap.profile.nickname;
-    }
-  }
-
-  // ── Online: peer sends throttled input + immediate edge actions ──
-  if (isOnlineConnected()) {
-    if (isOnlinePeer()) {
-      const peerMenuOpen = state.showContainerMenu || state.showInventory || state.showNpcMenu
-        || state.showCraftMenu || state.showMenu;
-      // Continuous state + coarse action intent are throttled together: peer owns
-      // local inventory/resource simulation; host only applies visible world effects.
-      const peerInputSent = maybeSendPeerInput({
-        x: player.x, y: player.y,
-        angle: player.angle, pitch: player.pitch ?? 0,
-        actor: peerActorSnapshot(),
-        action: {
-          fire: _peerPendingFireAction || undefined,
-          reload: _peerPendingReloadAction || undefined,
-          toolUse: _peerPendingToolUse,
-        },
-      });
-      if (peerInputSent) {
-        _peerPendingFireAction = false;
-        _peerPendingReloadAction = false;
-        _peerPendingToolUse = undefined;
-      }
-      // Interact stays reliable/immediate because it opens host-owned doors,
-      // pickups and containers; gameplay resource ticks do not use this path.
-      if (input.interact) {
-        if (!peerMenuOpen) sendPeerAction({ interact: true });
-        input.interact = false;
-      }
-    }
-    if (isOnlineHost() && shouldSendHostSync()) {
-      // Find all peer actors to build AOI centers
-      const peerActors = entities.filter(e => e.peerSlot !== undefined && e.peerSlot > 0 && e.alive);
-      if (peerActors.length > 0) {
-        const AOI_R2 = 32 * 32; // 32 cell radius squared
-        const MAX_SYNC = 64;
-        // Collect candidates with distance score
-        const candidates: { e: Entity; minD2: number }[] = [];
-        for (const e of entities) {
-          if (!e.alive) continue;
-          // Always include peer actors and host player
-          if (e.peerSlot !== undefined) {
-            candidates.push({ e, minD2: -1 });
-            continue;
-          }
-          // Find nearest peer distance
-          let nearest = Infinity;
-          for (const pa of peerActors) {
-            const d2 = world.dist2(e.x, e.y, pa.x, pa.y);
-            if (d2 < nearest) nearest = d2;
-          }
-          // Also check host distance
-          const hostD2 = world.dist2(e.x, e.y, player.x, player.y);
-          if (hostD2 < nearest) nearest = hostD2;
-          if (nearest < AOI_R2) candidates.push({ e, minD2: nearest });
-        }
-        // Always add host player
-        candidates.push({ e: player, minD2: -1 });
-        // Sort: peers/host first (minD2 = -1), then by distance
-        candidates.sort((a, b) => a.minD2 - b.minD2);
-        // Cap and compact
-        const syncEntities: ReturnType<typeof compactEntity>[] = [];
-        for (let i = 0; i < candidates.length && syncEntities.length < MAX_SYNC; i++) {
-          const ce = candidates[i].e;
-          const ackGen = ce.peerSlot !== undefined ? _peerAckedGen.get(ce.peerSlot) : undefined;
-          const ackActorGen = ce.peerSlot !== undefined ? _peerAckedActorGen.get(ce.peerSlot) : undefined;
-          syncEntities.push(compactEntity(ce, ackGen, ackActorGen));
-        }
-        sendOnlineMessage({ type: 'entity_sync', entities: syncEntities });
-        // Send door state sync — only doors near any peer or host
-        const DOOR_R2 = 32 * 32;
-        const doorSync: { idx: number; state: number }[] = [];
-        for (const [idx, door] of world.doors) {
-          const dx = idx % W, dy = Math.floor(idx / W);
-          let near = false;
-          for (const pa of peerActors) {
-            if (world.dist2(dx + 0.5, dy + 0.5, pa.x, pa.y) < DOOR_R2) { near = true; break; }
-          }
-          if (!near && world.dist2(dx + 0.5, dy + 0.5, player.x, player.y) < DOOR_R2) near = true;
-          if (near) doorSync.push({ idx, state: door.state });
-        }
-        if (doorSync.length > 0) {
-          sendOnlineMessage({ type: 'door_sync', doors: doorSync });
-        }
-      }
-    }
-  }
-  const peerMode = isOnlinePeer() && onlinePeerFloorReady;
 
   // ── Sleep: hold Z to sleep (time acceleration ×10) ───────
   const SLEEP_TIME_MULT = 10;
@@ -9590,23 +8047,7 @@ function gameLoop(now: number): void {
     updateRuntimeCamera(runtimeCamera, world, dt);
   }
 
-  // ── Peer-mode local update: camera, movement and local body resources ──────
-  if (peerMode && !state.paused && !state.gameOver) {
-    state.time += dt;
-    state.tick++;
-    updateInventoryConditions(player, state);
-    applyKnockbackPhysics(dt);
-    movePlayer(dt);
-    rebuildEntityIndexForSimulation(entities, entityIndexFrame).beginTelemetryFrame();
-    const peerCombat = tickPeerLocalCombatResources(dt);
-    const peerToolUse = tickPeerLocalToolResources(dt);
-    _peerPendingFireAction ||= peerCombat.fire;
-    _peerPendingReloadAction ||= peerCombat.reload;
-    _peerPendingToolUse = _peerPendingToolUse ?? peerToolUse;
-    notePeerActorState(peerActorSnapshot());
-  }
-
-  if (!state.paused && !state.gameOver && !peerMode) {
+  if (!state.paused && !state.gameOver) {
     const simStart = performance.now();
     lastNeedsUpdateMs = 0;
     lastContentHookMs = 0;
@@ -9641,7 +8082,7 @@ function gameLoop(now: number): void {
     rebuildEntityIndexForSimulation(entities, entityIndexFrame).beginTelemetryFrame();
     playerActions(dt);
     syncPlayerActorSwitchBaseline();
-    // Skip the rest of this frame when switchFloor is triggered and pendingLoad is set
+    // If switchFloor was triggered, pendingLoad is set — skip the rest of this frame
     if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
     updateLiftArachnaEncounter(world, entities, player, state, dt, nextEntityId);
     updatePseudolifts(world, entities, player, state);
@@ -9692,7 +8133,7 @@ function gameLoop(now: number): void {
     updateRouteCues(world, listener, state);
     updateMapExploration(world, listener, state);
     const aiStart = performance.now();
-    updateAI(world, entities, dt, state.time, state.msgs, listener.id, state.clock, state.samosborActive, nextEntityId, state.currentZ, state);
+    updateAI(world, entities, dt, state.time, state.msgs, listener.id, state.clock, state.samosborActive, nextEntityId, state.currentFloor, state);
     lastAiUpdateMs = performance.now() - aiStart;
     updateRailTrains(world, entities, player, state, dt);
     contentStart = performance.now();
@@ -9705,7 +8146,7 @@ function gameLoop(now: number): void {
     updateBlockCrushDamage(world, entities, state, dt);
     updateProceduralAnomalies(world, player, state, dt);
     const samosborStart = performance.now();
-    const samosborRebuild = isOnlineConnected() ? false : updateSamosbor(world, entities, state, dt, nextEntityId, currentLocalSamosborPatchGeneration, scheduleLocalSamosborPatch);
+    const samosborRebuild = updateSamosbor(world, entities, state, dt, nextEntityId, currentLocalSamosborPatchGeneration, scheduleLocalSamosborPatch);
     lastSamosborUpdateMs = performance.now() - samosborStart;
     if (samosborRebuild) {
       closeCraftMenu();
@@ -9716,11 +8157,11 @@ function gameLoop(now: number): void {
         clearWrongDoorRemaps(world, state, 'world_rebuild');
         clearPseudoliftActive(state, entities);
         const replacement = currentRouteRebuildGeneration();
-        rebuildWorld(world, entities, nextEntityId, state.samosborCount, state.currentZ, replacement, state.tutorialMode);
+        rebuildWorld(world, entities, nextEntityId, state.samosborCount, state.currentFloor, replacement, state.tutorialMode);
         initFactionControl(world);
         materializeCurrentAlifeFloor();
         ensureProceduralSpriteSeeds(entities);
-        ensureRoomContainers(world, state.currentZ);
+        ensureRoomContainers(world, state.currentFloor);
         ensureProductionRooms(state, world);
         prepareEditableFloor();
         resetMapExploration(world);
@@ -9728,7 +8169,7 @@ function gameLoop(now: number): void {
         ensureProceduralSpriteSeeds(entities);
         clearLiftArachnaActive(state);
         restoreVoidReturnPortalForCurrentWorld();
-        applyDesignRouteGates(world, player, state);
+        applyStoryRouteGates(world, player, state);
         finishLoadedFloorVisuals(replacement);
       });
       requestAnimationFrame(gameLoop);
@@ -9768,9 +8209,6 @@ function gameLoop(now: number): void {
       updateBloodTrails(world, entities, bloodDt);
     }
     updateParticles(world, dt);
-    if (getCritterRenderEnabled()) {
-      updateCritters(world, dt, player.x, player.y);
-    }
     updateDangerField(world, dt);
     lastBloodUpdateMs = performance.now() - bloodStart;
 
@@ -9800,7 +8238,7 @@ function gameLoop(now: number): void {
     }
 
     // Return portal in Void — only the Creator-opened portal can end the run.
-    if (currentFloorRunEntry(state).themeTags.includes('void') && state.tick % 10 === 0) {
+    if (state.currentFloor === FloorLevel.VOID && state.tick % 10 === 0) {
       const pci = world.idx(Math.floor(player.x), Math.floor(player.y));
       if (tryUseVoidReturnPortal(pci)) {
         syncMsgLog();
@@ -9824,7 +8262,7 @@ function gameLoop(now: number): void {
       tickStockMarket(state);
     }
 
-    keepDebugOnePunchManAlive(player, state);
+    keepDebugOnePunchManAlive(player);
 
     // Detect player damage for vignette flash
     const damageActor = syncPlayerActorSwitchBaseline();
@@ -9837,7 +8275,7 @@ function gameLoop(now: number): void {
       const lost = prevPlayerActorHp - curHp;
       const maxHp = damageActor.maxHp ?? 100;
       state.dmgFlash = Math.min(1, 0.3 + (lost / maxHp) * 1.5);
-      state.dmgSeed = rng() * 10000;
+      state.dmgSeed = Math.random() * 10000;
       recordUnattributedPlayerDamage(lost);
       playFleshHit();
     }
@@ -9870,7 +8308,7 @@ function gameLoop(now: number): void {
   }
 
   // ── World simulation continues after death (NPC, monsters, samosbor keep running) ──
-  if (!state.paused && state.gameOver && !peerMode) {
+  if (!state.paused && state.gameOver) {
     state.time += dt;
     state.tick++;
     state.clock.totalMinutes += dt;
@@ -9896,10 +8334,10 @@ function gameLoop(now: number): void {
     updateMapExploration(world, listener, state);
     updatePseudolifts(world, entities, player, state);
     const aiStart = performance.now();
-    updateAI(world, entities, dt, state.time, state.msgs, listener.id, state.clock, state.samosborActive, nextEntityId, state.currentZ, state);
+    updateAI(world, entities, dt, state.time, state.msgs, listener.id, state.clock, state.samosborActive, nextEntityId, state.currentFloor, state);
     lastAiUpdateMs = performance.now() - aiStart;
     tickCellHazards(world, entities, state, dt, player, false);
-    if (!isOnlineConnected() && updateSamosbor(world, entities, state, dt, nextEntityId, currentLocalSamosborPatchGeneration, scheduleLocalSamosborPatch)) {
+    if (updateSamosbor(world, entities, state, dt, nextEntityId, currentLocalSamosborPatchGeneration, scheduleLocalSamosborPatch)) {
       closeCraftMenu();
       reportNetSphereProgressEvents();
       scheduleLoading(() => {
@@ -9908,11 +8346,11 @@ function gameLoop(now: number): void {
         clearWrongDoorRemaps(world, state, 'world_rebuild');
         clearPseudoliftActive(state, entities);
         const replacement = currentRouteRebuildGeneration();
-        rebuildWorld(world, entities, nextEntityId, state.samosborCount, state.currentZ, replacement, state.tutorialMode);
+        rebuildWorld(world, entities, nextEntityId, state.samosborCount, state.currentFloor, replacement, state.tutorialMode);
         initFactionControl(world);
         materializeCurrentAlifeFloor();
         ensureProceduralSpriteSeeds(entities);
-        ensureRoomContainers(world, state.currentZ);
+        ensureRoomContainers(world, state.currentFloor);
         ensureProductionRooms(state, world);
         prepareEditableFloor();
         resetMapExploration(world);
@@ -9968,23 +8406,12 @@ function gameLoop(now: number): void {
   checkRestart();
   updateMobileContext();
   const currentFps = updateFpsMeter(now, rawDt * 1000);
-  checkPerformance(currentFps, state);
-  // Crash-forensic heartbeat: track the worst frame each ~1s of real gameplay.
-  if (started && !state.trailerMode && typeof world !== 'undefined') {
-    const fm = rawDt * 1000;
-    if (fm > _hbWorstMs) _hbWorstMs = fm;
-    if (now - _hbLastFlush >= 1000) {
-      recordHeartbeat(now, currentFps);
-      _hbLastFlush = now;
-      _hbWorstMs = 0;
-    }
-  }
 
   // ── Render ───────────────────────────────────────────────
   // Fog density varies by floor level
   let baseFog = 0.065;
-  if (currentFloorRunEntry(state).themeTags.includes('maintenance')) baseFog = 0.08;
-  if (currentFloorRunEntry(state).themeTags.includes('hell')) baseFog = 0.05; // less fog, more horror visibility
+  if (state.currentFloor === FloorLevel.MAINTENANCE) baseFog = 0.08;
+  if (state.currentFloor === FloorLevel.HELL) baseFog = 0.05; // less fog, more horror visibility
   const smogFogBonus = !state.gameOver ? proceduralSmogFogDensityBonus(world, player, state) : 0;
   const samosborVariant = state.samosborActive ? getActiveSamosborVariant() : null;
   const samosborVisual = samosborVariant?.visual;
@@ -10009,7 +8436,7 @@ function gameLoop(now: number): void {
       ? 1
       : criticalInterference
         ? 0.65
-        : 0;
+        : 0.32;
   const glitch = screenInterference <= 0
     ? 0
     : state.samosborActive
@@ -10035,26 +8462,7 @@ function gameLoop(now: number): void {
 
   // Update dynamic world data (fog, door states, wallTex for slides)
   updateGeneratedDynamicSky(dt);
-  musicSystem.tick(world, entities, renderActor, state, dt);
   updateDynamicData(world, camX, camY);
-
-  // Auto-recover from WebGL context loss (iOS Safari memory pressure)
-  if (webglContextLost) {
-    // Context still lost — skip render, game logic continues
-    return;
-  }
-  if (webglNeedsReinit) {
-    // Context was restored by the browser — reinitialize everything
-    try {
-      initWebGL(canvas, textures, sprites, world);
-      finishLoadedFloorVisuals();
-      clearWebGLReinitFlag();
-      console.warn('[WebGL] Successfully reinitialized after context loss');
-    } catch (e) {
-      console.error('[WebGL] Reinit failed, will retry next frame', e);
-      return;
-    }
-  }
 
   // WebGL raycaster + sprites
   const floorRunEntry = currentFloorRunEntry(state);
@@ -10117,9 +8525,8 @@ function showTitle(): void {
 }
 
 function returnToTitleScreen(): void {
-  setAudioSuspendedForTitle(true);
   pendingLoad = null;
-  pendingLoadStarted = false;
+  pendingLoadDrawn = false;
   started = false;
   syncPlatformGameplayState();
   clearPointerCaptureGate();
@@ -10147,7 +8554,6 @@ function returnToTitleScreen(): void {
 }
 
 function finishStartGameFromTitle(): void {
-  setAudioSuspendedForTitle(false);
   player.name = playerDisplayName();
   player.age = playerAge;
   player.sex = playerSex;
@@ -10182,7 +8588,7 @@ function startGameFromTitle(): void {
       titleStartNeedsInit = false;
       if (trailerSelected) {
         state.trailerMode = true;
-        state.currentZ = TRAILER_ZS[titleTrailerFloorIdx];
+        state.currentFloor = TRAILER_FLOORS[titleTrailerFloorIdx] as FloorLevel;
       }
       if (isNewGame) {
         startTutorial(state, player);
@@ -10253,11 +8659,11 @@ function startHandler(e: KeyboardEvent): void {
   if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
     if (titleInputField === 'language') cycleTitleLanguage(e.code === 'ArrowRight' ? 1 : -1);
     else if (titleInputField === 'trailer') {
-      titleTrailerFloorIdx = (titleTrailerFloorIdx + (e.code === 'ArrowRight' ? 1 : TRAILER_ZS.length - 1)) % TRAILER_ZS.length;
+      titleTrailerFloorIdx = (titleTrailerFloorIdx + (e.code === 'ArrowRight' ? 1 : TRAILER_FLOORS.length - 1)) % TRAILER_FLOORS.length;
       if (!started && typeof state !== 'undefined') {
         scheduleLoading(() => {
-          const floorZ = TRAILER_ZS[titleTrailerFloorIdx];
-          initGame(undefined, floorZ);
+          const floor = TRAILER_FLOORS[titleTrailerFloorIdx] as FloorLevel;
+          initGame(undefined, floor);
           state.trailerMode = true;
           titleStartNeedsInit = true;
         });
@@ -10372,11 +8778,11 @@ function handleTitleGamepadInput(frame: InputFrame): void {
     const dir = navRight ? 1 : -1;
     if (titleInputField === 'language') cycleTitleLanguage(dir);
     else if (titleInputField === 'trailer') {
-      titleTrailerFloorIdx = (titleTrailerFloorIdx + (dir > 0 ? 1 : TRAILER_ZS.length - 1)) % TRAILER_ZS.length;
+      titleTrailerFloorIdx = (titleTrailerFloorIdx + (dir > 0 ? 1 : TRAILER_FLOORS.length - 1)) % TRAILER_FLOORS.length;
       if (!started && typeof state !== 'undefined') {
         scheduleLoading(() => {
-          const floorZ = TRAILER_ZS[titleTrailerFloorIdx];
-          initGame(undefined, floorZ);
+          const floor = TRAILER_FLOORS[titleTrailerFloorIdx] as FloorLevel;
+          initGame(undefined, floor);
           state.trailerMode = true;
           titleStartNeedsInit = true;
         });

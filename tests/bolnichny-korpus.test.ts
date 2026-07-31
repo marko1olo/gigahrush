@@ -7,6 +7,7 @@ import {
   DoorState,
   EntityType,
   Faction,
+  FloorLevel,
   LiftDirection,
   MonsterKind,
   Occupation,
@@ -27,7 +28,7 @@ import {
   BOLNICHNY_KORPUS_ROUTE_ID,
   BOLNICHNY_KORPUS_Z,
   BOLNICHNY_ROOM_NAMES,
-} from '../src/gen/bolnichny_korpus';
+} from '../src/gen/design_floors/bolnichny_korpus';
 import { countTerritoryCells, territoryHqAnchors } from '../src/systems/territory';
 
 let cachedGeneration: ReturnType<typeof generateDesignFloor> | undefined;
@@ -81,7 +82,8 @@ function hermeticShellCells(gen: ReturnType<typeof generateDesignFloor>, roomId:
 test('bolnichny_korpus is registered as a Kvartiry-band authored hospital route', () => {
   const route = designFloorById(BOLNICHNY_KORPUS_ROUTE_ID);
   assert.equal(route?.z, BOLNICHNY_KORPUS_Z);
-  assert.equal(route?.themeTags?.includes('kvartiry'), true);
+  assert.equal(route?.baseFloor, BOLNICHNY_KORPUS_BASE_FLOOR);
+  assert.equal(route?.baseFloor, FloorLevel.KVARTIRY);
   assert.equal(route?.displayName, 'Больничный корпус');
   assert.equal(designFloorAtZ(BOLNICHNY_KORPUS_Z)?.id, BOLNICHNY_KORPUS_ROUTE_ID);
   assert.equal(PROCEDURAL_FLOOR_ZS.includes(BOLNICHNY_KORPUS_Z), false);
@@ -92,8 +94,8 @@ test('bolnichny_korpus population profile targets medical staff and infected pre
   assert.ok(route);
   const profile = designFloorPopulationProfile(route);
 
-  assert.ok(profile.npcTarget > 0 && profile.npcTarget < 4000);
-  assert.ok(profile.monsterTarget > 0 && profile.monsterTarget < 4000);
+  assert.equal(profile.npcTarget, 1050);
+  assert.equal(profile.monsterTarget, 1350);
   assert.equal(profile.npcNoun, 'санработник');
   assert.equal(profile.npcFactions.some(entry => entry.value === Faction.SCIENTIST && entry.weight >= 30), true);
   assert.equal(profile.npcFactions.some(entry => entry.value === Faction.LIQUIDATOR && entry.weight >= 25), true);
@@ -209,7 +211,7 @@ test('bolnichny_korpus exposes authored NPCs and treatment, forgery, escort and 
     'bolnichny_patient_grisha',
     'bolnichny_clerk_nina',
   ]) {
-    assert.equal(npcs.some(entity => (entity as any).npcPackageId === plotNpcId), true, plotNpcId);
+    assert.equal(npcs.some(entity => entity.plotNpcId === plotNpcId), true, plotNpcId);
   }
   assert.equal(monsters.some(entity => entity.monsterKind === MonsterKind.CHERNOSLIZ), true);
   assert.equal(questIds.has('bolnichny_treat_clean_ward'), true);

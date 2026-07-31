@@ -1,4 +1,3 @@
-import { getPlotNpcCount } from '../src/data/npc_packages';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
@@ -467,7 +466,7 @@ test('sandpile perekrytie collapse opens a seam, preserves lift buffers and mark
 test('rail train runtime cell map is rebuilt from live train positions each update', () => {
   const { world, track } = makeRailWorld();
   const entities: Entity[] = [];
-  const nextId = { v: getPlotNpcCount() + 1 }
+  const nextId = { v: 1 };
   const train = addRailTrainRoute(world, entities, nextId, track, {
     id: 'test_train',
     label: 'Тестовый состав',

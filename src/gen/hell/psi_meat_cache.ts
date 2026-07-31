@@ -1,9 +1,8 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* ── Hell PSI meat cache: finite cult trade/theft/fight POI ───── */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
-  W, Cell, ContainerKind, Feature, RoomType, Tex,
+  W, Cell, ContainerKind, Feature, FloorLevel, RoomType, Tex,
   type Entity, EntityType, AIGoal, Faction, Occupation, MonsterKind, QuestType,
   msg,
   type GameState, type Room, type WorldContainer, type WorldEvent,
@@ -15,10 +14,9 @@ import { MONSTERS } from '../../entities/monster';
 import { monsterSpr, Spr } from '../../render/sprite_index';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
-import { connectProtectedRoom, findClearArea, protectRoom, stampRoom } from '../shared';
+import { connectProtectedRoom, findClearArea, protectRoom, rng, stampRoom } from '../shared';
 import { isPlayerEntity } from '../../systems/player_actor';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng, irand } from '../../core/rand';
 
 const ROOM_W = 15;
 const ROOM_H = 11;
@@ -42,7 +40,7 @@ interface PsiCacheBranchSpec {
 }
 
 interface PsiCacheSite {
-  z: number;
+  floor: FloorLevel;
   roomId: number;
   zoneId: number;
   x: number;
@@ -126,7 +124,7 @@ const KEEPER_DEF: PlotNpcDef = {
 registerSideQuest(KEEPER_ID, KEEPER_DEF, [
   {
     id: 'ag54_keeper_raw_meat_tithe',
-    giverId: getPlotNpcNumericId(KEEPER_ID)!,
+    giverNpcId: KEEPER_ID,
     type: QuestType.FETCH,
     desc: 'Федот Мясопев: «Принеси четыре куска сырого мяса. За честный вклад дам стабилизатор, но не запас на новую жизнь.»',
     targetItem: 'rawmeat', targetCount: 4,
@@ -163,7 +161,7 @@ export function generatePsiMeatCache(
   const cx = world.wrap(room.x + (room.w >> 1));
   const cy = world.wrap(room.y + (room.h >> 1));
   activeSite = {
-    z: 180,
+    floor: FloorLevel.HELL,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(cx, cy)],
     x: cx + 0.5,
@@ -195,7 +193,7 @@ function handlePsiMeatCacheEvent(state: GameState, event: WorldEvent): void {
   if (event.tags.includes(CACHE_EVENT_TAG)) return;
   const site = activeSite;
   const world = activeWorld;
-  if (!site || !world || state.currentZ !== site.z || event.z !== site.z) return;
+  if (!site || !world || state.currentFloor !== site.floor || event.floor !== site.floor) return;
 
   if (event.type === 'quest_completed' && event.data?.sideQuestId === 'ag54_keeper_raw_meat_tithe') {
     applyPsiCacheBranch(state, event, 'pay');
@@ -388,8 +386,8 @@ function findCacheOrigin(world: World): { x: number; y: number } {
   if (clear) return clear;
 
   for (let attempt = 0; attempt < 2400; attempt++) {
-    const angle = rng() * Math.PI * 2;
-    const dist = irand(90, 260);
+    const angle = Math.random() * Math.PI * 2;
+    const dist = rng(90, 260);
     const x = world.wrap(cx + Math.round(Math.cos(angle) * dist));
     const y = world.wrap(cy + Math.round(Math.sin(angle) * dist));
     if (canReserve(world, x, y)) return { x, y };
@@ -542,7 +540,7 @@ function spawnGuard(
     type: EntityType.NPC,
     x: x + 0.5,
     y: y + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: 1.0,
@@ -584,7 +582,7 @@ function addCacheContainer(world: World, room: Room, ownerNpcId: number): number
     id,
     x,
     y,
-    z: 180,
+    floor: FloorLevel.HELL,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(x, y)],
     kind: ContainerKind.SAFE,
@@ -610,7 +608,7 @@ function addRefusalTray(world: World, room: Room): number {
     id,
     x,
     y,
-    z: 180,
+    floor: FloorLevel.HELL,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(x, y)],
     kind: ContainerKind.MEDICAL_CABINET,
@@ -736,7 +734,7 @@ function findPressureCell(
 ): { x: number; y: number } | null {
   for (let attempt = 0; attempt < 80; attempt++) {
     const angle = (Math.PI * 2 * (idx + attempt / 17)) / total;
-    const dist = irand(5, 12);
+    const dist = rng(5, 12);
     const x = world.wrap(cx + Math.round(Math.cos(angle) * dist));
     const y = world.wrap(cy + Math.round(Math.sin(angle) * dist));
     const ci = world.idx(x, y);

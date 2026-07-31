@@ -1,5 +1,6 @@
 import {
   Faction,
+  FloorLevel,
   EntityType,
   MonsterKind,
   Occupation,
@@ -7,7 +8,7 @@ import {
   W,
   ZoneFaction,
 } from '../core/types';
-import {} from './design_floors';
+import { designFloorThemeClass } from './design_floors';
 import type { DesignFloorId, DesignFloorRouteDef } from './design_floors';
 import {
   DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT,
@@ -16,11 +17,6 @@ import {
   ENTITY_SOFT_LIMITS,
   fitActiveActorCounts,
 } from './entity_limits';
-import {
-  basePopulationTotalAtDefaultSoftLimit,
-  monsterShareForRouteZ,
-  populationLevelForRouteZ,
-} from './population_profiles';
 
 export interface DesignPlacementFieldProfile {
   noiseScale: number;
@@ -225,7 +221,7 @@ const INDUSTRIAL_OCCUPATIONS: readonly WeightedDesignValue<Occupation>[] = [
 ];
 
 const CHILD_CAMP_OCCUPATIONS: readonly WeightedDesignValue<Occupation>[] = [
-
+  { value: Occupation.CHILD, weight: 76 },
   { value: Occupation.COOK, weight: 6 },
   { value: Occupation.DOCTOR, weight: 5 },
   { value: Occupation.SECRETARY, weight: 4 },
@@ -353,16 +349,17 @@ const COMMUNAL_MONSTER_ANCHORS: readonly DesignPlacementFieldAnchor[] = [
   { x: 372, y: 496, radius: 74, weight: 1.25 },
 ];
 
-const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopulationOverride>> = {
-  tutorial: {
-    npcPlacementKind: 'social',
-  },
+const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<DesignFloorId, DesignFloorPopulationOverride>> = {
   roof: {
+    npcTarget: 0,
+    monsterTarget: 'active_actor_cap',
     monsterBiasKinds: [MonsterKind.EYE, MonsterKind.SHADOW, MonsterKind.REBAR, MonsterKind.LAMPOGLAZ, MonsterKind.TONKAYA_TEN],
     monsterTags: ['roof', 'sky', 'antenna', 'signal', 'wind', 'open', 'weather'],
     monsterPlacementKind: 'roof',
   },
   chthonic_attic: {
+    npcTarget: 0,
+    monsterTarget: 4300,
     monsterBiasKinds: [
       MonsterKind.TUBE_EEL,
       MonsterKind.TRUBNYY_AVTOMAT,
@@ -378,6 +375,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     monsterPlacementKind: 'attic',
   },
   radon_exchange: {
+    npcTarget: 48,
+    monsterTarget: 3800,
     npcNoun: 'оператор заслонок',
     npcFactions: [{ value: Faction.SCIENTIST, weight: 58 }, { value: Faction.LIQUIDATOR, weight: 34 }, { value: Faction.CITIZEN, weight: 8 }],
     npcOccupations: [{ value: Occupation.SCIENTIST, weight: 34 }, { value: Occupation.ELECTRICIAN, weight: 24 }, { value: Occupation.HUNTER, weight: 18 }, { value: Occupation.SECRETARY, weight: 14 }, { value: Occupation.MECHANIC, weight: 10 }],
@@ -421,6 +420,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   antenna_court: {
+    npcTarget: 60,
+    monsterTarget: 3400,
     npcNoun: 'сигнал-специалист',
     npcFactions: [{ value: Faction.SCIENTIST, weight: 64 }, { value: Faction.LIQUIDATOR, weight: 36 }],
     npcOccupations: [{ value: Occupation.SCIENTIST, weight: 42 }, { value: Occupation.HUNTER, weight: 24 }, { value: Occupation.ELECTRICIAN, weight: 22 }, { value: Occupation.MECHANIC, weight: 8 }, { value: Occupation.SECRETARY, weight: 4 }],
@@ -452,6 +453,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   spetspriemnik: {
+    npcTarget: 920,
+    monsterTarget: 760,
     npcNoun: 'конвоир',
     npcFactions: [
       { value: Faction.LIQUIDATOR, weight: 52 },
@@ -530,6 +533,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   pioneer_camp: {
+    npcTarget: 1100,
+    monsterTarget: 900,
     npcNoun: 'участник смены',
     npcFactions: CAMP_MIX,
     npcOccupations: CHILD_CAMP_OCCUPATIONS,
@@ -539,6 +544,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     monsterPlacementKind: 'camp',
   },
   oranzhereya_betona: {
+    npcTarget: 980,
+    monsterTarget: 920,
     npcNoun: 'тепличник',
     npcFactions: [
       { value: Faction.CITIZEN, weight: 58 },
@@ -587,6 +594,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   cayley_byuro: {
+    npcTarget: 760,
+    monsterTarget: 980,
     npcNoun: 'проситель',
     npcFactions: [{ value: Faction.SCIENTIST, weight: 34 }, { value: Faction.CITIZEN, weight: 26 }, { value: Faction.LIQUIDATOR, weight: 20 }, { value: Faction.CULTIST, weight: 10 }, { value: Faction.WILD, weight: 10 }],
     npcOccupations: [{ value: Occupation.SECRETARY, weight: 34 }, { value: Occupation.TRAVELER, weight: 20 }, { value: Occupation.HUNTER, weight: 14 }, { value: Occupation.SCIENTIST, weight: 10 }, { value: Occupation.STOREKEEPER, weight: 10 }, { value: Occupation.DIRECTOR, weight: 7 }, { value: Occupation.LOCKSMITH, weight: 5 }],
@@ -627,6 +636,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   upper_bureau: {
+    npcTarget: 650,
+    monsterTarget: 1100,
     npcNoun: 'проситель',
     npcFactions: UPPER_BUREAU_MIX,
     npcOccupations: UPPER_BUREAU_OCCUPATIONS,
@@ -651,6 +662,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   number_registry: {
+    npcTarget: 980,
+    monsterTarget: 980,
     npcNoun: 'регистрант',
     npcFactions: [{ value: Faction.CITIZEN, weight: 58 }, { value: Faction.LIQUIDATOR, weight: 25 }, { value: Faction.SCIENTIST, weight: 12 }, { value: Faction.WILD, weight: 5 }],
     npcOccupations: [{ value: Occupation.SECRETARY, weight: 36 }, { value: Occupation.TRAVELER, weight: 20 }, { value: Occupation.STOREKEEPER, weight: 12 }, { value: Occupation.HUNTER, weight: 12 }, { value: Occupation.SCIENTIST, weight: 8 }, { value: Occupation.LOCKSMITH, weight: 7 }, { value: Occupation.DIRECTOR, weight: 5 }],
@@ -707,6 +720,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   istinniy_labirint: {
+    npcTarget: 900,
+    monsterTarget: 1300,
     npcNoun: 'потерявшийся',
     npcFactions: [{ value: Faction.CITIZEN, weight: 46 }, { value: Faction.LIQUIDATOR, weight: 34 }, { value: Faction.SCIENTIST, weight: 12 }, { value: Faction.WILD, weight: 8 }],
     npcOccupations: [{ value: Occupation.TRAVELER, weight: 34 }, { value: Occupation.HUNTER, weight: 22 }, { value: Occupation.SECRETARY, weight: 16 }, { value: Occupation.STOREKEEPER, weight: 10 }, { value: Occupation.SCIENTIST, weight: 8 }, { value: Occupation.LOCKSMITH, weight: 6 }, { value: Occupation.DOCTOR, weight: 4 }],
@@ -739,7 +754,9 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
       ],
     },
   },
-  bank_z: {
+  bank_floor: {
+    npcTarget: 1400,
+    monsterTarget: 650,
     npcFactions: [{ value: Faction.CITIZEN, weight: 62 }, { value: Faction.LIQUIDATOR, weight: 24 }, { value: Faction.WILD, weight: 11 }, { value: Faction.SCIENTIST, weight: 3 }],
     npcOccupations: [{ value: Occupation.SECRETARY, weight: 30 }, { value: Occupation.TRAVELER, weight: 24 }, { value: Occupation.STOREKEEPER, weight: 14 }, { value: Occupation.HUNTER, weight: 14 }, { value: Occupation.ALCOHOLIC, weight: 8 }, { value: Occupation.DIRECTOR, weight: 5 }, { value: Occupation.LOCKSMITH, weight: 5 }],
     monsterBiasKinds: [MonsterKind.PECHATEED, MonsterKind.PARAGRAPH, MonsterKind.KONTORSHCHIK, MonsterKind.PROTOKOLNIK, MonsterKind.SLEPOGLAZ],
@@ -747,6 +764,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     monsterPlacementKind: 'bank',
   },
   critical_leak_archive: {
+    npcTarget: 760,
+    monsterTarget: 1050,
     npcNoun: 'архивист протечки',
     npcFactions: [{ value: Faction.CITIZEN, weight: 42 }, { value: Faction.LIQUIDATOR, weight: 34 }, { value: Faction.SCIENTIST, weight: 20 }, { value: Faction.WILD, weight: 4 }],
     npcOccupations: [{ value: Occupation.SECRETARY, weight: 31 }, { value: Occupation.HUNTER, weight: 21 }, { value: Occupation.SCIENTIST, weight: 18 }, { value: Occupation.ELECTRICIAN, weight: 12 }, { value: Occupation.LOCKSMITH, weight: 8 }, { value: Occupation.TRAVELER, weight: 6 }, { value: Occupation.STOREKEEPER, weight: 4 }],
@@ -815,6 +834,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   raionsovet_archive: {
+    npcTarget: 1200,
+    monsterTarget: 820,
     npcNoun: 'проситель',
     npcFactions: [{ value: Faction.CITIZEN, weight: 68 }, { value: Faction.LIQUIDATOR, weight: 24 }, { value: Faction.WILD, weight: 6 }, { value: Faction.SCIENTIST, weight: 2 }],
     npcOccupations: RAIONSOVET_OCCUPATIONS,
@@ -872,6 +893,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   markov_stairwell: {
+    npcTarget: 820,
+    monsterTarget: 980,
     npcNoun: 'счётчик маршей',
     npcFactions: [{ value: Faction.CITIZEN, weight: 40 }, { value: Faction.LIQUIDATOR, weight: 24 }, { value: Faction.CULTIST, weight: 10 }, { value: Faction.SCIENTIST, weight: 14 }, { value: Faction.WILD, weight: 12 }],
     npcOccupations: [{ value: Occupation.SECRETARY, weight: 24 }, { value: Occupation.TRAVELER, weight: 22 }, { value: Occupation.HUNTER, weight: 16 }, { value: Occupation.LOCKSMITH, weight: 14 }, { value: Occupation.SCIENTIST, weight: 12 }, { value: Occupation.STOREKEEPER, weight: 8 }, { value: Occupation.ELECTRICIAN, weight: 4 }],
@@ -913,6 +936,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   registry_morgue: {
+    npcTarget: 480,
+    monsterTarget: 1150,
     npcFactions: [{ value: Faction.CITIZEN, weight: 43 }, { value: Faction.SCIENTIST, weight: 31 }, { value: Faction.LIQUIDATOR, weight: 23 }, { value: Faction.WILD, weight: 3 }],
     npcOccupations: [{ value: Occupation.DOCTOR, weight: 34 }, { value: Occupation.SECRETARY, weight: 23 }, { value: Occupation.HUNTER, weight: 16 }, { value: Occupation.SCIENTIST, weight: 12 }, { value: Occupation.TRAVELER, weight: 10 }],
     monsterBiasKinds: [MonsterKind.DIKIY_MERTVYAK, MonsterKind.BEZEKHIY, MonsterKind.PECHATEED, MonsterKind.PARAGRAPH, MonsterKind.NELYUD],
@@ -920,6 +945,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     monsterPlacementKind: 'morgue',
   },
   bolnichny_korpus: {
+    npcTarget: 1050,
+    monsterTarget: 1350,
     npcNoun: 'санработник',
     npcFactions: [
       { value: Faction.SCIENTIST, weight: 38 },
@@ -959,6 +986,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   slime_nii: {
+    npcTarget: 1300,
+    monsterTarget: 1700,
     npcNoun: 'сотрудник НИИ',
     npcFactions: [
       { value: Faction.SCIENTIST, weight: 48 },
@@ -997,6 +1026,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   turing_nursery: {
+    npcTarget: 1050,
+    monsterTarget: 1450,
     npcNoun: 'лаборант яслей',
     npcFactions: [
       { value: Faction.SCIENTIST, weight: 50 },
@@ -1010,7 +1041,7 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
       { value: Occupation.SECRETARY, weight: 14 },
       { value: Occupation.HUNTER, weight: 12 },
       { value: Occupation.ELECTRICIAN, weight: 8 },
-
+      { value: Occupation.CHILD, weight: 6 },
       { value: Occupation.TRAVELER, weight: 6 },
     ],
     monsterBiasKinds: [
@@ -1042,6 +1073,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   manhattan_crossroads: {
+    npcTarget: 3200,
+    monsterTarget: 850,
     npcFactions: [{ value: Faction.CITIZEN, weight: 58 }, { value: Faction.WILD, weight: 25 }, { value: Faction.LIQUIDATOR, weight: 15 }, { value: Faction.SCIENTIST, weight: 2 }],
     npcOccupations: SOCIAL_OCCUPATIONS,
     monsterBiasKinds: [MonsterKind.REBAR, MonsterKind.SHADOW, MonsterKind.NELYUD, MonsterKind.BEZEKHIY, MonsterKind.EYE],
@@ -1049,6 +1082,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     monsterPlacementKind: 'crossroads',
   },
   voronoi_quarantine: {
+    npcTarget: 980,
+    monsterTarget: 1420,
     npcNoun: 'санитар ячейки',
     npcFactions: [
       { value: Faction.SCIENTIST, weight: 34 },
@@ -1086,6 +1121,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   communal_ring: {
+    npcTarget: 3800,
+    monsterTarget: 420,
     npcFactions: [{ value: Faction.CITIZEN, weight: 79 }, { value: Faction.WILD, weight: 12 }, { value: Faction.LIQUIDATOR, weight: 8 }, { value: Faction.SCIENTIST, weight: 1 }],
     npcOccupations: SOCIAL_OCCUPATIONS,
     monsterBiasKinds: [MonsterKind.KRYSNOZHKA, MonsterKind.POMOYNY_ROY, MonsterKind.NELYUD, MonsterKind.BEZEKHIY],
@@ -1100,6 +1137,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   moebius_podezd: {
+    npcTarget: 3400,
+    monsterTarget: 520,
     npcNoun: 'жилец',
     npcFactions: [{ value: Faction.CITIZEN, weight: 76 }, { value: Faction.WILD, weight: 13 }, { value: Faction.LIQUIDATOR, weight: 10 }, { value: Faction.SCIENTIST, weight: 1 }],
     npcOccupations: SOCIAL_OCCUPATIONS,
@@ -1126,6 +1165,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   floor_69: {
+    npcTarget: 2200,
+    monsterTarget: 380,
     npcFactions: [{ value: Faction.CITIZEN, weight: 78 }, { value: Faction.LIQUIDATOR, weight: 14 }, { value: Faction.SCIENTIST, weight: 5 }, { value: Faction.WILD, weight: 3 }],
     npcOccupations: FLOOR_69_OCCUPATIONS,
     npcNoun: 'посетитель',
@@ -1135,6 +1176,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     monsterPlacementKind: 'floor_69',
   },
   obschezhitie_smeny: {
+    npcTarget: 2100,
+    monsterTarget: 360,
     npcNoun: 'сменщик',
     npcFactions: [{ value: Faction.CITIZEN, weight: 74 }, { value: Faction.LIQUIDATOR, weight: 14 }, { value: Faction.WILD, weight: 10 }, { value: Faction.SCIENTIST, weight: 2 }],
     npcOccupations: [
@@ -1169,6 +1212,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   penrose_laundry: {
+    npcTarget: 1450,
+    monsterTarget: 760,
     npcNoun: 'посетитель прачечной',
     npcFactions: [{ value: Faction.CITIZEN, weight: 70 }, { value: Faction.LIQUIDATOR, weight: 16 }, { value: Faction.WILD, weight: 10 }, { value: Faction.SCIENTIST, weight: 4 }],
     npcOccupations: [{ value: Occupation.HOUSEWIFE, weight: 25 }, { value: Occupation.LOCKSMITH, weight: 16 }, { value: Occupation.MECHANIC, weight: 14 }, { value: Occupation.TRAVELER, weight: 14 }, { value: Occupation.STOREKEEPER, weight: 12 }, { value: Occupation.ELECTRICIAN, weight: 8 }, { value: Occupation.SECRETARY, weight: 6 }, { value: Occupation.HUNTER, weight: 5 }],
@@ -1232,6 +1277,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   black_market_88: {
+    npcTarget: 2200,
+    monsterTarget: 700,
     npcFactions: [{ value: Faction.CITIZEN, weight: 48 }, { value: Faction.WILD, weight: 31 }, { value: Faction.LIQUIDATOR, weight: 14 }, { value: Faction.SCIENTIST, weight: 7 }],
     npcOccupations: SOCIAL_OCCUPATIONS,
     monsterBiasKinds: [MonsterKind.KRYSNOZHKA, MonsterKind.POMOYNY_ROY, MonsterKind.NELYUD, MonsterKind.BEZEKHIY, MonsterKind.SLIMEVIK],
@@ -1304,6 +1351,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   production_belt: {
+    npcTarget: 1300,
+    monsterTarget: 1250,
     npcFactions: [{ value: Faction.CITIZEN, weight: 48 }, { value: Faction.LIQUIDATOR, weight: 34 }, { value: Faction.WILD, weight: 12 }, { value: Faction.SCIENTIST, weight: 6 }],
     npcOccupations: [
       { value: Occupation.MECHANIC, weight: 24 },
@@ -1319,7 +1368,9 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     npcPlacementKind: 'industrial',
     monsterPlacementKind: 'industrial',
   },
-  service_z: {
+  service_floor: {
+    npcTarget: 780,
+    monsterTarget: 1600,
     npcNoun: 'ремонтник',
     npcFactions: [
       { value: Faction.LIQUIDATOR, weight: 52 },
@@ -1414,6 +1465,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   silicon_net_well: {
+    npcTarget: 560,
+    monsterTarget: 1900,
     npcFactions: [{ value: Faction.SCIENTIST, weight: 52 }, { value: Faction.LIQUIDATOR, weight: 32 }, { value: Faction.CITIZEN, weight: 10 }, { value: Faction.WILD, weight: 6 }],
     npcOccupations: [{ value: Occupation.SCIENTIST, weight: 42 }, { value: Occupation.ELECTRICIAN, weight: 18 }, { value: Occupation.MECHANIC, weight: 15 }, { value: Occupation.HUNTER, weight: 14 }, { value: Occupation.SECRETARY, weight: 6 }],
     npcNoun: 'специалист',
@@ -1423,6 +1476,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     monsterPlacementKind: 'silicon',
   },
   shahta_atrium: {
+    npcTarget: 620,
+    monsterTarget: 2100,
     npcNoun: 'ремонтник шахты',
     npcFactions: [
       { value: Faction.LIQUIDATOR, weight: 50 },
@@ -1506,6 +1561,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   hyperbolic_switchyard: {
+    npcTarget: 520,
+    monsterTarget: 2300,
     npcNoun: 'стрелочник',
     npcFactions: [
       { value: Faction.LIQUIDATOR, weight: 48 },
@@ -1587,6 +1644,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   harmonic_bathhouse: {
+    npcTarget: 760,
+    monsterTarget: 1900,
     npcNoun: 'банный ремонтник',
     npcFactions: [
       { value: Faction.LIQUIDATOR, weight: 46 },
@@ -1671,6 +1730,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   hilbert_depot: {
+    npcTarget: 520,
+    monsterTarget: 1800,
     npcNoun: 'кладовщик индекса',
     npcFactions: [
       { value: Faction.LIQUIDATOR, weight: 46 },
@@ -1756,6 +1817,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   dark_metro: {
+    npcTarget: 180,
+    monsterTarget: 3400,
     npcFactions: VETERAN_MIX,
     npcOccupations: VETERAN_OCCUPATIONS,
     npcNoun: 'ветеран',
@@ -1765,6 +1828,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     monsterPlacementKind: 'metro',
   },
   attractor_dvor: {
+    npcTarget: 560,
+    monsterTarget: 2100,
     npcNoun: 'дежурный потока',
     npcFactions: [
       { value: Faction.LIQUIDATOR, weight: 52 },
@@ -1814,6 +1879,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   underhell: {
+    npcTarget: 64,
+    monsterTarget: 4032,
     npcFactions: UNDERHELL_THRESHOLD_MIX,
     npcOccupations: UNDERHELL_THRESHOLD_OCCUPATIONS,
     npcNoun: 'ветеран',
@@ -1831,7 +1898,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     monsterPlacementKind: 'underhell',
   },
   podad: {
-    npcTarget: 0, // z=-40 deep-hell floor: NPC-free by design (no ambient crowd)
+    npcTarget: 0,
+    monsterTarget: 'active_actor_cap',
     monsterBiasKinds: [MonsterKind.OLGOY, MonsterKind.KOSTOREZ, MonsterKind.ZHORNAYA_TVAR, MonsterKind.CHERNOSLIZ, MonsterKind.POLZUN],
     monsterTags: ['hell', 'podad', 'meat', 'deep', 'living_tunnels', 'moving_walls', 'section_shift', 'gate'],
     monsterPlacementKind: 'hell',
@@ -1851,6 +1919,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   spectral_chasovnya: {
+    npcTarget: 180,
+    monsterTarget: 3916,
     npcFactions: [{ value: Faction.CULTIST, weight: 72 }, { value: Faction.LIQUIDATOR, weight: 18 }, { value: Faction.WILD, weight: 8 }, { value: Faction.SCIENTIST, weight: 2 }],
     npcOccupations: [{ value: Occupation.PRIEST, weight: 36 }, { value: Occupation.PILGRIM, weight: 28 }, { value: Occupation.HUNTER, weight: 18 }, { value: Occupation.TRAVELER, weight: 10 }, { value: Occupation.SCIENTIST, weight: 8 }],
     npcNoun: 'слушатель',
@@ -1913,6 +1983,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
     },
   },
   cantor_pustoty: {
+    npcTarget: 0,
+    monsterTarget: 'active_actor_cap',
     monsterBiasKinds: [MonsterKind.SHADOW, MonsterKind.TONKAYA_TEN, MonsterKind.GLUBINNAYA_TEN, MonsterKind.LISHENNYY, MonsterKind.SPIRIT],
     monsterTags: ['void', 'cantor', 'fractal', 'gap_bridge', 'dust_island', 'low_light', 'route_pressure'],
     npcPlacementKind: 'void',
@@ -1939,12 +2011,16 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
       maxPerBucket: 5,
     },
   },
-  horrorz: {
+  horrorfloor: {
+    npcTarget: 0,
+    monsterTarget: 0,
     monsterBiasKinds: [MonsterKind.GLUBINNAYA_TEN],
     monsterTags: ['dark', 'void'],
     monsterPlacementKind: 'void',
   },
   darkness: {
+    npcTarget: 0,
+    monsterTarget: 'active_actor_cap',
     monsterBiasKinds: [MonsterKind.SHADOW, MonsterKind.TONKAYA_TEN, MonsterKind.GLUBINNAYA_TEN, MonsterKind.LISHENNYY, MonsterKind.SLEPOGLAZ],
     monsterTags: ['dark', 'low_light', 'void', 'route_pressure', 'sound', 'noise', 'light', 'lamp', 'protocol'],
     monsterPlacementKind: 'void',
@@ -1970,61 +2046,7 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<string, DesignFloorPopu
       maxPerBucket: 5,
     },
   },
-  
-  liquidatorbase: {
-    npcMult: 0.3,
-    npcFactions: [
-      { value: Faction.LIQUIDATOR, weight: 50 },
-      { value: Faction.CITIZEN, weight: 10 },
-      { value: Faction.WILD, weight: 10 },
-      { value: Faction.SCIENTIST, weight: 10 },
-      { value: Faction.CULTIST, weight: 10 }
-    ],
-    monsterPlacementKind: 'roof'
-  },
-  living: {
-    npcMult: 0.5,
-    npcFactions: [
-      { value: Faction.CITIZEN, weight: 50 },
-      { value: Faction.WILD, weight: 12 },
-      { value: Faction.CULTIST, weight: 12 },
-      { value: Faction.LIQUIDATOR, weight: 13 },
-      { value: Faction.SCIENTIST, weight: 13 },
-    ],
-  },
-  kvartiry: {
-    npcMult: 1.0,
-    npcFactions: [{ value: Faction.CITIZEN, weight: 80 }, { value: Faction.WILD, weight: 10 }, { value: Faction.LIQUIDATOR, weight: 10 }],
-  },
-  ministry: {
-    npcMult: 0.4,
-    monsterMult: 0.01,
-    npcFactions: [{ value: Faction.CITIZEN, weight: 50 }, { value: Faction.LIQUIDATOR, weight: 30 }, { value: Faction.SCIENTIST, weight: 20 }],
-  },
-  maintenance: {
-    npcMult: 1.0,
-    monsterMult: 0.1,
-    npcFactions: [
-      { value: Faction.LIQUIDATOR, weight: 20 },
-      { value: Faction.CULTIST, weight: 20 },
-      { value: Faction.WILD, weight: 20 },
-      { value: Faction.CITIZEN, weight: 20 },
-      { value: Faction.SCIENTIST, weight: 20 }
-    ],
-    monsterBiasKinds: [
-      MonsterKind.EYE, MonsterKind.NIGHTMARE, MonsterKind.REBAR, MonsterKind.BETONNIK, MonsterKind.MATKA,
-      MonsterKind.GNOME, MonsterKind.SBORKA, MonsterKind.POLZUN, MonsterKind.ZOMBIE, MonsterKind.SHADOW, MonsterKind.TVAR
-    ]
-  },
-  hell: {
-    npcMult: 0.05,
-    monsterMult: 2.0,
-    npcFactions: [{ value: Faction.CULTIST, weight: 80 }, { value: Faction.WILD, weight: 20 }],
-  },
-  void: {
-    npcMult: 0,
-    monsterMult: 2.5,
-  }
+  liquidatorbase: { npcTarget: 5, monsterTarget: 2, monsterBiasKinds: [], monsterTags: [], monsterPlacementKind: 'roof' },
 };
 
 function clampInt(value: number, min: number, max: number): number {
@@ -2033,78 +2055,87 @@ function clampInt(value: number, min: number, max: number): number {
 
 function resolveActorTarget(value: number | 'active_actor_cap' | undefined, fallback: number): number {
   if (value === 'active_actor_cap') return activeActorSoftLimit();
-  if (value === 0) return 0;
   return activeActorCountAtDefaultSoftLimit(value ?? fallback);
 }
 
-function designNpcMult(route: DesignFloorRouteDef): number {
-  const cls = route.themeTags?.[0] ?? 'ministry';
-  return cls === 'kvartiry' ? 1.22
-    : cls === 'living' ? 1.14
-      : cls === 'ministry' ? 0.86
-        : cls === 'maintenance' ? 0.7
-          : cls === 'hell' ? 0.38
-            : 0;
-}
-
-function designMonsterMult(route: DesignFloorRouteDef): number {
-  const cls = route.themeTags?.[0] ?? 'ministry';
-  return cls === 'hell' ? 1.28
-    : cls === 'void' ? 1.36
-      : cls === 'maintenance' ? 1.12
-        : cls === 'ministry' ? 1.0
-          : cls === 'kvartiry' ? 0.86
-            : cls === 'living' ? 0.8
-              : 1;
+function depth01(z: number): number {
+  return Math.max(0, Math.min(1, Math.abs(z) / 50));
 }
 
 function baseNpcTarget(route: DesignFloorRouteDef): number {
   if (route.z <= -48 || Math.abs(route.z) >= 44) return 0;
-  const total = basePopulationTotalAtDefaultSoftLimit(route.z);
-  return clampInt(total * (1 - monsterShareForRouteZ(route.z)) * designNpcMult(route), 0, DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT);
+  const cls = designFloorThemeClass(route);
+  const habitation = Math.pow(Math.max(0, 1 - Math.abs(route.z) / 44), 1.7);
+  const baseFloorMult = cls === FloorLevel.KVARTIRY ? 1.18
+    : cls === FloorLevel.LIVING ? 1.08
+      : cls === FloorLevel.MINISTRY ? 0.74
+        : cls === FloorLevel.MAINTENANCE ? 0.54
+          : cls === FloorLevel.HELL ? 0.16
+            : 0;
+  return clampInt((260 + habitation * 4200) * baseFloorMult, 0, DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT);
 }
 
 function baseMonsterTarget(route: DesignFloorRouteDef): number {
-  const total = basePopulationTotalAtDefaultSoftLimit(route.z);
-  const dangerMult = 0.92 + Math.max(1, Math.min(5, route.danger)) * 0.045;
-  return clampInt(total * monsterShareForRouteZ(route.z) * designMonsterMult(route) * dangerMult, 0, DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT);
+  const cls = designFloorThemeClass(route);
+  const edgePressure = Math.pow(depth01(route.z), 2.2);
+  const baseFloorBonus = cls === FloorLevel.HELL ? 1600
+    : cls === FloorLevel.VOID ? 1900
+      : cls === FloorLevel.MAINTENANCE ? 420
+        : cls === FloorLevel.KVARTIRY ? -180
+          : cls === FloorLevel.LIVING ? -120
+            : 0;
+  return clampInt(220 + route.danger * 120 + edgePressure * 7200 + baseFloorBonus, 0, DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT);
 }
 
 function defaultNpcFactions(route: DesignFloorRouteDef): readonly WeightedDesignValue<Faction>[] {
-  const cls = route.themeTags?.[0] ?? 'ministry';
-  if (cls === 'maintenance') return INDUSTRIAL_MIX;
-  if (cls === 'hell') return VETERAN_MIX;
-  if (cls === 'ministry') return ADMIN_MIX;
+  const cls = designFloorThemeClass(route);
+  if (cls === FloorLevel.MAINTENANCE) return INDUSTRIAL_MIX;
+  if (cls === FloorLevel.HELL) return VETERAN_MIX;
+  if (cls === FloorLevel.MINISTRY) return ADMIN_MIX;
   return CITIZEN_MIX;
 }
 
 function defaultNpcOccupations(route: DesignFloorRouteDef): readonly WeightedDesignValue<Occupation>[] {
-  const cls = route.themeTags?.[0] ?? 'ministry';
-  if (cls === 'maintenance') return INDUSTRIAL_OCCUPATIONS;
-  if (cls === 'hell') return VETERAN_OCCUPATIONS;
-  if (cls === 'ministry') return ADMIN_OCCUPATIONS;
+  const cls = designFloorThemeClass(route);
+  if (cls === FloorLevel.MAINTENANCE) return INDUSTRIAL_OCCUPATIONS;
+  if (cls === FloorLevel.HELL) return VETERAN_OCCUPATIONS;
+  if (cls === FloorLevel.MINISTRY) return ADMIN_OCCUPATIONS;
   return SOCIAL_OCCUPATIONS;
 }
 
 function defaultNpcNoun(route: DesignFloorRouteDef): string {
-  const cls = route.themeTags?.[0] ?? 'ministry';
-  if (cls === 'maintenance') return 'работник';
-  if (cls === 'hell') return 'паломник';
-  if (cls === 'ministry') return 'служащий';
+  const cls = designFloorThemeClass(route);
+  if (cls === FloorLevel.MAINTENANCE) return 'работник';
+  if (cls === FloorLevel.HELL) return 'паломник';
+  if (cls === FloorLevel.MINISTRY) return 'служащий';
   return 'житель';
 }
 
 function defaultPlacementKind(route: DesignFloorRouteDef): PlacementKind {
-  const cls = route.themeTags?.[0] ?? 'ministry';
-  if (cls === 'maintenance') return 'industrial';
-  if (cls === 'hell') return 'hell';
-  if (cls === 'void') return 'void';
-  if (cls === 'ministry') return 'admin';
+  const cls = designFloorThemeClass(route);
+  if (cls === FloorLevel.MAINTENANCE) return 'industrial';
+  if (cls === FloorLevel.HELL) return 'hell';
+  if (cls === FloorLevel.VOID) return 'void';
+  if (cls === FloorLevel.MINISTRY) return 'admin';
   return 'social';
 }
 
-const PLACEMENT_PROFILE_GENERATORS: Record<PlacementKind, (actor: 'npc' | 'monster', target: number, base: DesignPlacementFieldProfile, maxPerBucket: number) => DesignPlacementFieldProfile> = {
-  social: (actor, _target, base, _maxPerBucket) => ({
+function placementProfile(kind: PlacementKind, actor: 'npc' | 'monster', target: number): DesignPlacementFieldProfile {
+  const maxPerBucket = actor === 'npc'
+    ? Math.max(2, Math.min(10, Math.ceil(target / 520)))
+    : Math.max(3, Math.min(18, Math.ceil(target / 620)));
+  const base: DesignPlacementFieldProfile = {
+    noiseScale: actor === 'npc' ? 96 : 128,
+    noiseStrength: actor === 'npc' ? 0.22 : 0.18,
+    openWeight: actor === 'npc' ? 1.0 : 1.05,
+    bucketSize: actor === 'npc' ? 32 : 28,
+    maxPerBucket,
+    smoothingPasses: 2,
+    smoothingBlend: 0.55,
+  };
+  switch (kind) {
+    case 'social':
+      return {
         ...base,
         roomWeights: actor === 'npc'
           ? { [RoomType.LIVING]: 1.45, [RoomType.KITCHEN]: 1.5, [RoomType.COMMON]: 1.35, [RoomType.CORRIDOR]: 1.2, [RoomType.SMOKING]: 1.15, [RoomType.STORAGE]: 0.75 }
@@ -2112,8 +2143,9 @@ const PLACEMENT_PROFILE_GENERATORS: Record<PlacementKind, (actor: 'npc' | 'monst
         zoneWeights: actor === 'npc'
           ? { [ZoneFaction.CITIZEN]: 1.18, [ZoneFaction.WILD]: 1.08, [ZoneFaction.LIQUIDATOR]: 0.9, [ZoneFaction.CULTIST]: 0.72 }
           : { [ZoneFaction.WILD]: 1.28, [ZoneFaction.CULTIST]: 1.2, [ZoneFaction.LIQUIDATOR]: 1.04, [ZoneFaction.CITIZEN]: 0.84 },
-      }),
-  floor_69: (actor, _target, base, _maxPerBucket) => ({
+      };
+    case 'floor_69':
+      return {
         ...base,
         noiseScale: actor === 'npc' ? 84 : 112,
         noiseStrength: actor === 'npc' ? 0.2 : 0.14,
@@ -2158,8 +2190,9 @@ const PLACEMENT_PROFILE_GENERATORS: Record<PlacementKind, (actor: 'npc' | 'monst
             { x: 736, y: 552, radius: 150, weight: 1.2 },
             { x: 904, y: 608, radius: 90, weight: 1.16 },
           ],
-      }),
-  communal: (actor, _target, base, _maxPerBucket) => ({
+      };
+    case 'communal':
+      return {
         ...base,
         roomWeights: actor === 'npc'
           ? {
@@ -2188,8 +2221,9 @@ const PLACEMENT_PROFILE_GENERATORS: Record<PlacementKind, (actor: 'npc' | 'monst
         zoneWeights: actor === 'npc'
           ? { [ZoneFaction.CITIZEN]: 1.22, [ZoneFaction.WILD]: 1.1, [ZoneFaction.LIQUIDATOR]: 1.02, [ZoneFaction.SAMOSBOR]: 0.76, [ZoneFaction.CULTIST]: 0.62 }
           : { [ZoneFaction.SAMOSBOR]: 1.38, [ZoneFaction.WILD]: 1.24, [ZoneFaction.CULTIST]: 1.08, [ZoneFaction.LIQUIDATOR]: 0.98, [ZoneFaction.CITIZEN]: 0.74 },
-      }),
-  admin: (actor, _target, base, _maxPerBucket) => ({
+      };
+	    case 'admin':
+      return {
         ...base,
         roomWeights: actor === 'npc'
           ? { [RoomType.OFFICE]: 1.8, [RoomType.COMMON]: 1.55, [RoomType.HQ]: 1.5, [RoomType.CORRIDOR]: 1.08, [RoomType.STORAGE]: 0.78, [RoomType.SMOKING]: 1.05 }
@@ -2197,8 +2231,9 @@ const PLACEMENT_PROFILE_GENERATORS: Record<PlacementKind, (actor: 'npc' | 'monst
         zoneWeights: actor === 'npc'
           ? { [ZoneFaction.CITIZEN]: 1.18, [ZoneFaction.LIQUIDATOR]: 1.38, [ZoneFaction.WILD]: 0.68, [ZoneFaction.CULTIST]: 0.56, [ZoneFaction.SAMOSBOR]: 0.42 }
           : { [ZoneFaction.SAMOSBOR]: 1.52, [ZoneFaction.WILD]: 1.28, [ZoneFaction.CULTIST]: 1.16, [ZoneFaction.LIQUIDATOR]: 0.94, [ZoneFaction.CITIZEN]: 0.72 },
-      }),
-  bank: (actor, _target, base, _maxPerBucket) => (actor === 'npc'
+      };
+    case 'bank':
+      return actor === 'npc'
         ? {
           ...base,
           noiseScale: 84,
@@ -2236,8 +2271,9 @@ const PLACEMENT_PROFILE_GENERATORS: Record<PlacementKind, (actor: 'npc' | 'monst
             { x: 612, y: 552, radius: 72, weight: 1.9 },
             { x: 512, y: 733, radius: 92, weight: 1.85 },
           ],
-        }),
-  industrial: (actor, _target, base, _maxPerBucket) => ({
+        };
+    case 'industrial':
+      return {
         ...base,
         roomWeights: actor === 'npc'
           ? { [RoomType.PRODUCTION]: 1.58, [RoomType.HQ]: 1.38, [RoomType.COMMON]: 1.22, [RoomType.OFFICE]: 1.18, [RoomType.STORAGE]: 1.02, [RoomType.CORRIDOR]: 0.96 }
@@ -2245,8 +2281,9 @@ const PLACEMENT_PROFILE_GENERATORS: Record<PlacementKind, (actor: 'npc' | 'monst
         zoneWeights: actor === 'npc'
           ? { [ZoneFaction.LIQUIDATOR]: 1.22, [ZoneFaction.CITIZEN]: 1.0, [ZoneFaction.WILD]: 0.96, [ZoneFaction.CULTIST]: 0.78 }
           : { [ZoneFaction.SAMOSBOR]: 1.24, [ZoneFaction.WILD]: 1.14, [ZoneFaction.CULTIST]: 1.1, [ZoneFaction.LIQUIDATOR]: 0.94 },
-      }),
-  silicon: (actor, _target, base, _maxPerBucket) => ({
+      };
+    case 'silicon':
+      return {
         ...base,
         noiseScale: actor === 'npc' ? 76 : 118,
         noiseStrength: actor === 'npc' ? 0.14 : 0.18,
@@ -2276,8 +2313,9 @@ const PLACEMENT_PROFILE_GENERATORS: Record<PlacementKind, (actor: 'npc' | 'monst
         zoneWeights: actor === 'npc'
           ? { [ZoneFaction.LIQUIDATOR]: 1.46, [ZoneFaction.CITIZEN]: 0.92, [ZoneFaction.CULTIST]: 0.62, [ZoneFaction.WILD]: 0.58, [ZoneFaction.SAMOSBOR]: 0.34 }
           : { [ZoneFaction.SAMOSBOR]: 1.56, [ZoneFaction.WILD]: 1.32, [ZoneFaction.CULTIST]: 1.08, [ZoneFaction.CITIZEN]: 0.78, [ZoneFaction.LIQUIDATOR]: 0.58 },
-      }),
-  slime: (actor, target, base, _maxPerBucket) => ({
+      };
+    case 'slime':
+      return {
         ...base,
         noiseScale: actor === 'npc' ? 88 : 112,
         noiseStrength: actor === 'npc' ? 0.18 : 0.14,
@@ -2310,9 +2348,9 @@ const PLACEMENT_PROFILE_GENERATORS: Record<PlacementKind, (actor: 'npc' | 'monst
         zoneWeights: actor === 'npc'
           ? { [ZoneFaction.LIQUIDATOR]: 1.22, [ZoneFaction.CITIZEN]: 1.04, [ZoneFaction.WILD]: 0.78, [ZoneFaction.CULTIST]: 0.58, [ZoneFaction.SAMOSBOR]: 0.38 }
           : { [ZoneFaction.WILD]: 1.26, [ZoneFaction.SAMOSBOR]: 1.18, [ZoneFaction.LIQUIDATOR]: 1.02, [ZoneFaction.CULTIST]: 0.92, [ZoneFaction.CITIZEN]: 0.76 },
-      }),
-  attic: (actor, target, base, _maxPerBucket) => {
-    const atticBase: DesignPlacementFieldProfile = actor === 'monster'
+      };
+    case 'attic': {
+      const atticBase: DesignPlacementFieldProfile = actor === 'monster'
         ? {
           ...base,
           noiseScale: 112,
@@ -2331,8 +2369,9 @@ const PLACEMENT_PROFILE_GENERATORS: Record<PlacementKind, (actor: 'npc' | 'monst
           ? { [ZoneFaction.LIQUIDATOR]: 1.18, [ZoneFaction.CULTIST]: 1.0, [ZoneFaction.WILD]: 0.82, [ZoneFaction.CITIZEN]: 0.62, [ZoneFaction.SAMOSBOR]: 0.35 }
           : { [ZoneFaction.SAMOSBOR]: 1.42, [ZoneFaction.CULTIST]: 1.28, [ZoneFaction.WILD]: 1.16, [ZoneFaction.LIQUIDATOR]: 0.82, [ZoneFaction.CITIZEN]: 0.46 },
       };
-  },
-  hell: (actor, _target, base, _maxPerBucket) => ({
+    }
+    case 'hell':
+      return {
         ...base,
         noiseStrength: actor === 'npc' ? 0.12 : 0.08,
         roomWeights: actor === 'npc'
@@ -2341,8 +2380,9 @@ const PLACEMENT_PROFILE_GENERATORS: Record<PlacementKind, (actor: 'npc' | 'monst
         zoneWeights: actor === 'npc'
           ? { [ZoneFaction.LIQUIDATOR]: 1.24, [ZoneFaction.CULTIST]: 1.2, [ZoneFaction.WILD]: 0.92, [ZoneFaction.CITIZEN]: 0.64 }
           : { [ZoneFaction.CULTIST]: 1.18, [ZoneFaction.SAMOSBOR]: 1.28, [ZoneFaction.WILD]: 1.06, [ZoneFaction.LIQUIDATOR]: 0.88 },
-      }),
-  underhell: (actor, target, base, _maxPerBucket) => ({
+      };
+    case 'underhell':
+      return {
         ...base,
         noiseScale: actor === 'npc' ? 112 : 150,
         noiseStrength: actor === 'npc' ? 0.08 : 0.07,
@@ -2397,15 +2437,17 @@ const PLACEMENT_PROFILE_GENERATORS: Record<PlacementKind, (actor: 'npc' | 'monst
             { x: 512, y: 512, radius: 76, weight: 0.4 },
             { x: 448, y: 526, radius: 64, weight: 0.55 },
           ],
-      }),
-  void: (_actor, _target, base, _maxPerBucket) => ({
+      };
+    case 'void':
+      return {
         ...base,
         noiseScale: 160,
         noiseStrength: 0.08,
         roomWeights: { [RoomType.CORRIDOR]: 1.25, [RoomType.STORAGE]: 1.1, [RoomType.HQ]: 0.85 },
         zoneWeights: { [ZoneFaction.SAMOSBOR]: 1.35, [ZoneFaction.CULTIST]: 1.08, [ZoneFaction.WILD]: 1.0, [ZoneFaction.CITIZEN]: 0.72 },
-      }),
-  roof: (_actor, target, base, _maxPerBucket) => ({
+      };
+    case 'roof':
+      return {
         ...base,
         noiseScale: 208,
         noiseStrength: 0.08,
@@ -2414,8 +2456,9 @@ const PLACEMENT_PROFILE_GENERATORS: Record<PlacementKind, (actor: 'npc' | 'monst
         maxPerBucket: Math.max(base.maxPerBucket ?? 0, Math.min(32, Math.ceil(target / 180))),
         roomWeights: { [RoomType.PRODUCTION]: 1.75, [RoomType.HQ]: 1.4, [RoomType.CORRIDOR]: 1.28, [RoomType.STORAGE]: 1.18, [RoomType.COMMON]: 1.05, [RoomType.OFFICE]: 0.72 },
         zoneWeights: { [ZoneFaction.SAMOSBOR]: 1.28, [ZoneFaction.WILD]: 1.22, [ZoneFaction.CITIZEN]: 0.86, [ZoneFaction.LIQUIDATOR]: 0.92 },
-      }),
-  camp: (actor, target, base, _maxPerBucket) => ({
+      };
+    case 'camp':
+      return {
         ...base,
         noiseScale: actor === 'npc' ? 82 : 118,
         noiseStrength: actor === 'npc' ? 0.16 : 0.14,
@@ -2430,8 +2473,9 @@ const PLACEMENT_PROFILE_GENERATORS: Record<PlacementKind, (actor: 'npc' | 'monst
         zoneWeights: actor === 'npc'
           ? { [ZoneFaction.CITIZEN]: 1.38, [ZoneFaction.LIQUIDATOR]: 0.78, [ZoneFaction.WILD]: 0.42, [ZoneFaction.SAMOSBOR]: 0.26, [ZoneFaction.CULTIST]: 0.34 }
           : { [ZoneFaction.WILD]: 1.72, [ZoneFaction.SAMOSBOR]: 1.42, [ZoneFaction.LIQUIDATOR]: 1.06, [ZoneFaction.CITIZEN]: 0.48, [ZoneFaction.CULTIST]: 1.04 },
-      }),
-  morgue: (actor, _target, base, _maxPerBucket) => ({
+      };
+    case 'morgue':
+      return {
         ...base,
         noiseScale: actor === 'npc' ? 84 : 142,
         noiseStrength: actor === 'npc' ? 0.16 : 0.1,
@@ -2441,8 +2485,9 @@ const PLACEMENT_PROFILE_GENERATORS: Record<PlacementKind, (actor: 'npc' | 'monst
         zoneWeights: actor === 'npc'
           ? { [ZoneFaction.LIQUIDATOR]: 1.24, [ZoneFaction.CITIZEN]: 1.1, [ZoneFaction.WILD]: 0.66, [ZoneFaction.CULTIST]: 0.58, [ZoneFaction.SAMOSBOR]: 0.42 }
           : { [ZoneFaction.SAMOSBOR]: 1.46, [ZoneFaction.CULTIST]: 1.18, [ZoneFaction.WILD]: 1.08, [ZoneFaction.LIQUIDATOR]: 0.92, [ZoneFaction.CITIZEN]: 0.7 },
-      }),
-  crossroads: (actor, target, base, _maxPerBucket) => ({
+      };
+    case 'crossroads':
+      return {
         ...base,
         noiseScale: actor === 'npc' ? 72 : 104,
         noiseStrength: actor === 'npc' ? 0.16 : 0.12,
@@ -2505,8 +2550,9 @@ const PLACEMENT_PROFILE_GENERATORS: Record<PlacementKind, (actor: 'npc' | 'monst
             { x: 104, y: 676, radius: 118, weight: 1.42 },
             { x: 512, y: 920, radius: 112, weight: 1.36 },
           ],
-      }),
-  metro: (actor, target, base, maxPerBucket) => ({
+      };
+    case 'metro':
+      return {
         ...base,
         noiseScale: actor === 'npc' ? 112 : 144,
         noiseStrength: actor === 'npc' ? 0.12 : 0.2,
@@ -2520,25 +2566,7 @@ const PLACEMENT_PROFILE_GENERATORS: Record<PlacementKind, (actor: 'npc' | 'monst
           ? { [ZoneFaction.LIQUIDATOR]: 1.72, [ZoneFaction.WILD]: 0.7, [ZoneFaction.CITIZEN]: 0.56, [ZoneFaction.CULTIST]: 0.58, [ZoneFaction.SAMOSBOR]: 0.32 }
           : { [ZoneFaction.SAMOSBOR]: 1.48, [ZoneFaction.WILD]: 1.34, [ZoneFaction.CULTIST]: 1.18, [ZoneFaction.LIQUIDATOR]: 0.62, [ZoneFaction.CITIZEN]: 0.58 },
         anchors: actor === 'npc' ? METRO_NPC_ANCHORS : METRO_MONSTER_ANCHORS,
-      }),
-};
-
-function placementProfile(kind: PlacementKind, actor: 'npc' | 'monster', target: number): DesignPlacementFieldProfile {
-  const maxPerBucket = actor === 'npc'
-    ? Math.max(2, Math.min(10, Math.ceil(target / 520)))
-    : Math.max(3, Math.min(18, Math.ceil(target / 620)));
-  const base: DesignPlacementFieldProfile = {
-    noiseScale: actor === 'npc' ? 96 : 128,
-    noiseStrength: actor === 'npc' ? 0.22 : 0.18,
-    openWeight: actor === 'npc' ? 1.0 : 1.05,
-    bucketSize: actor === 'npc' ? 32 : 28,
-    maxPerBucket,
-    smoothingPasses: 2,
-    smoothingBlend: 0.55,
-  };
-  const generator = PLACEMENT_PROFILE_GENERATORS[kind];
-  if (generator) {
-    return generator(actor, target, base, maxPerBucket);
+      };
   }
   return base;
 }
@@ -2560,14 +2588,12 @@ export function designFloorPopulationProfile(route: DesignFloorRouteDef): Design
   const override = DESIGN_FLOOR_POPULATION_OVERRIDES[route.id] ?? {};
   const npcBase = baseNpcTarget(route);
   const monsterBase = baseMonsterTarget(route);
-  const tinyAuthoredNpc = typeof override.npcTarget === 'number' && override.npcTarget > 0 && override.npcTarget <= 16;
-  const tinyAuthoredMonster = typeof override.monsterTarget === 'number' && override.monsterTarget > 0 && override.monsterTarget <= 16;
-  const rawNpcTarget = clampInt((tinyAuthoredNpc ? activeActorCountAtDefaultSoftLimit(override.npcTarget as number) : resolveActorTarget(override.npcTarget, npcBase)) * (override.npcMult ?? 1), 0, entityNpcCap());
-  const rawMonsterTarget = clampInt((tinyAuthoredMonster ? activeActorCountAtDefaultSoftLimit(override.monsterTarget as number) : resolveActorTarget(override.monsterTarget, monsterBase)) * (override.monsterMult ?? 1), 0, entityMonsterCap());
+  const rawNpcTarget = clampInt(resolveActorTarget(override.npcTarget, npcBase * (override.npcMult ?? 1)), 0, entityNpcCap());
+  const rawMonsterTarget = clampInt(resolveActorTarget(override.monsterTarget, monsterBase * (override.monsterMult ?? 1)), 0, entityMonsterCap());
   const fitted = fitActiveActorCounts(rawNpcTarget, rawMonsterTarget);
   const npcTarget = fitted.npcs;
   const monsterTarget = fitted.monsters;
-  const baseLevel = populationLevelForRouteZ(route.z, route.danger);
+  const depthLevel = 1 + Math.round(depth01(route.z) * 8);
   const npcPlacementKind = override.npcPlacementKind ?? defaultPlacementKind(route);
   const monsterPlacementKind = override.monsterPlacementKind ?? defaultPlacementKind(route);
   const npcPlacement = mergePlacementProfile(placementProfile(npcPlacementKind, 'npc', npcTarget), override.npcPlacement);
@@ -2577,8 +2603,8 @@ export function designFloorPopulationProfile(route: DesignFloorRouteDef): Design
     z: route.z,
     npcTarget,
     monsterTarget,
-    npcLevel: Math.max(1, baseLevel - 1),
-    monsterLevel: Math.max(route.danger, baseLevel),
+    npcLevel: Math.max(1, depthLevel - 1),
+    monsterLevel: Math.max(route.danger, depthLevel),
     npcNoun: override.npcNoun ?? defaultNpcNoun(route),
     npcFactions: override.npcFactions ?? defaultNpcFactions(route),
     npcOccupations: override.npcOccupations ?? defaultNpcOccupations(route),

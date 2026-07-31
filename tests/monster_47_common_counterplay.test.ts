@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, Feature, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, Feature, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { DEF as SBORKA_DEF } from '../src/entities/sborka';
 import { DEF as TVAR_DEF } from '../src/entities/tvar';
@@ -120,6 +120,7 @@ test('common monster role data separates fodder, distance threat, and tank', () 
   assert.equal(TVAR_DEF.hp >= 45 && TVAR_DEF.hp <= 70, true, 'TVAR should stay medium durability');
   assert.match(TVAR_DEF.counterplay ?? '', /полторы клетки|стен|центр/);
   assert.equal(tvar?.rooms.includes(RoomType.CORRIDOR), true);
+  assert.equal(tvar?.floors.includes(FloorLevel.LIVING), true);
 
   assert.equal(POLZUN_DEF.hp >= 150, true, 'POLZUN should be the slow tank');
   assert.equal(POLZUN_DEF.speed <= 0.9, true, 'POLZUN should be kiteable outside tight passages');
@@ -141,7 +142,7 @@ test('sborka first sight is a cue, not a custom brain', () => {
   const target = player(16, 10);
   const threat = monster(MonsterKind.SBORKA, 10, 10);
   const entities = [target, threat];
-  const state = makeGameState({ currentZ: 0 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
   const msgs: Msg[] = [];
 
   rebuildEntityIndex(entities);

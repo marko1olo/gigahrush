@@ -1,6 +1,6 @@
 /* ── Pseudolift: rare route-choice lift mimic ────────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -12,6 +12,7 @@ export const DEF: MonsterDef = {
   dmg: 24,
   attackRate: 0.78,
   sprite: 0,
+  floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
   counterplay: 'Читайте табло, мокрый порог и неверный металл: осмотрите кабину, бросьте приманку или сразу отступайте из лифтового тамбура.',
   lootHint: 'кабельный язык, мокрая табличка этажа, редкая живая реле-пластина',
 };

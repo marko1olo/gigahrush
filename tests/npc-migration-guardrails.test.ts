@@ -37,7 +37,7 @@ test('active source and scripts no longer read or export the old PLOT_NPCS proje
         .map(({ index }) => `${relativeSource(path)}:${index + 1}`);
     });
 
-  // assert.deepEqual(offenders, []);
+  assert.deepEqual(offenders, []);
 });
 
 test('intake questionnaire sync rejects source-less package summaries', () => {

@@ -1,7 +1,7 @@
 /* ── Сухой мост над водой — shooter/eel counterplay set piece ── */
 
 import {
-  Cell, ContainerKind, Faction, Feature, MonsterKind, RoomType, Tex,
+  Cell, ContainerKind, Faction, Feature, FloorLevel, MonsterKind, RoomType, Tex,
   EntityType, AIGoal,
   type Entity, type Room, type WorldContainer,
 } from '../../core/types';
@@ -12,7 +12,6 @@ import {
   type MaintContentCtx, findMaintArea, openTile, setFeature, setWater,
   stampMaintRoom,
 } from './content_helpers';
-import { rng } from '../../core/rand';
 
 const BRIDGE_W = 31;
 const BRIDGE_H = 15;
@@ -37,8 +36,7 @@ function addBridgeContainer(
     id: nextContainerId(ctx),
     x: wx,
     y: wy,
-    // @ts-ignore
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     roomId: room.id,
     zoneId: ctx.world.zoneMap[ci],
     ...container,
@@ -78,7 +76,7 @@ function spawnBridgeMonster(ctx: MaintContentCtx, kind: MonsterKind, x: number, 
   const monster: Entity = {
     id: ctx.nextId.v++, type: EntityType.MONSTER,
     x: x + 0.5, y: y + 0.5,
-    angle: rng() * Math.PI * 2, pitch: 0,
+    angle: Math.random() * Math.PI * 2, pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, zoneLevel),
     sprite: def.sprite,
@@ -145,7 +143,6 @@ export function generateWaterBridge(ctx: MaintContentCtx): void {
   setFeature(ctx.world, room.x + room.w - 5, room.y + room.h - 3, Feature.SHELF);
   setFeature(ctx.world, room.x + room.w - 3, room.y + 3, Feature.MACHINE);
 
-  // @ts-ignore
   addBridgeContainer(ctx, room, room.x + room.w - 5, room.y + room.h - 3, {
     kind: ContainerKind.TOOL_LOCKER,
     name: 'Маршрутный ящик сухого моста',

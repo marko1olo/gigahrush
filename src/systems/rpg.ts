@@ -7,10 +7,10 @@ import {
   W,
   EntityType,
   MonsterKind,
+  FloorLevel,
   msg,
 } from '../core/types';
 import { RPG_ATTRIBUTE_CAP, RPG_LEVEL_CAP } from '../data/rpg_progression';
-import { rng } from '../core/rand';
 
 export { RPG_ATTRIBUTE_CAP, RPG_LEVEL_CAP } from '../data/rpg_progression';
 
@@ -93,7 +93,7 @@ export function randomRPG(level: number): RPGStats {
   const points = Math.max(0, cappedLevel - 1);
   let str = 0, agi = 0, int_ = 0;
   for (let i = 0; i < points; i++) {
-    const r = rng();
+    const r = Math.random();
     if (r < 0.34) str++;
     else if (r < 0.67) agi++;
     else int_++;
@@ -346,7 +346,7 @@ export function xpForNpcKill(npcLevel: number): number {
 // ── Zone level calculation ───────────────────────────────────────
 // Level depends on distance from center of the zone grid + floor bonus.
 const ZONE_CELL = Math.floor(W / 8); // ~128; must match shared.ts ZONE_CELL
-export function calcZoneLevel(zoneCx: number, zoneCy: number, z: number): number {
+export function calcZoneLevel(zoneCx: number, zoneCy: number, floor: FloorLevel): number {
   // Convert world-space center to grid coordinates (0-7)
   const zx = zoneCx / ZONE_CELL;
   const zy = zoneCy / ZONE_CELL;
@@ -355,10 +355,17 @@ export function calcZoneLevel(zoneCx: number, zoneCy: number, z: number): number
   const distFromCenter = Math.sqrt(dx * dx + dy * dy);
   const baseLevel = Math.max(1, Math.round(1 + distFromCenter * 1.5));
 
-  // Difficulty increases with depth (distance from z=0)
-  const depthBonus = Math.floor(Math.abs(z) * 1.5);
+  // Floor bonus
+  const floorBonus: Record<FloorLevel, number> = {
+    [FloorLevel.MINISTRY]: 0,
+    [FloorLevel.KVARTIRY]: 0,
+    [FloorLevel.LIVING]: 0,
+    [FloorLevel.MAINTENANCE]: 4,
+    [FloorLevel.HELL]: 9,
+    [FloorLevel.VOID]: 15,
+  };
 
-  return baseLevel + depthBonus;
+  return baseLevel + (floorBonus[floor] ?? 0);
 }
 
 // ── Scale monster stats by zone level ────────────────────────────
@@ -383,8 +390,8 @@ export function generateHeight(age: number, isFemale?: boolean): number {
 
 export function randomGaussian(center = 0, sigma = 1): number {
   // Box-Muller transform
-  const u1 = rng() || 0.001;
-  const u2 = rng();
+  const u1 = Math.random() || 0.001;
+  const u2 = Math.random();
   const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
   return center + z * sigma;
 }

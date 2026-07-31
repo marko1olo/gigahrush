@@ -8,7 +8,6 @@ import { ITEM_TAGS, ITEMS, getStack } from '../src/data/items';
 import { RESOURCE_BY_ID, resourceForItem } from '../src/data/resources';
 import { inventoryItemCategory } from '../src/systems/inventory';
 import { makeTestNpc } from './helpers';
-import { _overrideRng, _restoreRng } from '../src/core/rand';
 
 const ITEM_ID = 'plastic_sheet';
 
@@ -17,16 +16,17 @@ function containerPoolIds(kind: ContainerKind): Set<string> {
 }
 
 function sampledTradeItemIds(occupation: Occupation): Set<string> {
+  const savedRandom = Math.random;
   const out = new Set<string>();
   try {
     for (let i = 0; i < 512; i++) {
       const pick = i / 512;
       let roll = 0;
-      _overrideRng(() => roll++ === 0 ? 0 : pick);
+      Math.random = () => roll++ === 0 ? 0 : pick;
       for (const item of generateNpcTradeItems(makeTestNpc({ occupation }))) out.add(item.defId);
     }
   } finally {
-    _restoreRng();
+    Math.random = savedRandom;
   }
   return out;
 }

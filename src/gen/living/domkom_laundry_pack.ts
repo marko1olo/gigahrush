@@ -2,7 +2,6 @@
 /* Zone 39 is an unsafe no-door laundry: bad shelter during sirens.  */
 /* Zone 46 is a protected household institution with a closable door. */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
   Cell, DoorState, Feature, Faction, MonsterKind, Occupation,
@@ -152,7 +151,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
 registerSideQuest('ag03r2_zoya_laundry', NPC_DEFS.ag03r2_zoya_laundry, [
   {
     id: 'ag03r2_zoya_cloth',
-    giverId: getPlotNpcNumericId('ag03r2_zoya_laundry')!,
+    giverNpcId: 'ag03r2_zoya_laundry',
     type: QuestType.FETCH,
     desc: 'Зоя Прачечная: «Принеси два рулона ткани. Перевяжем мокрые щели до сирены.»',
     targetItem: 'cloth_roll', targetCount: 2,
@@ -162,7 +161,7 @@ registerSideQuest('ag03r2_zoya_laundry', NPC_DEFS.ag03r2_zoya_laundry, [
   },
   {
     id: 'ag03r2_zoya_polzun',
-    giverId: getPlotNpcNumericId('ag03r2_zoya_laundry')!,
+    giverNpcId: 'ag03r2_zoya_laundry',
     type: QuestType.KILL,
     desc: 'Зоя Прачечная: «Ползун сидит под сливом. Убей его или не стой на плитке.»',
     targetMonsterKind: MonsterKind.POLZUN,
@@ -176,7 +175,7 @@ registerSideQuest('ag03r2_zoya_laundry', NPC_DEFS.ag03r2_zoya_laundry, [
 registerSideQuest('ag03r2_lev_signal', NPC_DEFS.ag03r2_lev_signal, [
   {
     id: 'ag03r2_lev_fuses',
-    giverId: getPlotNpcNumericId('ag03r2_lev_signal')!,
+    giverNpcId: 'ag03r2_lev_signal',
     type: QuestType.FETCH,
     desc: 'Лев Сиренный: «Два предохранителя — и сирена перестанет кашлять перед бедой.»',
     targetItem: 'fuse', targetCount: 2,
@@ -189,7 +188,7 @@ registerSideQuest('ag03r2_lev_signal', NPC_DEFS.ag03r2_lev_signal, [
 registerSideQuest('ag03r2_nina_domkom', NPC_DEFS.ag03r2_nina_domkom, [
   {
     id: 'ag03r2_nina_complaints',
-    giverId: getPlotNpcNumericId('ag03r2_nina_domkom')!,
+    giverNpcId: 'ag03r2_nina_domkom',
     type: QuestType.FETCH,
     desc: 'Нина Домком: «Две жалобы соседей. Без бумаги я не могу отличить помощь от паники.»',
     targetItem: 'neighbor_complaint', targetCount: 2,
@@ -199,7 +198,7 @@ registerSideQuest('ag03r2_nina_domkom', NPC_DEFS.ag03r2_nina_domkom, [
   },
   {
     id: 'ag03r2_nina_denunciation',
-    giverId: getPlotNpcNumericId('ag03r2_nina_domkom')!,
+    giverNpcId: 'ag03r2_nina_domkom',
     type: QuestType.FETCH,
     desc: 'Нина Домком: «Принесешь донос — решим, кого выставлять из укрытия последним.»',
     targetItem: 'denunciation', targetCount: 1,
@@ -212,7 +211,7 @@ registerSideQuest('ag03r2_nina_domkom', NPC_DEFS.ag03r2_nina_domkom, [
 registerSideQuest('ag03r2_arsen_gasket', NPC_DEFS.ag03r2_arsen_gasket, [
   {
     id: 'ag03r2_arsen_gasket',
-    giverId: getPlotNpcNumericId('ag03r2_arsen_gasket')!,
+    giverNpcId: 'ag03r2_arsen_gasket',
     type: QuestType.FETCH,
     desc: 'Арсен Уплотнитель: «Найди гермоуплотнитель. Без него домком — просто красивая кладовка.»',
     targetItem: 'hermo_gasket', targetCount: 1,
@@ -230,7 +229,7 @@ const NPC_SPAWNS: readonly NpcSpawn[] = [
 ];
 
 function hasPlotNpc(entities: Entity[], plotNpcId: string): boolean {
-  return entities.some(e => e.alive && e.id === getPlotNpcNumericId(plotNpcId)!);
+  return entities.some(e => e.alive && e.plotNpcId === plotNpcId);
 }
 
 function areaClear(world: World, rx: number, ry: number, w: number, h: number): boolean {

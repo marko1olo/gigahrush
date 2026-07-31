@@ -379,31 +379,3 @@ test('floor memory save does not full-dump visual slot bytes', () => {
   assert.equal(JSON.stringify(entry).includes('visualSlots'), false);
   clearFloorMemory();
 });
-
-test('clearVisualSlots clears specific sub-array and updates state', () => {
-  const world = new World();
-  const cellIdx = 10;
-  const adjacentCellIdx = 11;
-
-  // Setup: Clear an already empty cell
-  const initialVersion = world.visualSlotVersion;
-  assert.equal(clearVisualSlots(world, cellIdx), false);
-  assert.equal(world.visualSlotVersion, initialVersion);
-
-  // Setup: Set some slots in the cell and an adjacent cell
-  setVisualSlot(world, cellIdx, 0, code('pipe_wall_small'));
-  setVisualSlot(world, cellIdx, 1, code('machine_panel'));
-  setVisualSlot(world, adjacentCellIdx, 0, code('rubble_chunk'));
-
-  // Action: Clear the target cell
-  const versionBeforeClear = world.visualSlotVersion;
-  assert.equal(clearVisualSlots(world, cellIdx), true);
-
-  // Expectation: Target cell slots should be 0, version bumped
-  assert.equal(world.visualSlotVersion > versionBeforeClear, true);
-  assert.equal(getVisualSlot(world, cellIdx, 0), EMPTY_VISUAL_CELL_CODE);
-  assert.equal(getVisualSlot(world, cellIdx, 1), EMPTY_VISUAL_CELL_CODE);
-
-  // Expectation: Adjacent cell untouched
-  assert.equal(getVisualSlot(world, adjacentCellIdx, 0), code('rubble_chunk'));
-});

@@ -4,7 +4,7 @@ import { isArenaOverlayOpen, getArenaOverlaySnapshot } from '../systems/arena';
 
 import { SCR_W, SCR_H } from './webgl';
 import {
-  W, type Entity, type GameState, EntityType, Tex,
+  W, type Entity, type GameState, EntityType, FloorLevel, Tex,
   ZoneFaction,
 } from '../core/types';
 import { World } from '../core/world';
@@ -234,7 +234,7 @@ function drawVoidReturnPortalHint(
   state: GameState,
   world: World,
 ): void {
-  if (currentFloorRunEntry(state)!.themeTags.includes('void') || state.samosborActive) return;
+  if (state.currentFloor !== FloorLevel.VOID || state.samosborActive) return;
   const portal = voidReturnPortalHudState(state);
   if (!portal || world.floorTex[portal.cell!] !== Tex.PORTAL) return;
 
@@ -529,8 +529,8 @@ function drawSmallCaravanHint(
   ctx.restore();
 }
 
-function fitHudText(ctx: CanvasRenderingContext2D, text: string, maxW: number, options?: { skipTranslate?: boolean }): string {
-  return fitUiText(ctx, text, maxW, 'clip', options);
+function fitHudText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
+  return fitUiText(ctx, text, maxW);
 }
 
 function compactFloorLabel(entry: FloorRunEntry): string {
@@ -542,7 +542,7 @@ function compactFloorLabel(entry: FloorRunEntry): string {
   return `${z} ${name}`;
 }
 
-function wrapHudText(ctx: CanvasRenderingContext2D, text: string, maxW: number, maxLines: number, options?: { skipTranslate?: boolean }): string[] {
+function wrapHudText(ctx: CanvasRenderingContext2D, text: string, maxW: number, maxLines: number): string[] {
   const limit = Math.max(1, Math.floor(maxLines));
   const words = text.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return [''];
@@ -562,9 +562,9 @@ function wrapHudText(ctx: CanvasRenderingContext2D, text: string, maxW: number, 
   if (lines.length === 0) lines.push(text);
   const overflow = words.join(' ') !== lines.join(' ');
   const last = lines.length - 1;
-  if (overflow && last >= 0) lines[last] = `${fitHudText(ctx, lines[last], Math.max(1, maxW - ctx.measureText('...').width), options)}...`;
-  else if (last >= 0) lines[last] = fitHudText(ctx, lines[last], maxW, options);
-  return lines.map(item => fitHudText(ctx, item, maxW, options));
+  if (overflow && last >= 0) lines[last] = `${fitHudText(ctx, lines[last], Math.max(1, maxW - ctx.measureText('...').width))}...`;
+  else if (last >= 0) lines[last] = fitHudText(ctx, lines[last], maxW);
+  return lines.map(item => fitHudText(ctx, item, maxW));
 }
 
 function compactNumber(value: number | undefined): string {
@@ -810,7 +810,6 @@ interface CombatTargetHud {
   screenX: number;
   headY: number;
   attitude: CombatTargetAttitude;
-  isOnlinePeer?: boolean;
 }
 
 type CombatTargetAttitude = 'hostile' | 'neutral' | 'friendly';
@@ -966,7 +965,6 @@ function findAimTarget(world: World, player: Entity, state: GameState): CombatTa
     screenX: projection?.screenX ?? SCR_W * 0.5,
     headY: projection?.headY ?? SCR_H * 0.5 - 44,
     attitude: combatTargetAttitude(best, player),
-    isOnlinePeer: best.peerSlot !== undefined || best.netGen !== undefined,
   };
 }
 
@@ -1222,7 +1220,7 @@ function drawCombatSightFeedback(
     }
     ctx.shadowColor = palette.glow;
     ctx.shadowBlur = 5;
-    ctx.fillText(fitHudText(ctx, label, textW, target.isOnlinePeer ? { skipTranslate: true } : undefined), textX, ty + 3 * s);
+    ctx.fillText(fitHudText(ctx, label, textW), textX, ty + 3 * s);
     ctx.shadowBlur = 0;
     const hpTrackW = tw - 10 * s;
     const hpW = hpTrackW * Math.max(0, Math.min(1, target.hpPct / 100));
@@ -1266,7 +1264,7 @@ function drawWorldSpeechBubbles(
     const color = e.activeBark.color;
     
     ctx.font = `${6 * s}px monospace`;
-    const lines = wrapHudText(ctx, text, 120 * s, 4, e.activeBark.skipTranslate ? { skipTranslate: true } : undefined);
+    const lines = wrapHudText(ctx, text, 120 * s, 4);
     const lh = 7.5 * s;
     const padding = 4 * s;
     const tw = Math.max(...lines.map(l => ctx.measureText(l).width));
@@ -1315,38 +1313,6 @@ function drawWorldSpeechBubbles(
   }
 }
 
-function drawIcon(ctx: CanvasRenderingContext2D, icon: string, x: number, y: number): void {
-  ctx.save();
-  ctx.font = 'bold 12px monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  if (icon === 'icon_istotit') {
-    ctx.fillStyle = '#cc8';
-    ctx.fillText('ИСТ', x + 16, y + 16);
-    ctx.strokeStyle = '#cc8';
-    ctx.strokeRect(x, y, 32, 32);
-  } else if (icon === 'icon_veretar') {
-    ctx.fillStyle = '#84c';
-    ctx.fillText('ВЕР', x + 16, y + 16);
-    ctx.strokeStyle = '#84c';
-    ctx.strokeRect(x, y, 32, 32);
-  }
-
-  ctx.restore();
-}
-
-export function renderStatusIcons(ctx: CanvasRenderingContext2D, player: Entity) {
-  let xOffset = 10;
-  if ((player.statusEffects?.istotit ?? 0) > 0) {
-    drawIcon(ctx, 'icon_istotit', xOffset, 10);
-    xOffset += 42;
-  }
-  if ((player.statusEffects?.veretar ?? 0) > 0) {
-    drawIcon(ctx, 'icon_veretar', xOffset, 10);
-  }
-}
-
 /* ── The HUD is drawn on the 2D canvas overlaying the 3D view ── */
 export function drawHUD(
   ctx: CanvasRenderingContext2D,
@@ -1392,23 +1358,19 @@ export function drawHUD(
       centerInteraction: { ...slots.centerInteraction },
     };
   }
-
-  const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
-  const isEmergencyMobile = (w / dpr) <= 320;
-
   const showBottomTabs = uiElementEnabled('bottom_tabs');
   const showWeaponPanel = uiElementEnabled('weapon_panel');
   const showCrosshair = uiElementEnabled('crosshair');
   const showInteractionPrompt = uiElementEnabled('interaction_prompt');
   const showDamageFeedback = uiElementEnabled('damage_feedback');
   const showHazardWarning = uiElementEnabled('hazard_warning');
-  const showMessages = isEmergencyMobile ? false : uiElementEnabled('messages');
-  const showLocationPanel = isEmergencyMobile ? false : uiElementEnabled('location_panel');
+  const showMessages = uiElementEnabled('messages');
+  const showLocationPanel = uiElementEnabled('location_panel');
   const showMinimap = uiElementEnabled('minimap');
-  const showRouteHints = isEmergencyMobile ? false : uiElementEnabled('route_hints');
-  const showCaravanHints = isEmergencyMobile ? false : uiElementEnabled('caravan_hints');
-  const showStatusHints = isEmergencyMobile ? false : uiElementEnabled('status_hints');
-  const showAnomalyHints = isEmergencyMobile ? false : uiElementEnabled('anomaly_hints');
+  const showRouteHints = uiElementEnabled('route_hints');
+  const showCaravanHints = uiElementEnabled('caravan_hints');
+  const showStatusHints = uiElementEnabled('status_hints');
+  const showAnomalyHints = uiElementEnabled('anomaly_hints');
   const showScreenFx = uiElementEnabled('screen_fx');
   const showSamosborText = uiElementEnabled('samosbor_text');
   const reducedHudMotion = hudMotionMode() === 'reduced';
@@ -1498,7 +1460,7 @@ export function drawHUD(
     ctx.fillText(fitHudText(ctx, zhelemishLine, panelW - 10 * sx), panelX + 5 * sx, panelY + 4 * sy);
   }
 
-  const routeCue = getActiveRouteCueHud(state.time, state.currentZ);
+  const routeCue = getActiveRouteCueHud(state.time, state.currentFloor);
   const routeHintsVisible = showCompactPanels && showRouteHints && !state.samosborActive;
   const objectiveRoute = routeHintsVisible ? getObjectiveRouteHud(state, world, player) : null;
   const currentObjective = routeHintsVisible ? getCurrentObjective(state, entities) : null;
@@ -1628,7 +1590,7 @@ export function drawHUD(
     const s = Math.max(1, Math.min(sx, sy));
     const mapSize = Math.max(48 * s, Math.min(HUD_MINIMAP_UNITS * s, slots.topRightNavigation.w, slots.topRightNavigation.h));
     const mapRect = allocateHudSlot(slots.topRightNavigation, mapSize, mapSize, 'right');
-    drawMinimap(ctx, world, entities, player, sx, sy, state.quests, currentFloorInstanceLabel(state), state.currentZ, state, time, mapRect);
+    drawMinimap(ctx, world, entities, player, sx, sy, state.quests, currentFloorInstanceLabel(state), state.currentFloor, state, time, mapRect);
   }
   if (objectiveRoute) {
     const rect = allocateHudSlot(slots.topRightNavigation, 46 * sy, 188 * sx, 'right');
@@ -1758,7 +1720,7 @@ export function drawHUD(
   }
 
   if (!quietHud && uiElementEnabled('npc_barks')) {
-    drawWorldSpeechBubbles(ctx, world, player, entities, sx, sy, gameTime);
+    drawWorldSpeechBubbles(ctx, world, player, entities, sx, sy, time);
   }
 
   // ── Zone info + time + room (neuro-interface left panel) ──
@@ -1816,7 +1778,7 @@ export function drawHUD(
 
   // ── Full map menu ────────────────────────────────────────
   if (state.mapMode === 2) {
-    drawFullMap(ctx, world, entities, player, sx, sy, state.quests, currentFloorInstanceLabel(state), state.currentZ, state, time);
+    drawFullMap(ctx, world, entities, player, sx, sy, state.quests, currentFloorInstanceLabel(state), state.currentFloor, state, time);
   }
 
   if (state.showMapLegend) {
@@ -2085,8 +2047,6 @@ export function drawHUD(
     });
   }
 
-  renderStatusIcons(ctx, player);
-
   // ── Sleep overlay (Z held) ───────────────────────────────
   if (damageFeedbackVisible && state.sleeping) {
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
@@ -2102,9 +2062,9 @@ export function drawHUD(
     ctx.textAlign = 'left';
   }
 
-  // ── Global neuro-interface overlay (opt-in 'full' mode only; samosbor veils are separate) ──
-  if (screenFxVisible && interferenceMode === 'full') {
-    drawStaticNoise(ctx, 0, 0, w, h, time * 0.55, 0.008);
+  // ── Global neuro-interface overlay ──────────────────────
+  if (screenFxVisible) {
+    drawStaticNoise(ctx, 0, 0, w, h, time * 0.55, interferenceMode === 'full' ? 0.008 : 0.0035);
     drawGlitchLine(ctx, w, h, time);
   }
 

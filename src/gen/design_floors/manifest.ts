@@ -1,5 +1,4 @@
-import { generateLiquidatorBaseDesignFloor } from '../liquidatorbase';
-import { generateOuterDistrictDesignFloor } from '../outer_district';
+import { generateLiquidatorBaseDesignFloor } from './liquidatorbase';
 import {
   DESIGN_FLOOR_ROUTES,
   designFloorById,
@@ -14,65 +13,58 @@ import { withoutNpcEntities } from '../entity_filters';
 import { applyDesignFloorObjectProfile } from '../floor_object_placement';
 import { fillVisualSlotsForWorldFeatures } from '../visual_cell_slots';
 import { rebuildGeneratedFloorPathBlockers } from '../path_blockers';
-import { populateDesignFloorAmbientNpcs, populateDesignFloorMonsters } from './population';
-import { generateAntennaCourtDesignFloor } from '../antenna_court';
-import { generateAttractorDvorDesignFloor } from '../attractor_dvor';
-import { generateBankFloorDesignFloor } from '../bank_floor';
-import { generateBolnichnyKorpusDesignFloor } from '../bolnichny_korpus';
-import { generateBlackMarket88DesignFloor, reinforceBlackMarket88AuthoredHqTerritory } from '../black_market_88';
-import { generateCantorPustotyDesignFloor } from '../cantor_pustoty';
-import { generateCayleyByuroDesignFloor } from '../cayley_byuro';
-import { generateChthonicAtticDesignFloor } from '../chthonic_attic';
-import { generateCommunalRingDesignFloor } from '../communal_ring';
-import { generateCriticalLeakArchiveDesignFloor } from '../critical_leak_archive';
-import { generateDarkMetroDesignFloor } from '../dark_metro';
-import { generateDarknessDesignFloor } from '../darkness';
-import { generateHorrorFloorDesignFloor } from '../horrorfloor';
-import { generateFloor69DesignFloor } from '../floor_69';
-import { generateHarmonicBathhouseDesignFloor } from '../harmonic_bathhouse';
-import { generateHilbertDepotDesignFloor } from '../hilbert_depot';
-import { generateHyperbolicSwitchyardDesignFloor } from '../hyperbolic_switchyard';
-import { generateIstinniyLabirintDesignFloor } from '../istinniy_labirint';
-import { generateManhattanCrossroadsDesignFloor } from '../manhattan_crossroads';
-import { generateMarkovStairwellDesignFloor, reinforceMarkovStairwellAuthoredHqTerritory } from '../markov_stairwell';
-import { generateMoebiusPodezdDesignFloor } from '../moebius_podezd';
-import { generateNumberRegistryDesignFloor } from '../number_registry';
-import { generateObschezhitieSmenyDesignFloor } from '../obschezhitie_smeny';
-import { generateOranzhereyaBetonaDesignFloor } from '../oranzhereya_betona';
-import { generatePenroseLaundryDesignFloor, reinforcePenroseLaundryAuthoredHqTerritory } from '../penrose_laundry';
-import { generatePioneerCampDesignFloor } from '../pioneer_camp';
-import { generatePodadDesignFloor } from '../podad';
+import { generateAntennaCourtDesignFloor } from './antenna_court';
+import { alignAttractorDvorAmbientNpcTerritory, generateAttractorDvorDesignFloor } from './attractor_dvor';
+import { generateBankFloorDesignFloor } from './bank_floor';
+import { generateBolnichnyKorpusDesignFloor } from './bolnichny_korpus';
+import { alignBlackMarket88AmbientNpcTerritory, generateBlackMarket88DesignFloor, reinforceBlackMarket88AuthoredHqTerritory } from './black_market_88';
+import { generateCantorPustotyDesignFloor, reinforceCantorPustotyAuthoredHqTerritory } from './cantor_pustoty';
+import { generateCayleyByuroDesignFloor } from './cayley_byuro';
+import { generateChthonicAtticDesignFloor } from './chthonic_attic';
+import { generateCommunalRingDesignFloor } from './communal_ring';
+import { generateCriticalLeakArchiveDesignFloor } from './critical_leak_archive';
+import { alignDarkMetroAmbientNpcTerritory, generateDarkMetroDesignFloor } from './dark_metro';
+import { generateDarknessDesignFloor } from './darkness';
+import { generateHorrorFloorDesignFloor } from './horrorfloor';
+import { generateFloor69DesignFloor } from './floor_69';
+import { alignHarmonicBathhouseAmbientNpcTerritory, generateHarmonicBathhouseDesignFloor } from './harmonic_bathhouse';
+import { alignHilbertDepotAmbientNpcTerritory, generateHilbertDepotDesignFloor } from './hilbert_depot';
+import { alignHyperbolicSwitchyardAmbientNpcTerritory, generateHyperbolicSwitchyardDesignFloor } from './hyperbolic_switchyard';
+import { generateIstinniyLabirintDesignFloor } from './istinniy_labirint';
+import { generateManhattanCrossroadsDesignFloor } from './manhattan_crossroads';
+import { generateMarkovStairwellDesignFloor, reinforceMarkovStairwellAuthoredHqTerritory } from './markov_stairwell';
+import { alignMoebiusPodezdAmbientNpcTerritory, generateMoebiusPodezdDesignFloor } from './moebius_podezd';
+import { generateNumberRegistryDesignFloor } from './number_registry';
+import { generateObschezhitieSmenyDesignFloor } from './obschezhitie_smeny';
+import { alignOranzhereyaBetonaAmbientNpcTerritory, generateOranzhereyaBetonaDesignFloor } from './oranzhereya_betona';
+import { generatePenroseLaundryDesignFloor, reinforcePenroseLaundryAuthoredHqTerritory } from './penrose_laundry';
+import { generatePioneerCampDesignFloor } from './pioneer_camp';
+import { generatePodadDesignFloor, reinforcePodadAuthoredHqTerritory } from './podad';
 import {
+  alignProductionBeltAmbientNpcTerritory,
   generateProductionBeltDesignFloor,
   reinforceProductionBeltAuthoredHqTerritory,
-} from '../production_belt';
-import { generateRadonExchangeDesignFloor } from '../radon_exchange';
-import { generateRaionsovetArchiveDesignFloor } from '../raionsovet_archive';
-import { generateRegistryMorgueDesignFloor } from '../registry_morgue';
-import { generateRoofDesignFloor } from '../roof';
-import { generateServiceFloorDesignFloor, reinforceServiceFloorAuthoredHqTerritory } from '../service_floor';
-import { generateShahtaAtriumDesignFloor, reinforceShahtaAtriumAuthoredHqTerritory } from '../shahta_atrium';
-import { generateSiliconNetWellDesignFloor } from '../silicon_net_well';
-import { generateSlimeNiiDesignFloor } from '../slime_nii';
-import { generateSpetspriemnikDesignFloor } from '../spetspriemnik';
-import { generateSpectralChasovnyaDesignFloor } from '../spectral_chasovnya';
-import { generateTuringNurseryDesignFloor } from '../turing_nursery';
-import { generateUnderhellDesignFloor } from '../underhell';
-import { generateUpperBureauDesignFloor } from '../upper_bureau';
-import { generateVoronoiQuarantineDesignFloor } from '../voronoi_quarantine';
-import { generateMinistry } from '../ministry';
-import { generateKvartiry } from '../kvartiry';
-import { generateWorld as generateLivingDesignFloor } from '../living';
-import { generateMaintenance } from '../maintenance';
-import { generateHell } from '../hell';
-import { generateVoid } from '../void';
+} from './production_belt';
+import { generateRadonExchangeDesignFloor } from './radon_exchange';
+import { generateRaionsovetArchiveDesignFloor } from './raionsovet_archive';
+import { generateRegistryMorgueDesignFloor } from './registry_morgue';
+import { generateRoofDesignFloor } from './roof';
+import { alignServiceFloorAmbientNpcTerritory, generateServiceFloorDesignFloor, reinforceServiceFloorAuthoredHqTerritory } from './service_floor';
+import { generateShahtaAtriumDesignFloor, reinforceShahtaAtriumAuthoredHqTerritory } from './shahta_atrium';
+import { alignSiliconNetWellAmbientNpcTerritory, generateSiliconNetWellDesignFloor } from './silicon_net_well';
+import { alignSlimeNiiAmbientNpcTerritory, generateSlimeNiiDesignFloor } from './slime_nii';
+import { generateSpetspriemnikDesignFloor } from './spetspriemnik';
+import { alignSpectralChasovnyaAmbientNpcTerritory, generateSpectralChasovnyaDesignFloor, reinforceSpectralChasovnyaAuthoredHqTerritory } from './spectral_chasovnya';
+import { alignTuringNurseryAmbientNpcTerritory, generateTuringNurseryDesignFloor } from './turing_nursery';
+import { alignUnderhellAmbientNpcTerritory, generateUnderhellDesignFloor } from './underhell';
+import { generateUpperBureauDesignFloor, reinforceUpperBureauAuthoredHqTerritory } from './upper_bureau';
+import { alignVoronoiQuarantineAmbientNpcTerritory, generateVoronoiQuarantineDesignFloor } from './voronoi_quarantine';
+import { expandDesignFloorGeneration, retuneDesignFloorAfterCellTerritory } from './full_floor';
 
-const DESIGN_FLOOR_GENERATORS: Record<DesignFloorId, (seed: number) => FloorGeneration> = {
+const DESIGN_FLOOR_GENERATORS: Record<DesignFloorId, () => FloorGeneration> = {
   liquidatorbase: generateLiquidatorBaseDesignFloor,
-  outer_district: generateOuterDistrictDesignFloor,
   roof: generateRoofDesignFloor,
-  // takes an optional rootChoice variant, not a seed — global rng is already seeded by withSeededRandom below
-  chthonic_attic: () => generateChthonicAtticDesignFloor(),
+  chthonic_attic: generateChthonicAtticDesignFloor,
   radon_exchange: generateRadonExchangeDesignFloor,
   antenna_court: generateAntennaCourtDesignFloor,
   spetspriemnik: generateSpetspriemnikDesignFloor,
@@ -107,25 +99,18 @@ const DESIGN_FLOOR_GENERATORS: Record<DesignFloorId, (seed: number) => FloorGene
   hilbert_depot: generateHilbertDepotDesignFloor,
   dark_metro: generateDarkMetroDesignFloor,
   attractor_dvor: generateAttractorDvorDesignFloor,
-  // takes optional generation options, not a seed — global rng is already seeded by withSeededRandom below
-  underhell: () => generateUnderhellDesignFloor(),
+  underhell: generateUnderhellDesignFloor,
   podad: generatePodadDesignFloor,
   spectral_chasovnya: generateSpectralChasovnyaDesignFloor,
   cantor_pustoty: generateCantorPustotyDesignFloor,
   darkness: generateDarknessDesignFloor,
   horrorfloor: generateHorrorFloorDesignFloor,
-  living: generateLivingDesignFloor,
-  kvartiry: generateKvartiry,
-  ministry: generateMinistry,
-  maintenance: generateMaintenance,
-  hell: generateHell,
-  void: generateVoid,
 };
 
 const DEFAULT_DESIGN_FLOOR_SEED = 0x4453474e;
 
 export function designFloorGenerationSeed(id: DesignFloorId, runSeed = DEFAULT_DESIGN_FLOOR_SEED): number {
-  return hashSeed(`design-z: ${id}`, runSeed);
+  return hashSeed(`design-floor:${id}`, runSeed);
 }
 
 export function isDesignFloorId(id: string): id is DesignFloorId {
@@ -136,46 +121,52 @@ export function designFloorGeneratorIds(): readonly DesignFloorId[] {
   return Object.keys(DESIGN_FLOOR_GENERATORS) as DesignFloorId[];
 }
 
-export function generateDesignFloor(id: DesignFloorId, runSeed = DEFAULT_DESIGN_FLOOR_SEED, isTutorial = false): FloorGeneration {
+export function generateDesignFloor(id: DesignFloorId, runSeed = DEFAULT_DESIGN_FLOOR_SEED): FloorGeneration {
   const route = designFloorById(id);
   const seed = designFloorGenerationSeed(id, runSeed);
   return withSeededRandom(seed, () => {
-    let gen: FloorGeneration;
-    if (id === 'living' && isTutorial) {
-      gen = (DESIGN_FLOOR_GENERATORS[id] as unknown as (s?: number, t?: boolean) => FloorGeneration)(seed, true);
-    } else {
-      gen = DESIGN_FLOOR_GENERATORS[id](seed);
-    }
+    const gen = DESIGN_FLOOR_GENERATORS[id]();
     if (!route) return gen;
-    gen.world.hasOpenSky = route.hasOpenSky;
-    applyDesignFloorObjectProfile(gen.world, gen.spawnX, gen.spawnY, route);
-    if (id === 'markov_stairwell') reinforceMarkovStairwellAuthoredHqTerritory(gen.world);
-    if (id === 'service_floor') reinforceServiceFloorAuthoredHqTerritory(gen.world);
-
-    initializeCellTerritory(gen.world, {
+    const expanded = expandDesignFloorGeneration(gen, route);
+    applyDesignFloorObjectProfile(expanded.world, expanded.spawnX, expanded.spawnY, route);
+    if (id === 'markov_stairwell') reinforceMarkovStairwellAuthoredHqTerritory(expanded.world);
+    if (id === 'service_floor') reinforceServiceFloorAuthoredHqTerritory(expanded.world);
+    if (id === 'podad') reinforcePodadAuthoredHqTerritory(expanded.world);
+    if (id === 'cantor_pustoty') reinforceCantorPustotyAuthoredHqTerritory(expanded.world);
+    initializeCellTerritory(expanded.world, {
       seed,
       targetShares: territorySharesForDesignFloor(id),
     });
-    if (id === 'black_market_88') reinforceBlackMarket88AuthoredHqTerritory(gen.world);
-    if (id === 'shahta_atrium') reinforceShahtaAtriumAuthoredHqTerritory(gen.world);
-    if (id === 'production_belt') reinforceProductionBeltAuthoredHqTerritory(gen.world);
-    if (id === 'penrose_laundry') reinforcePenroseLaundryAuthoredHqTerritory(gen.world);
-    // Floor-authored post-territory reinforcement (HQ ownership, zone tuning) that the
-    // generator deferred to a hook; previously this hook was set but never invoked.
-    gen.onAfterTerritory?.(gen.world, gen.entities);
-
-    // Single authoritative ambient-NPC populate for every design floor. Runs after
-    // territory init so NPC faction derives from cell ownership, and uses the real
-    // route (theme/z/danger) so counts are correct — the per-generator populate calls
-    // that passed hardcoded/partial routes have been removed.
-    populateDesignFloorAmbientNpcs(gen, route);
-    // Monster packs after NPCs: both draw from one shared active-actor budget, so placing
-    // NPCs first then fitting monsters into the remaining slots starves neither. Packs are
-    // anisotropic (crowds, loners, territorial holds, roamers) driven by monster ecology.
-    populateDesignFloorMonsters(gen, route);
-    rebuildGeneratedFloorPathBlockers(gen.world, seed, gen.spawnX, gen.spawnY);
-    fillVisualSlotsForWorldFeatures(gen.world, seed);
-    return floorRunZAllowsNpcs(route.z) ? gen : withoutNpcEntities(gen);
+    retuneDesignFloorAfterCellTerritory(expanded.world, id);
+    if (id === 'attractor_dvor') alignAttractorDvorAmbientNpcTerritory(expanded.world, expanded.entities);
+    if (id === 'black_market_88') reinforceBlackMarket88AuthoredHqTerritory(expanded.world);
+    if (id === 'shahta_atrium') reinforceShahtaAtriumAuthoredHqTerritory(expanded.world);
+    if (id === 'oranzhereya_betona') alignOranzhereyaBetonaAmbientNpcTerritory(expanded.world, expanded.entities);
+    if (id === 'slime_nii') alignSlimeNiiAmbientNpcTerritory(expanded.world, expanded.entities);
+    if (id === 'moebius_podezd') alignMoebiusPodezdAmbientNpcTerritory(expanded.world, expanded.entities);
+    if (id === 'turing_nursery') alignTuringNurseryAmbientNpcTerritory(expanded.world, expanded.entities);
+    if (id === 'voronoi_quarantine') alignVoronoiQuarantineAmbientNpcTerritory(expanded.world, expanded.entities);
+    if (id === 'harmonic_bathhouse') alignHarmonicBathhouseAmbientNpcTerritory(expanded.world, expanded.entities);
+    if (id === 'hilbert_depot') alignHilbertDepotAmbientNpcTerritory(expanded.world, expanded.entities);
+    if (id === 'hyperbolic_switchyard') alignHyperbolicSwitchyardAmbientNpcTerritory(expanded.world, expanded.entities);
+    if (id === 'black_market_88') alignBlackMarket88AmbientNpcTerritory(expanded.world, expanded.entities);
+    if (id === 'service_floor') alignServiceFloorAmbientNpcTerritory(expanded.world, expanded.entities);
+    if (id === 'dark_metro') alignDarkMetroAmbientNpcTerritory(expanded.world, expanded.entities);
+    if (id === 'silicon_net_well') alignSiliconNetWellAmbientNpcTerritory(expanded.world, expanded.entities);
+    if (id === 'underhell') alignUnderhellAmbientNpcTerritory(expanded.world, expanded.entities);
+    if (id === 'production_belt') {
+      reinforceProductionBeltAuthoredHqTerritory(expanded.world);
+      alignProductionBeltAmbientNpcTerritory(expanded.world, expanded.entities);
+    }
+    if (id === 'spectral_chasovnya') {
+      reinforceSpectralChasovnyaAuthoredHqTerritory(expanded.world);
+      alignSpectralChasovnyaAmbientNpcTerritory(expanded.world, expanded.entities);
+    }
+    if (id === 'upper_bureau') reinforceUpperBureauAuthoredHqTerritory(expanded.world);
+    if (id === 'penrose_laundry') reinforcePenroseLaundryAuthoredHqTerritory(expanded.world);
+    rebuildGeneratedFloorPathBlockers(expanded.world, seed, expanded.spawnX, expanded.spawnY);
+    fillVisualSlotsForWorldFeatures(expanded.world, seed);
+    return floorRunZAllowsNpcs(route.z) ? expanded : withoutNpcEntities(expanded);
   });
 }
 

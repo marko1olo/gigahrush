@@ -1,5 +1,6 @@
 import {
   Faction,
+  FloorLevel,
   Occupation,
   type Entity,
   type GameState,
@@ -9,7 +10,6 @@ import {
 import { ITEMS } from '../data/catalog';
 import { MAX_INVENTORY_SLOTS } from '../data/inventory_limits';
 import { ITEM_OUTCOME_RULES, type ItemOutcomeRule } from '../data/item_outcomes';
-import { getPlotNpcStringId } from '../data/npc_packages';
 import { getStack } from '../data/items';
 import { addFactionRelMutual } from '../data/relations';
 import { publishEvent } from './events';
@@ -68,7 +68,7 @@ function buyerRoleTags(npc: Entity): string[] {
   const roleSource = npc as Entity & { roleId?: string; roleTags?: readonly string[] };
   pushUnique(tags, roleSource.roleId ? `role:${roleSource.roleId}` : undefined);
   for (const tag of roleSource.roleTags ?? []) pushUnique(tags, tag);
-  pushUnique(tags, npc.id ? `plot:${npc.id}` : undefined);
+  pushUnique(tags, npc.plotNpcId ? `plot:${npc.plotNpcId}` : undefined);
   pushUnique(tags, npc.persistentNpcId ? `persistent:${npc.persistentNpcId}` : undefined);
   pushUnique(tags, npc.npcVisualId ? `visual:${npc.npcVisualId}` : undefined);
   pushUnique(tags, enumTag('faction', Faction, npc.faction));
@@ -92,12 +92,12 @@ function currentQuestTags(state: GameState): string[] {
 
 function currentRouteTags(state: GameState): string[] {
   const tags: string[] = [];
-  pushUnique(tags, `floor:${state.currentZ}`);
+  pushUnique(tags, enumTag('floor', FloorLevel, state.currentFloor));
   const entry = currentFloorRunEntry(state);
   pushUnique(tags, `route:${floorRunEntryRouteId(entry)}`);
   pushUnique(tags, `route_kind:${floorRunEntryKind(entry)}`);
   pushUnique(tags, `z:${entry.z}`);
-  pushUnique(tags, `base_floor:${entry.themeTags.join(",")}`);
+  pushUnique(tags, enumTag('base_floor', FloorLevel, entry.baseFloor));
   return tags;
 }
 
@@ -118,7 +118,7 @@ function ruleMatchesBuyer(rule: ItemOutcomeRule, npc: Entity, roleTags: readonly
     || match.buyerRoleTags?.length
   );
   if (!hasBuyerRule) return true;
-  if (match.buyerPlotNpcIds?.includes(getPlotNpcStringId(npc.id!) ?? '')) return true;
+  if (match.buyerPlotNpcIds?.includes(npc.plotNpcId ?? '')) return true;
   if (hasAny(match.buyerFactions, npc.faction)) return true;
   if (hasAny(match.buyerOccupations, npc.occupation)) return true;
   return Boolean(match.buyerRoleTags?.some(tag => roleTags.includes(tag)));
@@ -130,7 +130,7 @@ function ruleMatches(rule: ItemOutcomeRule, npc: Entity, state: GameState): bool
   const routeTags = currentRouteTags(state);
   const questTags = currentQuestTags(state);
   if (!matchesAll(rule.match.itemTags, defTags)) return false;
-  if (rule.match.floorLevels && !rule.match.floorLevels.includes(state.currentZ)) return false;
+  if (rule.match.floorLevels && !rule.match.floorLevels.includes(state.currentFloor)) return false;
   if (!matchesAll(rule.match.routeTags, routeTags)) return false;
   if (!matchesAll(rule.match.questTags, questTags)) return false;
   return ruleMatchesBuyer(rule, npc, buyerRoleTags(npc));
@@ -253,7 +253,7 @@ export function tryHandleMaronaryShavingHandoff(
     tags: eventTags(...rule.eventTags),
     data: {
       outcome,
-      buyerPlotNpcId: npc.id,
+      buyerPlotNpcId: npc.plotNpcId,
       reward,
       rumorIds: [...rule.rumorIds],
     },

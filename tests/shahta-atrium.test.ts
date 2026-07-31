@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, DoorState, EntityType, LiftDirection, MonsterKind, RoomType, W, ZoneFaction } from '../src/core/types';
+import { Cell, DoorState, EntityType, FloorLevel, LiftDirection, MonsterKind, RoomType, W, ZoneFaction } from '../src/core/types';
 import { designFloorAtZ, designFloorById } from '../src/data/design_floors';
 import { designFloorPopulationProfile } from '../src/data/design_floor_population';
 import { HUMAN_TERRITORY_OWNERS } from '../src/data/factions';
@@ -13,7 +13,7 @@ import {
   DESIGN_FLOOR_ID,
   SHAHTA_ATRIUM_ROUTE_Z,
   type ShahtaAtriumGeneration,
-} from '../src/gen/shahta_atrium';
+} from '../src/gen/design_floors/shahta_atrium';
 
 const CX = W >> 1;
 const CY = W >> 1;
@@ -90,7 +90,7 @@ test('shahta atrium route registration and population profile expose the shaft s
   const route = designFloorById(DESIGN_FLOOR_ID);
   assert.ok(route);
   assert.equal(route.z, SHAHTA_ATRIUM_ROUTE_Z);
-  assert.equal(route.themeTags?.includes('maintenance'), true);
+  assert.equal(route.baseFloor, FloorLevel.MAINTENANCE);
   assert.equal(designFloorAtZ(SHAHTA_ATRIUM_ROUTE_Z)?.id, DESIGN_FLOOR_ID);
 
   const profile = designFloorPopulationProfile(route);

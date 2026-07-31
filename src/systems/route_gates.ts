@@ -1,11 +1,12 @@
 /* ── Generic route gate predicates and direction guards ───────── */
 
-import { LiftDirection, QuestType, GameState, Quest } from '../core/types';
+import { LiftDirection, QuestType, type GameState, type Quest } from '../core/types';
 import { ROUTE_GATE_DEFS, type RouteGateDef, type RouteGatePredicate } from '../data/route_gates';
 import { floorKeyForEntry } from './floor_keys';
 
 interface RouteGateEntryLike {
   z?: number;
+  baseFloor: number;
   storyFloor?: number;
   designFloorId?: string;
   spec?: { key: string };
@@ -40,7 +41,7 @@ export function openRouteGateIds(state: GameState): Set<string> {
 }
 
 function entryFloorKey(entry: RouteGateEntryLike): string {
-  return floorKeyForEntry((entry as unknown) as Parameters<typeof floorKeyForEntry>[0]);
+  return floorKeyForEntry(entry as Parameters<typeof floorKeyForEntry>[0]);
 }
 
 export function routeGateMatchesDirection(gate: RouteGateDef, floorKey: string, direction: number): boolean {

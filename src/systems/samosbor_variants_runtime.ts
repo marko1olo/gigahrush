@@ -1,4 +1,4 @@
-import { rng } from '../core/rand';
+import { FloorLevel } from '../core/types';
 import {
   SAMOSBOR_VARIANTS,
   buildActiveSamosborVariant,
@@ -11,11 +11,20 @@ let activeVariant: ActiveSamosborVariant | null = null;
 let forcedNextVariant: SamosborVariantId | null = null;
 let lastVariant: SamosborVariantId | null = null;
 
-export function chooseSamosborVariant(floorTags: readonly string[], _zNum: number): ActiveSamosborVariant {
+function secureRandom(): number {
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const arr = new Uint32Array(1);
+    crypto.getRandomValues(arr);
+    return arr[0] / 4294967296;
+  }
+  return Math.random();
+}
+
+export function chooseSamosborVariant(floor: FloorLevel): ActiveSamosborVariant {
   if (forcedNextVariant) {
     const forced = SAMOSBOR_VARIANTS.find(v => v.id === forcedNextVariant);
     forcedNextVariant = null;
-    if (forced && (!forced.tags || forced.tags.some(t => floorTags.includes(t)))) {
+    if (forced && forced.floors.includes(floor)) {
       activeVariant = buildActiveSamosborVariant(forced);
       lastVariant = activeVariant.def.id;
       return activeVariant;
@@ -25,10 +34,10 @@ export function chooseSamosborVariant(floorTags: readonly string[], _zNum: numbe
 
 
   let total = 0;
-  for (const def of SAMOSBOR_VARIANTS) total += getSamosborVariantWeight(def.id, floorTags);
-  let roll = rng() * Math.max(1, total);
+  for (const def of SAMOSBOR_VARIANTS) total += getSamosborVariantWeight(def.id, floor);
+  let roll = secureRandom() * Math.max(1, total);
   for (const def of SAMOSBOR_VARIANTS) {
-    roll -= getSamosborVariantWeight(def.id, floorTags);
+    roll -= getSamosborVariantWeight(def.id, floor);
     if (roll <= 0) {
       activeVariant = buildActiveSamosborVariant(def);
       lastVariant = activeVariant.def.id;

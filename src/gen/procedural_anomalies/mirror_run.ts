@@ -165,8 +165,7 @@ function registerMirrorCue(ctx: ProceduralAnomalyGenContext, pair: MirrorPair, d
     y: marker.y + 0.5,
     targetX: target.x + 0.5,
     targetY: target.y + 0.5,
-    // @ts-ignore
-    z: ctx.spec.themeTags,
+    floor: ctx.spec.baseFloor,
     roomId: pair.a.id,
     targetRoomId: pair.b.id,
     zoneId: ctx.world.zoneMap[markerCell],

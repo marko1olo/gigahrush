@@ -1,10 +1,9 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* -- Голос За Дверью: bounded Living threshold encounter -------- */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
   AIGoal, Cell, ContainerKind, DoorState, EntityType, Faction, Feature,
-  MonsterKind, Occupation, QuestType, RoomType, Tex,
+  FloorLevel, MonsterKind, Occupation, QuestType, RoomType, Tex,
   type Entity, type GameState, type Room, type WorldContainer, type WorldEvent, type WorldEventType,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -127,7 +126,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
 
 registerSideQuest(MARKER_ID, NPC_DEFS[MARKER_ID], [{
   id: GOLOS_MARK_QUEST,
-  giverId: getPlotNpcNumericId(MARKER_ID)!,
+  giverNpcId: MARKER_ID,
   type: QuestType.FETCH,
   desc: 'Лёня Меточный: «Дай изоленту. Пометим дверь, чтобы следующий не открывал на родной голос и сырой запах.»',
   targetItem: 'duct_tape',
@@ -146,7 +145,7 @@ registerSideQuest(MARKER_ID, NPC_DEFS[MARKER_ID], [{
 
 registerSideQuest(LIQUIDATOR_ID, NPC_DEFS[LIQUIDATOR_ID], [{
   id: GOLOS_REPAIR_QUEST,
-  giverId: getPlotNpcNumericId(LIQUIDATOR_ID)!,
+  giverNpcId: LIQUIDATOR_ID,
   type: QuestType.FETCH,
   desc: 'Юрий Пломба: «Один тюбик герметика - и я дожму петлю. Открывать не надо, если можно зафиксировать ручку и сдать дверь обходу.»',
   targetItem: 'sealant_tube',
@@ -165,9 +164,9 @@ registerSideQuest(LIQUIDATOR_ID, NPC_DEFS[LIQUIDATOR_ID], [{
 
 registerSideQuest(REPORTER_ID, NPC_DEFS[REPORTER_ID], [{
   id: GOLOS_REPORT_QUEST,
-  giverId: getPlotNpcNumericId(REPORTER_ID)!,
+  giverNpcId: REPORTER_ID,
   type: QuestType.TALK,
-  targetNpcId: getPlotNpcNumericId(LIQUIDATOR_ID)!,
+  targetPlotNpcId: LIQUIDATOR_ID,
   desc: 'Зоя Соседка: «Скажите Юрию Пломбе, что голос за дверью зовет моим братом. Пусть это останется работой ликвидаторов, а не нашей ошибкой.»',
   rewardItem: 'water_coupon',
   rewardCount: 1,
@@ -183,7 +182,7 @@ registerSideQuest(REPORTER_ID, NPC_DEFS[REPORTER_ID], [{
 
 registerSideQuest(HUNTER_ID, NPC_DEFS[HUNTER_ID], [{
   id: GOLOS_CLEAR_QUEST,
-  giverId: getPlotNpcNumericId(HUNTER_ID)!,
+  giverNpcId: HUNTER_ID,
   type: QuestType.KILL,
   desc: 'Клава Слухачка: «Если откроете, делайте это нарочно. Убейте нелюдь за дверью и заберите банку, пока она не заговорила вашим голосом.»',
   targetMonsterKind: MonsterKind.NELYUD,
@@ -263,7 +262,7 @@ function handleGolosOutcome(state: GameState, event: WorldEvent): void {
 
   publishEvent(state, {
     type: outcome.type,
-    z: 100,
+    floor: FloorLevel.LIVING,
     zoneId: event.zoneId,
     roomId: event.roomId,
     x: event.x,
@@ -447,7 +446,7 @@ function addVoiceTraceContainer(world: World, room: Room): void {
     id: nextContainerId(world),
     x,
     y,
-    z: 100,
+    floor: FloorLevel.LIVING,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(x, y)],
     kind: ContainerKind.SECRET_STASH,

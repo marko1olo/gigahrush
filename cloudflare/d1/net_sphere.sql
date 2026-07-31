@@ -12,15 +12,13 @@ CREATE TABLE IF NOT EXISTS net_players (
   best_level INTEGER NOT NULL DEFAULT 1,
   best_samosbor_count INTEGER NOT NULL DEFAULT 0,
   last_floor TEXT NOT NULL DEFAULT '',
-  total_sessions INTEGER NOT NULL DEFAULT 0,
   progress_json TEXT NOT NULL DEFAULT '{}'
 );
 
 CREATE TABLE IF NOT EXISTS net_sessions (
   session_id TEXT PRIMARY KEY,
   net_gen TEXT NOT NULL,
-  last_seen_at INTEGER NOT NULL,
-  hosting_room TEXT NOT NULL DEFAULT ''
+  last_seen_at INTEGER NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_net_sessions_last_seen

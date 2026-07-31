@@ -1,6 +1,6 @@
 /* ── Borshchevik: rooted sap-and-seed plant threat ───────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.45,
   sprite: 0,
   aiFlags: ['rootedPlant'],
+  floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE],
   counterplay: 'Держите дистанцию от сока и зонтика семян: рубка открывает путь без дыма, огонь убивает быстро, но дает короткую споровую вспышку.',
   lootHint: 'семена борщевика, желтый фототоксичный сок, редкий противогрибковый расходник',
 };

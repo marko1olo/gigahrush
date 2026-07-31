@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Cell, DoorState, Feature, RoomType, Tex } from '../src/core/types';
-import { World, setVisualSlot, clearVisualSlots, getVisualSlot, VISUAL_SLOTS_PER_CELL, EMPTY_VISUAL_CELL_CODE } from '../src/core/world';
+import { World } from '../src/core/world';
 
 test('runtime feature writes bump feature version and rebake feature light', () => {
   const world = new World();
@@ -94,36 +94,4 @@ test('runtime door removal cleans stale door cells without a door record', () =>
   assert.equal(world.wallTex[idx], Tex.CONCRETE);
   assert.equal(world.doors.has(idx), false);
   assert.equal(world.solid(21, 20), false);
-});
-
-test('clearVisualSlots clears slots for a cell and returns whether changes were made', () => {
-  const world = new World();
-  const targetIdx = world.idx(10, 10);
-  const otherIdx = world.idx(11, 10);
-
-  setVisualSlot(world, targetIdx, 0, 10);
-  setVisualSlot(world, targetIdx, 1, 20);
-  setVisualSlot(world, targetIdx, VISUAL_SLOTS_PER_CELL - 1, 30);
-
-  setVisualSlot(world, otherIdx, 0, 99);
-
-  const beforeVersion = world.visualSlotVersion;
-
-  const changed = clearVisualSlots(world, targetIdx);
-
-  assert.equal(changed, true);
-  assert.notEqual(world.visualSlotVersion, beforeVersion);
-
-  for (let i = 0; i < VISUAL_SLOTS_PER_CELL; i++) {
-    assert.equal(getVisualSlot(world, targetIdx, i), EMPTY_VISUAL_CELL_CODE);
-  }
-
-  assert.equal(getVisualSlot(world, otherIdx, 0), 99);
-
-  const afterVersion = world.visualSlotVersion;
-
-  const changedAgain = clearVisualSlots(world, targetIdx);
-
-  assert.equal(changedAgain, false);
-  assert.equal(world.visualSlotVersion, afterVersion);
 });

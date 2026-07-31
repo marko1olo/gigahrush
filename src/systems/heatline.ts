@@ -1,4 +1,3 @@
-import { currentFloorRunEntry } from './procedural_floors';
 /* ── Heatline Zero inspection helpers ───────────────────────────
  * Static hazard rooms only: no pressure tick, no cell heat field.
  */
@@ -7,6 +6,7 @@ import { stampSurfaceSplat } from './surface_marks';
 import {
   Cell,
   Feature,
+  FloorLevel,
   RoomType,
   type Entity,
   type GameState,
@@ -172,7 +172,7 @@ function publishHeatlineEvent(
     data: {
       system: 'heatline_zero',
       outcome,
-      roomDefId: room.name,
+      roomName: room.name,
       rumorIds: ['maint_heatline_manual_reroute'],
       ...data,
     },
@@ -280,7 +280,7 @@ export function tryUseHeatlinePressure(
   const room = pressureTargetRoom(world, lookX, lookY);
   if (!room) return false;
 
-  if (currentFloorRunEntry(state)!.themeTags.includes('maintenance')) return false;
+  if (state.currentFloor !== FloorLevel.MAINTENANCE) return false;
   if (!pressureCooldownReady(state)) {
     state.msgs.push(msg('Вентиль еще стучит после прошлого поворота.', state.time, '#888'));
     return true;

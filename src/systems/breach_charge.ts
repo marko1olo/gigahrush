@@ -10,7 +10,6 @@ import {
 import type { World } from '../core/world';
 import { ITEMS } from '../data/items';
 import { rebuildPathBlockersFromWorldObjects } from '../gen/path_blockers';
-import { markNavigationCellsDirty } from './ai/pathfinding';
 import { spawnBreachDust } from './blood_fx';
 import { publishEvent } from './events';
 import { isPlayerEntity } from './player_actor';
@@ -244,7 +243,6 @@ export function resolveBreachChargeExplosion(
 
   if (result.changedCells > 0) {
     rebuildPathBlockersFromWorldObjects(world, undefined, changedCellIndices);
-    markNavigationCellsDirty(changedCellIndices);
     world.markCellsDirty();
     world.markWallTexDirty();
     world.markFloorTexDirty();

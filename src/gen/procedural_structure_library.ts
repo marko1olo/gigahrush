@@ -457,8 +457,7 @@ function registerStructureCue(
     y: sy + 0.5,
     targetX: (target % W) + 0.5,
     targetY: ((target / W) | 0) + 0.5,
-    // @ts-ignore
-    z: spec.themeTags,
+    floor: spec.baseFloor,
     roomId: sourceRoom?.id,
     zoneId: world.zoneMap[world.idx(sx, sy)],
     label: copy.label,

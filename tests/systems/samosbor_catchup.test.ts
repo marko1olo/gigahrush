@@ -10,8 +10,7 @@ import {
   SAMOSBOR_FRONT_MAX_CATCHUP_TICKS
 } from '../../src/systems/samosbor.js';
 import { setActiveSamosborVariantForTests } from '../../src/systems/samosbor_variants_runtime.js';
-import { World, GameState, Entity } from '../../src/core/types.js';
-import { getPlotNpcCount } from '../../src/data/plot.js';
+import { World, GameState, FloorLevel, Entity } from '../../src/core/types.js';
 
 function createMockWorld(): World {
   return {
@@ -40,7 +39,7 @@ function createMockGameState(): GameState {
     samosborActive: true,
     samosborTimer: 100, // Make sure it's not going to end immediately
     samosborCount: 0,
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     gameOver: false,
     zoneTags: {}
   } as unknown as GameState;
@@ -51,7 +50,7 @@ test('Samosbor catchup logic caps catchup to prevent multi-tick bursts', async (
   const world = createMockWorld();
   const state = createMockGameState();
   const entities: Entity[] = [];
-  const nextId = { v: getPlotNpcCount() + 1 }
+  const nextId = { v: 1 };
 
   // Set up an active front so the block runs
   setActiveSamosborFrontsForTests([{

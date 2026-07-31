@@ -1,11 +1,9 @@
-import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type ConfigEnv, type Plugin } from "vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
-
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -69,25 +67,6 @@ function buildSizeManifest(): Plugin {
       const outDir = options.dir ? (path.isAbsolute(options.dir) ? options.dir : path.resolve(root, options.dir)) : path.resolve(root, "dist");
       await mkdir(outDir, { recursive: true });
       await writeFile(path.join(outDir, "build-size-manifest.json"), manifest);
-    },
-  };
-}
-
-function pwaServiceWorkerVersionPlugin(): Plugin {
-  return {
-    name: "gigahrush-pwa-sw-version",
-    apply: "build",
-    enforce: "post",
-    async writeBundle(options) {
-      const outDir = options.dir ? (path.isAbsolute(options.dir) ? options.dir : path.resolve(root, options.dir)) : path.resolve(root, "dist");
-      const swPath = path.join(outDir, "sw.js");
-      const indexPath = path.join(outDir, "index.html");
-      if (!existsSync(swPath) || !existsSync(indexPath)) return;
-      const indexContent = readFileSync(indexPath);
-      const shortHash = createHash("sha256").update(indexContent).digest("hex").slice(0, 16);
-      let swContent = readFileSync(swPath, "utf8");
-      swContent = swContent.replace(/const CACHE_NAME = 'gigahrush-shell-[^']+';/, `const CACHE_NAME = 'gigahrush-shell-${shortHash}';`);
-      await writeFile(swPath, swContent, "utf8");
     },
   };
 }
@@ -207,46 +186,20 @@ function cloudflareBuildMode(env: ConfigEnv): boolean {
 
 export default defineConfig((env) => {
   const includeNpcIntake = cloudflareBuildMode(env);
-  let gitHash = "dev";
-  try {
-    const head = readFileSync(path.join(root, ".git", "HEAD"), "utf8").trim();
-    if (head.startsWith("ref: ")) {
-      const refFile = path.join(root, ".git", head.slice(5));
-      if (existsSync(refFile)) gitHash = readFileSync(refFile, "utf8").trim().slice(0, 8);
-    } else {
-      gitHash = head.slice(0, 8);
-    }
-  } catch {}
-  const buildVersionText = `[ v${gitHash} ]`;
-
-
   return {
     plugins: [
-
       buildSizeManifest(),
       ...(includeNpcIntake ? [npcIntakeSubproject()] : []),
       viteSingleFile(),
-      pwaServiceWorkerVersionPlugin(),
     ],
     define: {
       "globalThis.__GIGAHRUSH_EN_LOCALE__": JSON.stringify(runtimeEnglishLocale()),
       "globalThis.__GIGAHRUSH_NPC_INTAKE_ENABLED__": JSON.stringify(includeNpcIntake),
-      // True only for the Cloudflare/Wrangler build (cf:dev/cf:deploy pass
-      // --mode cloudflare), which is the only build that actually serves the
-      // Net Sphere /api/net backend. itch/pikabu/plain builds get false → no
-      // network → no 404s. GitHub build is handled by hostname at runtime.
-      "globalThis.__GIGAHRUSH_NET_BACKEND__": JSON.stringify(env.mode === "cloudflare"),
-      "__BUILD_VERSION__": JSON.stringify(buildVersionText),
     },
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "src"),
-        ...(includeNpcIntake ? {
-          "../data/markov_compiled_matrix": path.resolve(__dirname, "src/data/markov_compiled_matrix_stub.ts"),
-          "./markov_compiled_matrix": path.resolve(__dirname, "src/data/markov_compiled_matrix_stub.ts")
-        } : {})
       },
     },
   };
 });
-

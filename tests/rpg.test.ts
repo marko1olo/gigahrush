@@ -33,7 +33,7 @@ import {
   RPG_ATTRIBUTE_CAP
 } from '../src/systems/rpg';
 
-import { Entity, EntityType, MonsterKind, Msg } from '../src/core/types';
+import { Entity, EntityType, MonsterKind, FloorLevel, Msg } from '../src/core/types';
 import { W } from '../src/core/types';
 
 function makeMockEntity(rpg = freshRPG(1)): Entity {
@@ -205,16 +205,16 @@ test('calcZoneLevel returns appropriate zone level based on coordinates and floo
   const centerY = 3.5 * ZONE_CELL;
 
   // Center zone, base level should be 1
-  assert.equal(calcZoneLevel(centerX, centerY, 100), 1 + 150);
+  assert.equal(calcZoneLevel(centerX, centerY, FloorLevel.LIVING), 1);
 
   // Corner zone, distance should increase level
-  const cornerLevel = calcZoneLevel(0, 0, 100);
-  assert.ok(cornerLevel > 1 + 150);
+  const cornerLevel = calcZoneLevel(0, 0, FloorLevel.LIVING);
+  assert.ok(cornerLevel > 1);
 
   // Floor bonuses
-  assert.equal(calcZoneLevel(centerX, centerY, 140), 1 + 210);
-  assert.equal(calcZoneLevel(centerX, centerY, 180), 1 + 270);
-  assert.equal(calcZoneLevel(centerX, centerY, 200), 1 + 300);
+  assert.equal(calcZoneLevel(centerX, centerY, FloorLevel.MAINTENANCE), 1 + 4);
+  assert.equal(calcZoneLevel(centerX, centerY, FloorLevel.HELL), 1 + 9);
+  assert.equal(calcZoneLevel(centerX, centerY, FloorLevel.VOID), 1 + 15);
 });
 
 test('Monster scaling scales stats by level', () => {

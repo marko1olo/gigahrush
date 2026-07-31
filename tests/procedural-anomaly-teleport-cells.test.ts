@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, Feature, LiftDirection, W } from '../src/core/types';
+import { Cell, Feature, FloorLevel, LiftDirection, W } from '../src/core/types';
 import type { World } from '../src/core/world';
 import {
   makeProceduralFloorSpec,
@@ -20,7 +20,7 @@ function forcedTeleportSpec(): ProceduralFloorSpec {
     ...base,
     danger: 4,
     geometryId: 'communal_knots',
-    baseFloor: 'kvartiry',
+    baseFloor: FloorLevel.KVARTIRY,
     majorityId: 'citizens',
     anomalyId: 'teleport_cells',
     title: 'тестовый этаж с перескоками клеток',

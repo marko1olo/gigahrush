@@ -103,7 +103,6 @@ function eventAllowed(key: string, time: number, cooldown: number): boolean {
 export function npcCombatProfile(npc: Entity): NpcCombatProfile {
   const ws = WEAPON_STATS[npc.weapon ?? ''] ?? WEAPON_STATS[''];
   const brave = (npc.psiMadness ?? 0) > 0 ||
-    npc.isTraveler ||
     occupationHasAnyProfileTag(npc.occupation, ['combat', 'patrol']) ||
     npc.faction === Faction.LIQUIDATOR ||
     npc.faction === Faction.CULTIST ||

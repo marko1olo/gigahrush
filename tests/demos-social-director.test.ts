@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEMOS_EDGE_ENEMY, DEMOS_EDGE_FRIEND } from '../src/data/demos_posts';
-import { type GameState, type WorldEvent } from '../src/core/types';
+import { FloorLevel, type GameState, type WorldEvent } from '../src/core/types';
 import { chooseDemosReactionKind, type DemosMarkovPost } from '../src/systems/demos_posts';
 import { createEmptyDemosSocialSaveState } from '../src/systems/demos_save';
 import {
@@ -18,7 +18,7 @@ function event(id: number, overrides: Partial<WorldEvent> = {}): WorldEvent {
     day: 0,
     hour: 8,
     minute: id,
-    z: -6,
+    floor: FloorLevel.LIVING,
     severity: 3,
     privacy: 'public',
     truth: 'fact',

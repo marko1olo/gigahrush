@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { DoorState, ItemType, RoomType, type Entity } from '../src/core/types';
+import { DoorState, FloorLevel, ItemType, RoomType, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
@@ -61,7 +61,7 @@ test('labor shift card opens the Ministry N3 gate without consuming the card', (
     x: room.x + 8.5,
     y: room.y + Math.floor(room.h / 2) + 0.5,
   });
-  const state = makeGameState({ currentZ: 34, time: 101 });
+  const state = makeGameState({ currentFloor: FloorLevel.MINISTRY, time: 101 });
 
   assert.equal(addItem(player, CARD_ID, 1), true);
   useItem(player, 0, state.msgs, state.time, state, undefined, world);
@@ -79,7 +79,7 @@ test('labor shift card opens the Ministry N3 gate without consuming the card', (
 
 test('labor shift card can be sold instead of saved for access', () => {
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 102 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 102 });
 
   assert.equal(addItem(player, CARD_ID, 1), true);
   useItem(player, 0, state.msgs, state.time, state);

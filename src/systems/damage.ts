@@ -3,7 +3,6 @@ import { isNoClipActive } from './psi';
 import type { World } from '../core/world';
 import { isPlayerEntity } from './player_actor';
 import { MONSTERS, entityDisplayName } from '../entities/monster';
-import { mathRng } from '../core/rand';
 
 const DEATH_CAUSE_LOOKBACK_SEC = 4;
 const DEATH_CAUSE_LOOKAHEAD_SEC = 1.5;
@@ -114,7 +113,7 @@ export function updateBlockCrushDamage(
       const dmg = DAMAGE_PER_SECOND * dt;
       if (isPlayerEntity(e)) {
         e.hp = Math.max(1, (e.hp ?? 1) - dmg);
-        if (mathRng() < dt * 2) {
+        if (Math.random() < dt * 2) {
           state.dmgFlash = Math.max(state.dmgFlash ?? 0, 0.15);
         }
         recordPlayerDamage(state, undefined, dmg, 'Раздавлен в структуре', 'hazard');

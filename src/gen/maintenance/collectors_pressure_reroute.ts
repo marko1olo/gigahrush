@@ -1,8 +1,8 @@
 /* -- FLOOR16 collectors pressure reroute: water choice and eel work -- */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
-  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, MonsterKind, Occupation, QuestType, RoomType, Tex,
+  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, FloorLevel,
+  MonsterKind, Occupation, QuestType, RoomType, Tex,
   msg,
   type Entity, type GameState, type Room, type WorldContainer,
 } from '../../core/types';
@@ -15,7 +15,6 @@ import {
   type MaintContentCtx, dropItems, findMaintArea, openTile, setFeature,
   setWater, spawnMonstersNear, spawnPlotNpc, stampMaintRoom,
 } from './content_helpers';
-import { rng } from '../../core/rand';
 
 const CHOICE_TAG = 'floor16_collectors_choice';
 const DRAIN_LIVING_QUEST = 'floor16_collectors_drain_living';
@@ -121,7 +120,7 @@ const DEBTOR_DEF: PlotNpcDef = {
 registerSideQuest('collectors_pressure_boss_varya', VARYA_DEF, [
   {
     id: DRAIN_LIVING_QUEST,
-    giverId: getPlotNpcNumericId('collectors_pressure_boss_varya')!,
+    giverNpcId: 'collectors_pressure_boss_varya',
     type: QuestType.FETCH,
     desc: 'Варя: «Две бирки вентиля - и я открываю Жилую магистраль. Жилая зона получит воду, Квартиры потеряют напор.»',
     targetItem: 'valve_tag', targetCount: 2,
@@ -131,7 +130,7 @@ registerSideQuest('collectors_pressure_boss_varya', VARYA_DEF, [
   },
   {
     id: 'floor16_collectors_pressure_bridge',
-    giverId: getPlotNpcNumericId('collectors_pressure_boss_varya')!,
+    giverNpcId: 'collectors_pressure_boss_varya',
     type: QuestType.FETCH,
     desc: 'Варя: «Манометр на мост давления. Без стрелки сухая перемычка считается мокрой легендой.»',
     targetItem: 'manometer', targetCount: 1,
@@ -144,17 +143,17 @@ registerSideQuest('collectors_pressure_boss_varya', VARYA_DEF, [
 registerSideQuest('collectors_drowned_cartographer', CARTOGRAPHER_DEF, [
   {
     id: 'floor16_collectors_flooded_map',
-    giverId: getPlotNpcNumericId('collectors_drowned_cartographer')!,
+    giverNpcId: 'collectors_drowned_cartographer',
     type: QuestType.VISIT,
     desc: 'Картограф: «Проверь мокрую картотеку {dir}. Там маршрут всплыл, пока его не съели угри.»',
-    targetRoomDefId: MAP_ROOM,
+    targetRoomName: MAP_ROOM,
     rewardItem: 'caravan_route', rewardCount: 1,
     extraRewards: [{ defId: 'water_coupon', count: 1 }],
     relationDelta: 8, xpReward: 35, moneyReward: 20,
   },
   {
     id: 'floor16_collectors_filter_run',
-    giverId: getPlotNpcNumericId('collectors_drowned_cartographer')!,
+    giverNpcId: 'collectors_drowned_cartographer',
     type: QuestType.FETCH,
     desc: 'Картограф: «Два фильтра в учет. Наверх отнесём чистую выдачу, а не мокрое объяснение.»',
     targetItem: 'gasmask_filter', targetCount: 2,
@@ -167,7 +166,7 @@ registerSideQuest('collectors_drowned_cartographer', CARTOGRAPHER_DEF, [
 registerSideQuest('collectors_tube_hunter_ilyas', ILYAS_DEF, [
   {
     id: 'floor16_collectors_hunt_tube_eel',
-    giverId: getPlotNpcNumericId('collectors_tube_hunter_ilyas')!,
+    giverNpcId: 'collectors_tube_hunter_ilyas',
     type: QuestType.KILL,
     desc: 'Ильяс: «Три трубных угря в лотке. Стреляй с сухого края, жабры из себя не строй.»',
     targetMonsterKind: MonsterKind.TUBE_EEL,
@@ -181,7 +180,7 @@ registerSideQuest('collectors_tube_hunter_ilyas', ILYAS_DEF, [
 registerSideQuest('collectors_water_debtor', DEBTOR_DEF, [
   {
     id: DRAIN_KVARTIRY_QUEST,
-    giverId: getPlotNpcNumericId('collectors_water_debtor')!,
+    giverNpcId: 'collectors_water_debtor',
     type: QuestType.FETCH,
     desc: 'Федя: «Два водных талона - и я перекину напор в Квартиры. Квартиры напьются, Жилая зона потеряет давление.»',
     targetItem: 'water_coupon', targetCount: 2,
@@ -191,7 +190,7 @@ registerSideQuest('collectors_water_debtor', DEBTOR_DEF, [
   },
   {
     id: 'floor16_collectors_stolen_parts',
-    giverId: getPlotNpcNumericId('collectors_water_debtor')!,
+    giverNpcId: 'collectors_water_debtor',
     type: QuestType.FETCH,
     desc: 'Федя: «Два герметика за украденную пломбу. Назовем это ремонтом, пока Варя не открыла шкаф.»',
     targetItem: 'sealant_tube', targetCount: 2,
@@ -203,10 +202,10 @@ registerSideQuest('collectors_water_debtor', DEBTOR_DEF, [
 
 interface DrainEffect {
   choiceId: string;
-  benefitFloor: number;
+  benefitFloor: FloorLevel;
   benefitFloorId: string;
   benefitName: string;
-  shortageFloor: number;
+  shortageFloor: FloorLevel;
   shortageFloorId: string;
   shortageName: string;
   benefitDelta: number;
@@ -218,10 +217,10 @@ function drainEffect(sideQuestId: string): DrainEffect | undefined {
   if (sideQuestId === DRAIN_LIVING_QUEST) {
     return {
       choiceId: 'collectors_to_living',
-      benefitFloor: 100,
+      benefitFloor: FloorLevel.LIVING,
       benefitFloorId: 'living',
       benefitName: 'Жилая зона',
-      shortageFloor: 60,
+      shortageFloor: FloorLevel.KVARTIRY,
       shortageFloorId: 'kvartiry',
       shortageName: 'Квартиры',
       benefitDelta: 28,
@@ -232,10 +231,10 @@ function drainEffect(sideQuestId: string): DrainEffect | undefined {
   if (sideQuestId === DRAIN_KVARTIRY_QUEST) {
     return {
       choiceId: 'collectors_to_kvartiry',
-      benefitFloor: 60,
+      benefitFloor: FloorLevel.KVARTIRY,
       benefitFloorId: 'kvartiry',
       benefitName: 'Квартиры',
-      shortageFloor: 100,
+      shortageFloor: FloorLevel.LIVING,
       shortageFloorId: 'living',
       shortageName: 'Жилая зона',
       benefitDelta: 26,
@@ -263,7 +262,7 @@ function applyDrainChoice(state: GameState, sideQuestId: string): void {
 
   publishEvent(state, {
     type: 'room_lacked_resources',
-    z: effect.shortageFloor,
+    floor: effect.shortageFloor,
     targetName: effect.shortageName,
     itemId: 'water',
     itemName: 'питьевая вода',
@@ -271,7 +270,7 @@ function applyDrainChoice(state: GameState, sideQuestId: string): void {
     privacy: 'local',
     tags: [
       'collectors', 'water', 'pressure', 'scarcity', 'access', CHOICE_TAG,
-      effect.choiceId, `target_z: ${effect.benefitFloorId}`, `scarcity_z: ${effect.shortageFloorId}`,
+      effect.choiceId, `target_floor:${effect.benefitFloorId}`, `scarcity_floor:${effect.shortageFloorId}`,
     ],
     data: {
       sideQuestId,
@@ -321,8 +320,7 @@ function addContainer(
     id: nextContainerId(ctx),
     x: wx,
     y: wy,
-    // @ts-ignore
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     roomId: room.id,
     zoneId: ctx.world.zoneMap[ci],
     ...container,
@@ -341,7 +339,7 @@ function spawnWaterEel(ctx: MaintContentCtx, x: number, y: number): void {
   const eel: Entity = {
     id: ctx.nextId.v++, type: EntityType.MONSTER,
     x: x + 0.5, y: y + 0.5,
-    angle: rng() * Math.PI * 2, pitch: 0,
+    angle: Math.random() * Math.PI * 2, pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, zoneLevel),
     sprite: def.sprite,
@@ -419,7 +417,6 @@ function dressDebtorRoom(ctx: MaintContentCtx, room: Room): void {
 }
 
 function addLockers(ctx: MaintContentCtx, valves: Room, hunter: Room, debtor: Room, varyaId: number, ilyasId: number, debtorId: number): void {
-  // @ts-ignore
   addContainer(ctx, valves, valves.x + 13, valves.y + 2, {
     kind: ContainerKind.FILING_CABINET,
     name: 'Шкаф разрешений узла 16',
@@ -438,7 +435,6 @@ function addLockers(ctx: MaintContentCtx, valves: Room, hunter: Room, debtor: Ro
     discovered: true,
     tags: ['collectors', 'water', 'permit', 'pressure', 'theft'],
   });
-  // @ts-ignore
   addContainer(ctx, hunter, hunter.x + hunter.w - 2, hunter.y + 2, {
     kind: ContainerKind.WEAPON_CRATE,
     name: 'Сухой ящик гарпунов',
@@ -456,7 +452,6 @@ function addLockers(ctx: MaintContentCtx, valves: Room, hunter: Room, debtor: Ro
     discovered: true,
     tags: ['collectors', 'eel', 'weapon', 'hunter', 'theft'],
   });
-  // @ts-ignore
   addContainer(ctx, debtor, debtor.x + 2, debtor.y + 2, {
     kind: ContainerKind.TOOL_LOCKER,
     name: 'Сорванный шкаф пломб',

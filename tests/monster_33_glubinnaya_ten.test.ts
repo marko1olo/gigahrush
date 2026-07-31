@@ -1,11 +1,11 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { DEF, generateSprite } from '../src/entities/glubinnaya_ten';
+import { MONSTERS, MONSTER_SPRITES, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
 import { setEntityMap, updateMonster } from '../src/systems/ai/monster';
 import { rebuildEntityIndex } from '../src/systems/entity_index';
@@ -65,12 +65,16 @@ function syncEntities(entities: Entity[]): void {
 test('glubinnaya ten is standalone hell and void shadow content', () => {
   assert.equal(DEF.kind, MonsterKind.GLUBINNAYA_TEN);
   assert.deepEqual(DEF.aiFlags, ['secondBeat']);
+  assert.deepEqual(DEF.floors, [FloorLevel.HELL, FloorLevel.VOID]);
   assert.match(DEF.counterplay ?? '', /свет|фонар|не догоня/i);
   assert.equal(MONSTERS[MonsterKind.GLUBINNAYA_TEN], DEF);
   assert.equal(MONSTER_SPRITES[MonsterKind.GLUBINNAYA_TEN], generateSprite);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.HELL].includes(MonsterKind.GLUBINNAYA_TEN), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.VOID].includes(MonsterKind.GLUBINNAYA_TEN), true);
 
   const ecology = getMonsterEcology(MonsterKind.GLUBINNAYA_TEN);
   assert.ok(ecology);
+  assert.deepEqual(ecology?.floors, [FloorLevel.HELL, FloorLevel.VOID]);
   assert.equal(ecology?.rooms.includes(RoomType.CORRIDOR), true);
   assert.ok((ecology?.spawnWeight ?? 0) > 0);
   assert.equal(ecology?.rumorIds.includes('monster_glubinnaya_ten_second_beat'), true);
@@ -112,7 +116,7 @@ test('glubinnaya ten second beat collapses when the player does not chase the af
   const threat = glubinnayaTen(10.5, 10.5);
   const entities = [target, threat];
   const msgs: Msg[] = [];
-  const state = makeGameState({ currentZ: -26, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.HELL, worldEvents: createWorldEventState() });
 
   syncEntities(entities);
   updateMonster(world, entities, threat, 0.1, 1, msgs, target.id, { v: 100 }, state);
@@ -137,7 +141,7 @@ test('glubinnaya ten second beat hits when the player enters the dark afterimage
   const threat = glubinnayaTen(10.5, 10.5);
   const entities = [target, threat];
   const msgs: Msg[] = [];
-  const state = makeGameState({ currentZ: -36, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.VOID, worldEvents: createWorldEventState() });
 
   syncEntities(entities);
   updateMonster(world, entities, threat, 0.1, 5, msgs, target.id, { v: 100 }, state);

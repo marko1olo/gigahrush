@@ -1,4 +1,4 @@
-import { Faction, Occupation } from '../core/types';
+import { Faction, FloorLevel, Occupation } from '../core/types';
 
 export interface CaravanResourceDelta {
   resourceId: string;
@@ -8,8 +8,8 @@ export interface CaravanResourceDelta {
 export interface CaravanLaneDef {
   id: string;
   name: string;
-  fromFloor: number;
-  toFloor: number;
+  fromFloor: FloorLevel;
+  toFloor: FloorLevel;
   fromFloorKeys?: readonly string[];
   toFloorKeys?: readonly string[];
   resourceDeltas: readonly CaravanResourceDelta[];
@@ -49,10 +49,10 @@ export const CARAVAN_LANES: readonly CaravanLaneDef[] = [
   {
     id: 'kvartiry_living_food_water',
     name: 'Квартиры -> Жилая: еда и вода',
-    fromFloor: 60,
-    toFloor: 100,
-    fromFloorKeys: ['design:kvartiry'],
-    toFloorKeys: ['design:living'],
+    fromFloor: FloorLevel.KVARTIRY,
+    toFloor: FloorLevel.LIVING,
+    fromFloorKeys: ['story:kvartiry'],
+    toFloorKeys: ['story:living'],
     resourceDeltas: [{ resourceId: 'food', count: 6 }, { resourceId: 'drink_water', count: 5 }],
     tariffResourceIds: ['food', 'drink_water'],
     feeRubles: 18,
@@ -62,10 +62,10 @@ export const CARAVAN_LANES: readonly CaravanLaneDef[] = [
   {
     id: 'maintenance_living_tools',
     name: 'Коллекторы -> Жилая: металл и инструмент',
-    fromFloor: 140,
-    toFloor: 100,
-    fromFloorKeys: ['design:maintenance'],
-    toFloorKeys: ['design:living'],
+    fromFloor: FloorLevel.MAINTENANCE,
+    toFloor: FloorLevel.LIVING,
+    fromFloorKeys: ['story:maintenance'],
+    toFloorKeys: ['story:living'],
     resourceDeltas: [{ resourceId: 'metal', count: 5 }, { resourceId: 'tools', count: 3 }],
     tariffResourceIds: ['metal', 'tools'],
     feeRubles: 24,
@@ -75,8 +75,8 @@ export const CARAVAN_LANES: readonly CaravanLaneDef[] = [
   {
     id: 'production_black_market_88',
     name: 'Производственный пояс -> рынок 88',
-    fromFloor: 140,
-    toFloor: 100,
+    fromFloor: FloorLevel.MAINTENANCE,
+    toFloor: FloorLevel.LIVING,
     fromFloorKeys: ['design:production_belt'],
     toFloorKeys: ['design:black_market_88'],
     resourceDeltas: [{ resourceId: 'contraband', count: 3 }, { resourceId: 'ammo', count: 4 }],
@@ -89,10 +89,10 @@ export const CARAVAN_LANES: readonly CaravanLaneDef[] = [
   {
     id: 'ministry_market_docs',
     name: 'Министерство -> Жилая: бумаги и бланки',
-    fromFloor: 30,
-    toFloor: 100,
-    fromFloorKeys: ['design:ministry'],
-    toFloorKeys: ['design:living'],
+    fromFloor: FloorLevel.MINISTRY,
+    toFloor: FloorLevel.LIVING,
+    fromFloorKeys: ['story:ministry'],
+    toFloorKeys: ['story:living'],
     resourceDeltas: [{ resourceId: 'documents', count: 5 }, { resourceId: 'paper', count: 4 }],
     tariffResourceIds: ['documents', 'paper'],
     feeRubles: 30,
@@ -103,10 +103,10 @@ export const CARAVAN_LANES: readonly CaravanLaneDef[] = [
   {
     id: 'hell_cult_psi_goods',
     name: 'Мясной низ -> культовые ПСИ-грузы',
-    fromFloor: 180,
-    toFloor: 100,
-    fromFloorKeys: ['design:hell'],
-    toFloorKeys: ['design:living'],
+    fromFloor: FloorLevel.HELL,
+    toFloor: FloorLevel.LIVING,
+    fromFloorKeys: ['story:hell'],
+    toFloorKeys: ['story:living'],
     resourceDeltas: [{ resourceId: 'psi', count: 2 }, { resourceId: 'contraband', count: 2 }],
     tariffResourceIds: ['psi', 'contraband'],
     feeRubles: 42,
@@ -116,10 +116,10 @@ export const CARAVAN_LANES: readonly CaravanLaneDef[] = [
   {
     id: 'net_exchange_data',
     name: 'Министерство -> Жилая: НЕТ-схемы и бумаги',
-    fromFloor: 30,
-    toFloor: 100,
+    fromFloor: FloorLevel.MINISTRY,
+    toFloor: FloorLevel.LIVING,
     fromFloorKeys: ['design:silicon_net_well'],
-    toFloorKeys: ['design:living'],
+    toFloorKeys: ['story:living'],
     resourceDeltas: [{ resourceId: 'electronics', count: 3 }, { resourceId: 'documents', count: 2 }],
     tariffResourceIds: ['electronics', 'documents'],
     feeRubles: 28,

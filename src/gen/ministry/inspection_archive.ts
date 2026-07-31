@@ -1,12 +1,12 @@
 /* ── Инспекционный архив — Ministry access-control POI ───────── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   Cell,
   ContainerKind,
   DoorState,
   Tex,
   Feature,
+  FloorLevel,
   RoomType,
   Faction,
   Occupation,
@@ -145,7 +145,7 @@ const YURI_DEF: PlotNpcDef = {
 registerSideQuest('nina_dosmotrova', NINA_DEF, [
   {
     id: 'inspection_temp_pass_retrieval',
-    giverId: getPlotNpcNumericId('nina_dosmotrova')!,
+    giverNpcId: 'nina_dosmotrova',
     type: QuestType.FETCH,
     desc: 'Нина Досмотрова: «Принесите временный пропуск из задней картотеки. Ключ желателен, тишина обязательна.»',
     targetItem: 'temp_pass', targetCount: 1,
@@ -155,7 +155,7 @@ registerSideQuest('nina_dosmotrova', NINA_DEF, [
   },
   {
     id: 'inspection_blank_forms',
-    giverId: getPlotNpcNumericId('nina_dosmotrova')!,
+    giverNpcId: 'nina_dosmotrova',
     type: QuestType.FETCH,
     desc: 'Нина Досмотрова: «Четыре пустых бланка. До самосбора они должны получить смысл.»',
     targetItem: 'blank_form', targetCount: 4,
@@ -168,7 +168,7 @@ registerSideQuest('nina_dosmotrova', NINA_DEF, [
 registerSideQuest('evsey_zasov', EVSEY_DEF, [
   {
     id: 'archive_denunciation_index',
-    giverId: getPlotNpcNumericId('evsey_zasov')!,
+    giverNpcId: 'evsey_zasov',
     type: QuestType.FETCH,
     desc: 'Евсей Засов: «Три доноса для индекса. Без индекса донос становится разговором.»',
     targetItem: 'denunciation', targetCount: 3,
@@ -181,7 +181,7 @@ registerSideQuest('evsey_zasov', EVSEY_DEF, [
 registerSideQuest('marfa_zhalobnaya', MARFA_DEF, [
   {
     id: 'complaint_window_double',
-    giverId: getPlotNpcNumericId('marfa_zhalobnaya')!,
+    giverNpcId: 'marfa_zhalobnaya',
     type: QuestType.FETCH,
     desc: 'Марфа Жалобная: «Две соседские жалобы. Одну архив считает настроением.»',
     targetItem: 'neighbor_complaint', targetCount: 2,
@@ -194,7 +194,7 @@ registerSideQuest('marfa_zhalobnaya', MARFA_DEF, [
 registerSideQuest('yuri_dvertsov', YURI_DEF, [
   {
     id: 'inspection_paper_eater',
-    giverId: getPlotNpcNumericId('yuri_dvertsov')!,
+    giverNpcId: 'yuri_dvertsov',
     type: QuestType.KILL,
     desc: 'Юрий Дверцов: «Убейте печатееда в задней картотеке, пока он не съел пропуска.»',
     targetMonsterKind: MonsterKind.PECHATEED,
@@ -245,7 +245,7 @@ function addInspectionEvidenceContainer(
     id: nextContainerId(world),
     x,
     y,
-    z: 30,
+    floor: FloorLevel.MINISTRY,
     roomId,
     zoneId: world.zoneMap[ci],
     kind: ContainerKind.FILING_CABINET,

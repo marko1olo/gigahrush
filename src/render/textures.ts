@@ -9,46 +9,6 @@ import { S, rgba, noise, clamp } from './pixutil';
 
 export type TexData = Uint32Array; // S*S RGBA pixels (0xAABBGGRR little-endian)
 
-
-/* ── Visual detailing helpers ─────────────────────────────────── */
-export function getCoordinateHashVariation(x: number, y: number, z: number = 0): number {
-  let h = (x * 374761393 + y * 668265263 + z * 1274126177) | 0;
-  h = (h ^ (h >> 13)) * 1103515245;
-  h = (h ^ (h >> 16)) & 0x7fffffff;
-  return h % 64;
-}
-
-export function addCracks(_t: TexData, _size: number, seed: number, crackDensity: number, x: number, y: number, r: number, g: number, b: number): [number, number, number] {
-  // Branching cracks using noise
-  const n1 = noise(x * 2.5, y * 2.5, seed + 7);
-  const n2 = noise(x * 2.5, y * 2.5, seed + 8);
-  const isCrack = (n1 > 1.0 - crackDensity) && (Math.abs(n1 - n2) < 0.05);
-  if (isCrack) {
-    // Darken along the crack line
-    return [Math.max(0, r - 50), Math.max(0, g - 50), Math.max(0, b - 50)];
-  }
-  return [r, g, b];
-}
-
-export function addMoisturePatches(_t: TexData, _size: number, seed: number, x: number, y: number, r: number, g: number, b: number): [number, number, number] {
-  const moisture = noise(x / 6, y / 6, seed + 12);
-  if (moisture > 0.65) {
-    const intensity = (moisture - 0.65) * 2.8; // scale up
-    const darkening = 1.0 - (intensity * 0.4);
-    return [Math.floor(r * darkening), Math.floor(g * darkening), Math.floor(b * darkening)];
-  }
-  return [r, g, b];
-}
-
-export function addVerticalStreaks(_t: TexData, _size: number, seed: number, x: number, y: number, r: number, g: number, b: number, intensityScale: number = 1.0): [number, number, number] {
-    const streak = Math.sin(y * 0.15) * noise(Math.floor(x / 2), 0, seed + 9) * 15 * intensityScale;
-    if (streak > 0) {
-      const darkening = 1.0 - (streak / (15 * intensityScale)) * 0.25;
-      return [Math.floor(r * darkening), Math.floor(g * darkening), Math.floor(b * darkening)];
-    }
-    return [r, g, b];
-}
-
 /* ── Generate all game textures ───────────────────────────────── */
 export function generateTextures(): TexData[] {
   const textures: TexData[] = [];
@@ -99,7 +59,6 @@ export function generateTextures(): TexData[] {
   generateProceduralScreenTextures(textures);
   gen_larvaBody(textures[Tex.LARVA_BODY]);
   gen_doorHermetic(textures[Tex.DOOR_HERMETIC]);
-  gen_grass(textures[Tex.F_GRASS]);
 
   return textures;
 }
@@ -107,61 +66,52 @@ export function generateTextures(): TexData[] {
 /* ── Individual texture generators ────────────────────────────── */
 
 function gen_concrete(t: TexData, br: number, bg: number, bb: number, seed: number) {
-  const hashVar = getCoordinateHashVariation(seed, 0, 0); // use seed as proxy for variance
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-    const n = noise(x + hashVar * 10, y + hashVar * 10, seed) * 30 - 15;
-    let cr = br + n;
-    let cg = bg + n;
-    let cb = bb + n;
-
-    [cr, cg, cb] = addCracks(t, S, seed + hashVar, 0.08, x, y, cr, cg, cb);
-    [cr, cg, cb] = addMoisturePatches(t, S, seed + hashVar + 1, x, y, cr, cg, cb);
-    [cr, cg, cb] = addVerticalStreaks(t, S, seed + hashVar + 2, x, y, cr, cg, cb, 0.6);
+    const n = noise(x, y, seed) * 30 - 15;
+    const crack = (noise(x * 3, y * 3, seed + 7) > 0.92) ? -40 : 0;
+    // Moisture spots (low frequency noise)
+    const moisture = (noise(Math.floor(x / 4), Math.floor(y / 4), seed + 8) > 0.7) ? -15 : 0;
+    // Vertical streaks (drips/stains)
+    const streak = Math.sin(y * 0.1) * noise(Math.floor(x / 2), 0, seed + 9) * 10 - 5;
 
     t[y * S + x] = rgba(
-      clamp(cr),
-      clamp(cg),
-      clamp(cb)
+      clamp(br + n + crack + moisture + streak),
+      clamp(bg + n + crack + moisture + streak),
+      clamp(bb + n + crack + moisture + streak)
     );
   }
 }
 
 function gen_brick(t: TexData) {
-  const seed = 11;
-  const hashVar = getCoordinateHashVariation(seed, 1, 0);
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const row = Math.floor(y / 8);
     const offset = (row & 1) ? 16 : 0;
     const bx = (x + offset) % 32;
     const by = y % 8;
     const mortar = bx < 1 || by < 1;
-    const n = noise(x + hashVar, y + hashVar, 11) * 20 - 10;
+    const n = noise(x, y, 11) * 20 - 10;
     if (mortar) {
       // Weathering on mortar
-      const weathering = noise(x, y, 12 + hashVar) > 0.8 ? -15 : 0;
-      let cr = 100 + n + weathering;
-      let cg = 95 + n + weathering;
-      let cb = 85 + n + weathering;
-      [cr, cg, cb] = addMoisturePatches(t, S, seed + 10, x, y, cr, cg, cb);
-      t[y * S + x] = rgba(clamp(cr), clamp(cg), clamp(cb));
+      const weathering = noise(x, y, 12) > 0.8 ? -15 : 0;
+      t[y * S + x] = rgba(clamp(100 + n + weathering), clamp(95 + n + weathering), clamp(85 + n + weathering));
     } else {
-      const shade = noise(Math.floor((x + offset) / 32), row, 33 + hashVar) * 30;
-      let cr = 130 + n + shade;
-      let cg = 60 + n + shade / 2;
-      let cb = 40 + n + shade / 2;
-
-      [cr, cg, cb] = addCracks(t, S, seed + hashVar, 0.05, x, y, cr, cg, cb);
-
-      t[y * S + x] = rgba(clamp(cr), clamp(cg), clamp(cb));
+      const shade = noise(Math.floor((x + offset) / 32), row, 33) * 30;
+      // Dark spots and minor cracks on bricks
+      const spot = noise(x * 2, y * 2, 34) > 0.85 ? -20 : 0;
+      const streak = Math.sin(y * 0.2 + noise(x, 0, 35) * 5) * 5;
+      t[y * S + x] = rgba(
+        clamp(140 + shade + n + spot + streak),
+        clamp(60 + shade / 2 + n + spot + streak),
+        clamp(50 + shade / 3 + n + spot + streak)
+      );
     }
   }
 }
 
 function gen_panel(t: TexData) {
-  const hashVar = getCoordinateHashVariation(22, 0, 1);
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const seam = (x % 32 < 1 || y % 32 < 1) ? -30 : 0;
-    const n = noise(x + hashVar * 5, y + hashVar * 5, 22) * 16 - 8;
+    const n = noise(x, y, 22) * 16 - 8;
 
     // Grime accumulation near seams
     const nearSeam = (x % 32 < 4 || x % 32 > 28 || y % 32 < 4 || y % 32 > 28);
@@ -170,16 +120,10 @@ function gen_panel(t: TexData) {
     // Subtle surface dents
     const dent = noise(x, y, 24) > 0.9 ? -20 : 0;
 
-    let cr = 170 + n + seam + grime + dent;
-    let cg = 165 + n + seam + grime + dent;
-    let cb = 150 + n + seam + grime + dent;
-
-    [cr, cg, cb] = addVerticalStreaks(t, S, 22 + hashVar, x, y, cr, cg, cb, 0.4);
-
     t[y * S + x] = rgba(
-      clamp(cr),
-      clamp(cg),
-      clamp(cb)
+      clamp(170 + n + seam + grime + dent),
+      clamp(165 + n + seam + grime + dent),
+      clamp(150 + n + seam + grime + dent)
     );
   }
 }
@@ -193,25 +137,19 @@ function gen_tile(t: TexData) {
 }
 
 function gen_metal(t: TexData) {
-  const hashVar = getCoordinateHashVariation(44, 2, 0);
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-    const n = noise(x + hashVar, y + hashVar, 44) * 25 - 12;
+    const n = noise(x, y, 44) * 25 - 12;
     const rivet = (x % 16 === 8 && y % 16 === 8) ? 40 : 0;
+    // Enhanced vertical streaks (drips/liquid)
+    const streak = Math.sin(y * 0.2 + noise(x, 0, 45) * 5) * 15;
 
     // Localized rust spots
     const rust = noise(x, y, 46) > 0.8 ? 20 : 0;
 
-    let cr = 90 + n + rivet + rust;
-    let cg = 95 + n + rivet + (rust * 0.5);
-    let cb = 105 + n + rivet - rust;
-
-    [cr, cg, cb] = addVerticalStreaks(t, S, 44 + hashVar, x, y, cr, cg, cb, 1.2);
-    [cr, cg, cb] = addMoisturePatches(t, S, 45 + hashVar, x, y, cr, cg, cb);
-
     t[y * S + x] = rgba(
-      clamp(cr),
-      clamp(cg),
-      clamp(cb)
+      clamp(90 + n + rivet + streak + rust),
+      clamp(95 + n + rivet + streak + (rust * 0.5)),
+      clamp(105 + n + rivet + streak - rust)
     );
   }
 }
@@ -474,7 +412,7 @@ function gen_meat(t: TexData) {
   }
 }
 
-/* ── Meat z: fleshy ground for hell ───────────────────────── */
+/* ── Meat floor: fleshy ground for hell ───────────────────────── */
 function gen_meatFloor(t: TexData) {
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const n = noise(x, y, 250) * 30 - 15;
@@ -503,7 +441,7 @@ function gen_gutWall(t: TexData) {
   }
 }
 
-/* ── Gut z: slick membranes with pooled mucus ────────────── */
+/* ── Gut floor: slick membranes with pooled mucus ────────────── */
 function gen_gutFloor(t: TexData) {
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const band = Math.sin(x * 0.18 + y * 0.09 + noise(x, y, 270) * 6) * 14;
@@ -1096,17 +1034,6 @@ function gen_carpetEdgeVariants(textures: TexData[]) {
         const weave = ((x + y) % 4 < 2) ? 5 : -5;
         t[y * S + x] = rgba(clamp(130 + n + weave), clamp(20 + n / 3), clamp(25 + n / 3));
       }
-    }
-  }
-}
-
-function gen_grass(t: TexData) {
-  for (let y = 0; y < S; y++) {
-    for (let x = 0; x < S; x++) {
-      const n = noise(x, y, 999) * 20;
-      const streak = noise(x * 0.5, y * 3, 1000) * 15;
-      const g = 60 + n + streak;
-      t[y * S + x] = rgba(clamp(g * 0.5), clamp(g), clamp(g * 0.3));
     }
   }
 }

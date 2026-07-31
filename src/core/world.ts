@@ -101,8 +101,6 @@ function markWorldReplaced(world: World, versions: {
   fogVersion: number;
   visualSlotVersion: number;
   pathBlockerVersion: number;
-  ceilHeightVersion: number;
-  tissueVersion: number;
 }): void {
   world.cellVersion = nextVersion(versions.cellVersion);
   world.surfaceVersion = nextVersion(versions.surfaceVersion);
@@ -115,8 +113,6 @@ function markWorldReplaced(world: World, versions: {
   world.visualSlotDirtyVersion = world.visualSlotVersion;
   world.pathBlockerVersion = nextVersion(versions.pathBlockerVersion);
   world.pathBlockerDirtyVersion = world.pathBlockerVersion;
-  world.ceilHeightVersion = nextVersion(versions.ceilHeightVersion);
-  world.tissueVersion = nextVersion(versions.tissueVersion);
   world.clearPendingGridDirtyRects();
   world.markSurfaceUploadDirty();
 }
@@ -171,8 +167,6 @@ export class World {
   visualSlots: Uint8Array; // render-only visual slots
   pathBlockers: Uint8Array; // gameplay path blocker row masks, 4 bytes per cell
   rooms:     Room[]  = [];
-  roomsByName: Map<string, Room> | null = null;
-  private _cachedRoomsLength = -1;
   doors:     Map<number, Door> = new Map();
   apartmentRoomCount = 0;          // first N rooms are permanent apartments
   aptMask:   Uint8Array;           // 1 = protected apartment cell (interior + wall ring)
@@ -194,7 +188,6 @@ export class World {
   railTracks: RailTrainTrack[] = [];
   railTrains: RailTrain[] = [];
   railTrainCells: Map<number, number> = new Map(); // cell idx -> train index
-  hasOpenSky?: boolean;            // true if this floor has an open sky (e.g. roof)
   cellVersion = 0;                 // bumped when runtime cell solidity changes
   surfaceVersion = 0;              // bumped when surfaceMap pixels change
   wallTexVersion = 0;              // bumped when runtime wall texture data changes
@@ -284,64 +277,6 @@ export class World {
     // uSamosborAlert will still override frequency during Samosbor.
   }
 
-  /** Propagate one light source at cell `i` into `this.light`/`this.lightBlinks`
-   *  via a radius-bounded BFS (max-combine). Shared by the full and windowed
-   *  bakes; the caller clears whatever target cells it wants recomputed. */
-  private propagateLightSource(i: number, params: { radius: number; intensity: number }): void {
-    const lx = i % W;
-    const ly = (i / W) | 0;
-    const radius = params.radius;
-    const radius2 = radius * radius;
-    LIGHT_SEEN.fill(0);
-
-    let head = 0;
-    let tail = 0;
-    LIGHT_QUEUE_DX[tail] = 0;
-    LIGHT_QUEUE_DY[tail] = 0;
-    tail++;
-    LIGHT_SEEN[localLightIndex(0, 0)] = 1;
-
-    const sourceBrightness = params.intensity;
-    const sourceBlink = this.features[i] === Feature.LAMP ? this.lampBlinks[i] : 0;
-    if (sourceBrightness > this.light[i]) {
-      this.light[i] = sourceBrightness;
-      this.lightBlinks[i] = sourceBlink;
-    }
-
-    while (head < tail) {
-      const dx = LIGHT_QUEUE_DX[head];
-      const dy = LIGHT_QUEUE_DY[head];
-      head++;
-      for (let dir = 0; dir < 4; dir++) {
-        const ndx = dx + LIGHT_DIR_X[dir];
-        const ndy = dy + LIGHT_DIR_Y[dir];
-        if (ndx < -radius || ndx > radius || ndy < -radius || ndy > radius) continue;
-        const d2 = ndx * ndx + ndy * ndy;
-        if (d2 > radius2) continue;
-        const localIdx = localLightIndex(ndx, ndy);
-        if (LIGHT_SEEN[localIdx]) continue;
-        LIGHT_SEEN[localIdx] = 1;
-
-        const wx = this.wrap(lx + ndx);
-        const wy = this.wrap(ly + ndy);
-        const ti = wy * W + wx;
-        const dist = Math.sqrt(d2);
-        const falloff = Math.max(0, 1 - dist / radius);
-        const candleSoftness = params.intensity < 1 ? 0.75 + falloff * 0.25 : 1;
-        const passable = lightPassesCell(this, ti);
-        const brightness = sourceBrightness * falloff * candleSoftness * (passable ? 1 : 0.46);
-        if (brightness > this.light[ti]) {
-          this.light[ti] = brightness;
-          this.lightBlinks[ti] = sourceBlink;
-        }
-        if (!passable || tail >= LIGHT_QUEUE_CAP) continue;
-        LIGHT_QUEUE_DX[tail] = ndx;
-        LIGHT_QUEUE_DY[tail] = ndy;
-        tail++;
-      }
-    }
-  }
-
   /* rebuild lightmap from local feature light sources */
   bakeLights(): void {
     this.light.fill(0);
@@ -349,37 +284,57 @@ export class World {
     for (let i = 0; i < W * W; i++) {
       const params = featureLightParams(this.features[i] as Feature);
       if (!params) continue;
-      this.propagateLightSource(i, params);
-    }
-  }
+      const lx = i % W;
+      const ly = (i / W) | 0;
+      const radius = params.radius;
+      const radius2 = radius * radius;
+      LIGHT_SEEN.fill(0);
 
-  /** Windowed relight for a single runtime feature change at `centerIdx` (e.g. a
-   *  lamp shot out mid-combat, or a per-cell samosbor stamp). A source's radius
-   *  is ≤ LIGHT_MAX_RADIUS, so the change can only alter cells within that box:
-   *  clear the ±R box, then re-propagate every source within ±2R (the only ones
-   *  that can reach a cleared cell). O(radius²) instead of O(W²). Correct for add
-   *  and remove — cleared cells are rebuilt from every relevant source, and
-   *  re-propagating a source into an untouched outer cell only max-combines a
-   *  value it already held. */
-  bakeLightsLocal(centerIdx: number): void {
-    const R = LIGHT_MAX_RADIUS;
-    const cx = centerIdx % W;
-    const cy = (centerIdx / W) | 0;
-    for (let dy = -R; dy <= R; dy++) {
-      const row = this.wrap(cy + dy) * W;
-      for (let dx = -R; dx <= R; dx++) {
-        const ti = row + this.wrap(cx + dx);
-        this.light[ti] = 0;
-        this.lightBlinks[ti] = 0;
+      let head = 0;
+      let tail = 0;
+      LIGHT_QUEUE_DX[tail] = 0;
+      LIGHT_QUEUE_DY[tail] = 0;
+      tail++;
+      LIGHT_SEEN[localLightIndex(0, 0)] = 1;
+
+      const sourceBrightness = params.intensity;
+      const sourceBlink = this.features[i] === Feature.LAMP ? this.lampBlinks[i] : 0;
+      if (sourceBrightness > this.light[i]) {
+        this.light[i] = sourceBrightness;
+        this.lightBlinks[i] = sourceBlink;
       }
-    }
-    for (let dy = -2 * R; dy <= 2 * R; dy++) {
-      const wy = this.wrap(cy + dy);
-      for (let dx = -2 * R; dx <= 2 * R; dx++) {
-        const i = wy * W + this.wrap(cx + dx);
-        const params = featureLightParams(this.features[i] as Feature);
-        if (!params) continue;
-        this.propagateLightSource(i, params);
+
+      while (head < tail) {
+        const dx = LIGHT_QUEUE_DX[head];
+        const dy = LIGHT_QUEUE_DY[head];
+        head++;
+        for (let dir = 0; dir < 4; dir++) {
+          const ndx = dx + LIGHT_DIR_X[dir];
+          const ndy = dy + LIGHT_DIR_Y[dir];
+          if (ndx < -radius || ndx > radius || ndy < -radius || ndy > radius) continue;
+          const d2 = ndx * ndx + ndy * ndy;
+          if (d2 > radius2) continue;
+          const localIdx = localLightIndex(ndx, ndy);
+          if (LIGHT_SEEN[localIdx]) continue;
+          LIGHT_SEEN[localIdx] = 1;
+
+          const wx = this.wrap(lx + ndx);
+          const wy = this.wrap(ly + ndy);
+          const ti = wy * W + wx;
+          const dist = Math.sqrt(d2);
+          const falloff = Math.max(0, 1 - dist / radius);
+          const candleSoftness = params.intensity < 1 ? 0.75 + falloff * 0.25 : 1;
+          const passable = lightPassesCell(this, ti);
+          const brightness = sourceBrightness * falloff * candleSoftness * (passable ? 1 : 0.46);
+          if (brightness > this.light[ti]) {
+            this.light[ti] = brightness;
+            this.lightBlinks[ti] = sourceBlink;
+          }
+          if (!passable || tail >= LIGHT_QUEUE_CAP) continue;
+          LIGHT_QUEUE_DX[tail] = ndx;
+          LIGHT_QUEUE_DY[tail] = ndy;
+          tail++;
+        }
       }
     }
   }
@@ -387,11 +342,8 @@ export class World {
   /* toroidal helpers */
   wrap(v: number): number { return ((v % W) + W) % W; }
 
-  /** Integer-only wrap: faster than wrap() for cell coordinates. W must be power of 2. */
-  wrapI(v: number): number { return (v & 0x3ff) | 0; } // 0x3ff = 1023 = W-1
-
   idx(x: number, y: number): number {
-    return ((y | 0) & 0x3ff) * W + ((x | 0) & 0x3ff);
+    return this.wrap(y | 0) * W + this.wrap(x | 0);
   }
 
   get(x: number, y: number): number {
@@ -483,18 +435,6 @@ export class World {
     return Array.from(this.surfaceDirtyCells);
   }
 
-  getRoomByName(name: string): Room | undefined {
-    if (!this.roomsByName || this._cachedRoomsLength !== this.rooms.length) {
-      this.roomsByName = new Map();
-      this._cachedRoomsLength = this.rooms.length;
-      for (let i = 0; i < this.rooms.length; i++) {
-        const r = this.rooms[i];
-        if (r && r.name) this.roomsByName.set(r.name, r);
-      }
-    }
-    return this.roomsByName.get(name);
-  }
-
   clearPendingSurfaceDirtyCells(): void {
     this.surfaceDirtyFull = false;
     this.surfaceDirtyCells.clear();
@@ -557,16 +497,7 @@ export class World {
     const old = this.features[idx] as Feature;
     if (old === feature) return false;
     this.features[idx] = feature;
-    // A single-cell feature change can only alter light within LIGHT_MAX_RADIUS,
-    // so relight that window instead of the full W² bakeLights (the combat-frame
-    // hitch when a beam shoots out a lamp; also per-cell samosbor stamps). Bulk
-    // callers keep the full bake via markFeaturesDirty(true).
-    const relight = rebakeLights && (lightFeature(old) || lightFeature(feature));
-    if (relight) {
-      this.bakeLightsLocal(idx);
-      this.lightVersion = (this.lightVersion + 1) | 0;
-    }
-    this.markFeaturesDirty(false, rects);
+    this.markFeaturesDirty(rebakeLights && (lightFeature(old) || lightFeature(feature)), rects);
     if (old === Feature.SCREEN && feature !== Feature.SCREEN) this.screenCells = this.screenCells.filter(i => i !== idx);
     if (feature === Feature.SCREEN && !this.screenCells.includes(idx)) this.screenCells.push(idx);
     if (old === Feature.SLIDE && feature !== Feature.SLIDE) this.slideCells = this.slideCells.filter(i => i !== idx);
@@ -612,7 +543,7 @@ export class World {
   }
 
   solid(x: number, y: number): boolean {
-    const i = ((y | 0) & 0x3ff) * W + ((x | 0) & 0x3ff);
+    const i = this.idx(x, y);
     const c = this.cells[i];
     if (c === Cell.FLOOR || c === Cell.WATER) return false;
     if (c === Cell.LIFT) return true;  // lift wall — interact to use
@@ -629,8 +560,8 @@ export class World {
   /* toroidal shortest displacement from a→b */
   delta(a: number, b: number): number {
     let d = b - a;
-    if (d >  512) d -= W;
-    if (d < -512) d += W;
+    if (d >  W / 2) d -= W;
+    if (d < -W / 2) d += W;
     return d;
   }
 
@@ -832,8 +763,6 @@ export function replaceWorldFromGeneration(target: World | null | undefined, gen
       fogVersion: source.fogVersion,
       visualSlotVersion: source.visualSlotVersion,
       pathBlockerVersion: source.pathBlockerVersion,
-      ceilHeightVersion: source.ceilHeightVersion,
-      tissueVersion: source.tissueVersion,
     });
     return source;
   }
@@ -848,8 +777,6 @@ export function replaceWorldFromGeneration(target: World | null | undefined, gen
     fogVersion: target.fogVersion,
     visualSlotVersion: target.visualSlotVersion,
     pathBlockerVersion: target.pathBlockerVersion,
-    ceilHeightVersion: target.ceilHeightVersion,
-    tissueVersion: target.tissueVersion,
   };
 
   target.cells.set(source.cells);
@@ -868,15 +795,10 @@ export function replaceWorldFromGeneration(target: World | null | undefined, gen
   target.tissue.set(source.tissue);
   target.dangerField.set(source.dangerField);
   target.liftDir.set(source.liftDir);
-  target.lampBlinks.set(source.lampBlinks);
-  target.lightBlinks.set(source.lightBlinks);
-  target.ceilHeight.set(source.ceilHeight);
 
   target.rooms = source.rooms.slice();
   target.doors = new Map(source.doors);
   target.apartmentRoomCount = source.apartmentRoomCount;
-  target.hasOpenSky = source.hasOpenSky;
-  target.globalCeilingTier = source.globalCeilingTier;
   target.zones = source.zones.slice();
   target.slideCells = source.slideCells.slice();
   target.screenCells = source.screenCells.slice();

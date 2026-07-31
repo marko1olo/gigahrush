@@ -1,13 +1,13 @@
 import {
   EntityType,
   Faction,
+  FloorLevel,
   Occupation,
   type Entity,
   type GameState,
 } from '../core/types';
 import { occupationProfile } from '../data/occupation_profiles';
-import { cleanFloorKey, floorKeyForDesign, floorKeyZ, floorKeyKind, floorKeyRouteId } from './floor_keys';
-import { designFloorById } from '../data/design_floors';
+import { cleanFloorKey, floorKeyForStory, floorKeyZ } from './floor_keys';
 import {
   alifeNpcRecordCount,
   getAlifeNpcRecordSnapshot,
@@ -16,6 +16,7 @@ import {
 } from './alife';
 import {
   getNpcPackage,
+  getNpcPackageByPlotNpcId,
   npcPackageDisplayName,
   type NpcPackageDef,
 } from '../data/npc_packages';
@@ -41,13 +42,13 @@ const FACTION_LABELS: Record<Faction, string> = {
   [Faction.PLAYER]: 'Игрок',
 };
 
-const FLOOR_LABELS: Record<number, string> = {
-  [30]: 'Министерство',
-  [60]: 'Квартиры',
-  [100]: 'Жилая зона',
-  [140]: 'Коллекторы',
-  [180]: 'Ад',
-  [200]: 'Пустота',
+const FLOOR_LABELS: Record<FloorLevel, string> = {
+  [FloorLevel.MINISTRY]: 'Министерство',
+  [FloorLevel.KVARTIRY]: 'Квартиры',
+  [FloorLevel.LIVING]: 'Жилая зона',
+  [FloorLevel.MAINTENANCE]: 'Коллекторы',
+  [FloorLevel.HELL]: 'Ад',
+  [FloorLevel.VOID]: 'Пустота',
 };
 
 interface DemosJourneyLike {
@@ -182,10 +183,10 @@ export function demosSnapshotMatchesQuery(snapshot: AlifeNpcSnapshot, queryInput
   const alifeId = parseDemosAlifeId(query);
   if (alifeId !== undefined) return snapshot.id === alifeId;
   const lower = safeLower(query);
-  if (lower.startsWith('plot:')) return safeLower(snapshot.reservedIdentityId ?? String(snapshot.id ?? '')).includes(lower.slice(5));
+  if (lower.startsWith('plot:')) return safeLower(snapshot.plotNpcId ?? '').includes(lower.slice(5));
   if (safeLower(snapshot.name).includes(lower)) return true;
   if (safeLower(snapshot.reservedIdentityId ?? '').includes(lower)) return true;
-  return snapshot.id !== undefined && safeLower(String(snapshot.id)).includes(lower);
+  return snapshot.plotNpcId !== undefined && safeLower(snapshot.plotNpcId).includes(lower);
 }
 
 export function findDemosCursor(state: GameState, queryInput: string, preferredCursor = 0, direction = 1): number {
@@ -231,11 +232,11 @@ function demosFloorNumberLabel(z: number | undefined): string {
   return typeof z === 'number' && Number.isFinite(z) ? `Этаж ${Math.trunc(z)}` : '';
 }
 
-function demosFloorKeyZ(state: GameState, floorKeyInput: unknown, fallbackFloor?: number): number | undefined {
+function demosFloorKeyZ(state: GameState, floorKeyInput: unknown, fallbackFloor?: FloorLevel): number | undefined {
   const key = cleanFloorKey(floorKeyInput);
-  const host = state as GameState & { floorRun?: { specs?: Record<string, { z?: number; baseFloor?: number }> } };
+  const host = state as GameState & { floorRun?: { specs?: Record<string, { z?: number; baseFloor?: FloorLevel }> } };
   return floorKeyZ(key, { proceduralSpecs: host.floorRun?.specs })
-    ?? (fallbackFloor !== undefined ? floorKeyZ(floorKeyForDesign(String(fallbackFloor))) : undefined);
+    ?? (fallbackFloor !== undefined ? floorKeyZ(floorKeyForStory(fallbackFloor)) : undefined);
 }
 
 function demosCurrentRouteZ(state: GameState): number | undefined {
@@ -243,21 +244,10 @@ function demosCurrentRouteZ(state: GameState): number | undefined {
   return typeof z === 'number' && Number.isFinite(z) ? Math.trunc(z) : undefined;
 }
 
-function demosFloorKeyLabel(state: GameState, floorKeyInput: unknown, fallbackFloor?: number): string {
+function demosFloorKeyLabel(state: GameState, floorKeyInput: unknown, fallbackFloor?: FloorLevel): string {
   const key = cleanLabel(floorKeyInput);
-  const z = demosFloorKeyZ(state, key, fallbackFloor);
-  const floorNumber = demosFloorNumberLabel(z);
-  
-  let keyLabel = key;
-  const kind = floorKeyKind(key);
-  if (kind === 'design') {
-    const designDef = designFloorById(floorKeyRouteId(key));
-    if (designDef) keyLabel = designDef.displayName;
-  } else {
-    // Redundant with baseFloorLabel or unknown
-  }
-  
-  return floorNumber ? `${floorNumber}, ${keyLabel || '?'}` : (keyLabel || '?');
+  const floorNumber = demosFloorNumberLabel(demosFloorKeyZ(state, key, fallbackFloor));
+  return floorNumber ? `${floorNumber} ${key || '?'}` : key;
 }
 
 function findMobilityLabel(state: GameState, alifeId: number): string {
@@ -292,35 +282,12 @@ function locationLabel(state: GameState, entities: readonly Entity[], snapshot: 
   }
   const mobility = findMobilityLabel(state, snapshot.id);
   if (mobility) return mobility;
-  
-  const baseFloorLabel = FLOOR_LABELS[snapshot.z] ?? `этаж ${snapshot.z}`;
-  const z = demosFloorKeyZ(state, snapshot.floorKey, snapshot.z);
-  const floorNumber = demosFloorNumberLabel(z);
-  
-  let keyLabel = snapshot.floorKey;
-  const kind = floorKeyKind(snapshot.floorKey);
-  if (kind === 'design') {
-    const designDef = designFloorById(floorKeyRouteId(snapshot.floorKey));
-    if (designDef) keyLabel = designDef.displayName;
-  } else {
-    keyLabel = ''; // Redundant with baseFloorLabel
-  }
-
-  const locationParts = [];
-  if (floorNumber) locationParts.push(floorNumber);
-  
-  if (keyLabel) {
-    if (kind === 'design') locationParts.push(keyLabel);
-    else locationParts.push(`${baseFloorLabel} / ${keyLabel}`);
-  } else {
-    locationParts.push(baseFloorLabel);
-  }
-
+  const floor = FLOOR_LABELS[snapshot.floor] ?? `этаж ${snapshot.floor}`;
+  const floorNumber = demosFloorNumberLabel(demosFloorKeyZ(state, snapshot.floorKey, snapshot.floor));
   const coords = Number.isFinite(snapshot.x) && Number.isFinite(snapshot.y)
     ? `, ${Math.floor(snapshot.x ?? 0)}:${Math.floor(snapshot.y ?? 0)}`
     : '';
-  
-  return `${locationParts.join(', ')}${coords}`;
+  return `${floorNumber ? `${floorNumber}, ` : ''}${floor} / ${snapshot.floorKey}${coords}`;
 }
 
 function fallbackSpriteSeed(snapshot: AlifeNpcSnapshot): number {
@@ -340,7 +307,7 @@ function packageForSnapshot(snapshot: AlifeNpcSnapshot): NpcPackageDef | undefin
     const pack = getNpcPackage(packageId);
     if (pack) return pack;
   }
-  return undefined;
+  return snapshot.plotNpcId ? getNpcPackageByPlotNpcId(snapshot.plotNpcId) : undefined;
 }
 
 function demosProfileSprite(live: Entity | undefined, snapshot: AlifeNpcSnapshot, pack: NpcPackageDef | undefined): number {
@@ -391,7 +358,7 @@ function buildDemosProfile(
     cursor,
     total,
     idLabel: `alife:${snapshot.id}`,
-    plotIdLabel: snapshot.id ? `plot:${snapshot.id}` : undefined,
+    plotIdLabel: snapshot.plotNpcId ? `plot:${snapshot.plotNpcId}` : undefined,
     packageIdLabel: packageId ? `npc:${packageId}` : undefined,
     name: live?.name ?? (pack ? npcPackageDisplayName(pack) : undefined) ?? snapshot.name,
     faction,

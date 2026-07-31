@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { QuestType } from '../src/core/types';
 import { World } from '../src/core/world';
 import { buildAlifePopulationPlan } from '../src/data/alife_population_plan';
-
+import { MAIN_PLOT_NPC_PACKAGES } from '../src/data/npc_plot_packages';
 import {
   allNpcPackages,
   getNpcPackage,
@@ -12,7 +12,6 @@ import {
   npcPackageDisplayName,
   plotNpcIdFromPackage,
   validateNpcPackages,
-  getPlotNpcNumericId,
   type NpcPackageDef,
 } from '../src/data/npc_packages';
 import { getPlotNpcDef } from '../src/data/plot';
@@ -20,8 +19,6 @@ import { generateTalkText } from '../src/systems/dialogue';
 import { isPlotNpcDead, recordAlifeNpcDeath } from '../src/systems/alife';
 import { checkTalkQuest } from '../src/systems/quests';
 import { makeGameState, makeTestNpc, makeTestPlayer } from './helpers';
-import { _overrideRng, _restoreRng } from '../src/core/rand';
-import '../src/data/npc_plot_packages';
 
 const MAIN_PLOT_IDS = [
   'marko_lolo',
@@ -40,9 +37,7 @@ const MAIN_PLOT_IDS = [
 ] as const;
 
 function requiredPlotPackage(plotNpcId: string): NpcPackageDef {
-  const numericId = getPlotNpcNumericId(plotNpcId);
-  assert.ok(numericId !== undefined, `missing numeric ID for plot NPC ${plotNpcId}`);
-  const pack = getNpcPackageByPlotNpcId(numericId);
+  const pack = getNpcPackageByPlotNpcId(plotNpcId);
   assert.ok(pack, `missing package for plot NPC ${plotNpcId}`);
   return pack;
 }
@@ -52,8 +47,7 @@ function plotNpcName(plotNpcId: string): string {
 }
 
 test('main plot NPCs are registered as packages and expose package-derived plot defs', () => {
-  const mainPlotPackages = allNpcPackages().filter(pack => pack.kind === 'plot' && MAIN_PLOT_IDS.includes(pack.id as any));
-  assert.deepEqual(mainPlotPackages.map(pack => pack.id).sort(), [...MAIN_PLOT_IDS].sort());
+  assert.deepEqual(MAIN_PLOT_NPC_PACKAGES.map(pack => pack.id), [...MAIN_PLOT_IDS]);
   assert.deepEqual(validateNpcPackages(), []);
 
   const registeredIds = new Set(allNpcPackages().map(pack => pack.id));
@@ -62,7 +56,7 @@ test('main plot NPCs are registered as packages and expose package-derived plot 
     const pack = getNpcPackage(id);
     assert.ok(pack, `${id} package is missing`);
     assert.equal(pack.kind, 'plot');
-    assert.equal(plotNpcIdFromPackage(pack), getPlotNpcNumericId(id));
+    assert.equal(plotNpcIdFromPackage(pack), id);
     assert.equal(pack.identity.firstName, undefined);
     assert.equal(pack.identity.lastName, undefined);
     assert.equal(pack.identity.patronymic, undefined);
@@ -86,16 +80,16 @@ test('main plot NPCs are registered as packages and expose package-derived plot 
 test('package-derived A-Life reserved identities keep package and plot identity linked', () => {
   const plan = buildAlifePopulationPlan({
     runSeed: 5,
-    routeKeys: ['design:living', 'design:ministry', 'design:maintenance', 'design:hell', 'design:void', 'design:podad', 'design:liquidatorbase'],
+    routeKeys: ['story:living', 'story:maintenance', 'story:hell', 'story:void', 'design:podad', 'design:liquidatorbase'],
     total: MAIN_PLOT_IDS.length,
   });
-  const byPlotId = new Map(plan.reserved.map(identity => [(identity as any).npcPackageId, identity]));
+  const byPlotId = new Map(plan.reserved.map(identity => [identity.plotNpcId, identity]));
 
-  for (const pack of allNpcPackages().filter(p => MAIN_PLOT_IDS.includes(p.id as any))) {
+  for (const pack of MAIN_PLOT_NPC_PACKAGES) {
     const plotNpcId = plotNpcIdFromPackage(pack);
-    assert.notEqual(plotNpcId, undefined);
-    const reserved = byPlotId.get(pack.id);
-    assert.ok(reserved, `${pack.id} must have a reserved identity`);
+    assert.ok(plotNpcId);
+    const reserved = byPlotId.get(plotNpcId);
+    assert.ok(reserved, `${plotNpcId} must have a reserved identity`);
     assert.equal(reserved.id, `npc:${pack.id}`);
     assert.equal(reserved.kind, 'plot');
     assert.equal(reserved.floorKey, pack.placement.homeFloorKey);
@@ -111,17 +105,19 @@ test('main plot first-contact and post dialogue still use exact authored order',
   const barniPack = requiredPlotPackage('barni');
   const talkLines = barniPack.speech.talkLines ?? [];
   const talkLinesPost = barniPack.speech.talkLinesPost ?? [];
-  const barni = makeTestNpc({ id: getPlotNpcNumericId('barni'), name: npcPackageDisplayName(barniPack) });
+  const barni = makeTestNpc({ plotNpcId: 'barni', name: npcPackageDisplayName(barniPack) });
 
   assert.equal(generateTalkText(barni, { state }), talkLines[0]);
   assert.equal(generateTalkText(barni, { state }), talkLines[1]);
-  _overrideRng(() => 0);
+
+  const originalRandom = Math.random;
+  Math.random = () => 0;
   try {
     barni.plotDone = true;
     const postLine = generateTalkText(barni, { state });
     assert.equal(talkLinesPost.includes(postLine), true);
   } finally {
-    _restoreRng();
+    Math.random = originalRandom;
   }
 });
 
@@ -130,9 +126,10 @@ test('plot TALK quest response remains exact locked authored text', () => {
   const player = makeTestPlayer({ id: 1, x: 10, y: 10 });
   const barniPack = requiredPlotPackage('barni');
   const barni = makeTestNpc({
-    id: getPlotNpcNumericId('barni'),
+    id: 2,
     x: 10.5,
     y: 10,
+    plotNpcId: 'barni',
     name: npcPackageDisplayName(barniPack),
   });
   const state = makeGameState({
@@ -142,7 +139,7 @@ test('plot TALK quest response remains exact locked authored text', () => {
       giverId: player.id,
       giverName: 'Ольга Дмитриевна',
       desc: 'Поговорить с Бариновым.',
-      targetNpcId: getPlotNpcNumericId('barni'),
+      targetPlotNpcId: 'barni',
       done: false,
     }],
     nextQuestId: 2,
@@ -159,8 +156,9 @@ test('plot TALK quest response remains exact locked authored text', () => {
 
 test('killing a package-backed plot NPC still records durable plot death', () => {
   const state = makeGameState();
-  const olga = makeTestNpc({ id: getPlotNpcNumericId('olga'), name: plotNpcName('olga') });
+  const olga = makeTestNpc({ id: 3, plotNpcId: 'olga', name: plotNpcName('olga') });
+
   recordAlifeNpcDeath(state, olga);
 
-  assert.equal(isPlotNpcDead(state, olga.id!), true);
+  assert.equal(isPlotNpcDead(state, 'olga'), true);
 });

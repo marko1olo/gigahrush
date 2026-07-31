@@ -93,7 +93,7 @@ function publishFungusEvent(
     severity,
     privacy: 'local',
     tags: ['fungus', 'carnivorous_fungus', 'zhelemish', ...tags],
-    data: { roomDefId: room.name, ...data },
+    data: { roomName: room.name, ...data },
   });
 }
 

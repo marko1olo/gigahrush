@@ -18,7 +18,7 @@ test('ak47 remains the old-world 7.62 automatic rifle', () => {
   assert.equal(WEAPON_ROLE_TIERS.ak47, 'ammo_burn');
   assert.equal(resourceForItem('ammo_762')?.id, 'ammo');
 
-  for (const tag of ['old_world', 'rifle', 'ammo_burn', 'plot_reward']) {
+  for (const tag of ['old_world', 'rifle', 'ammo_burn', 'story_reward']) {
     assert.ok(def.tags?.includes(tag), `ak47 item must publish ${tag} tag`);
     assert.ok(ITEM_TAGS.ak47?.includes(tag), `ak47 tag registry must publish ${tag}`);
   }

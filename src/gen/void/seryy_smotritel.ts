@@ -1,7 +1,8 @@
 /* -- Seryy Smotritel -- local VOID no-look encounter ------------ */
 
 import {
-  AIGoal, Cell, ContainerKind, DoorState, EntityType, Feature, MonsterKind, RoomType, Tex, msg,
+  AIGoal, Cell, ContainerKind, DoorState, EntityType, Feature, FloorLevel,
+  MonsterKind, RoomType, Tex, msg,
   type Entity, type GameState, type Item, type Room, type WorldContainer, type WorldEvent,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -14,7 +15,6 @@ import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg'
 import { carveCorridor, findClearArea, placeDoor, placeDoorAt, stampRoom } from '../shared';
 import { genLog } from '../log';
 import { isPlayerEntity } from '../../systems/player_actor';
-import { rng } from '../../core/rand';
 
 export const SERYY_SMOTRITEL_ID = 'seryy_smotritel' as const;
 export const SERYY_SMOTRITEL_RU_NAME = 'Серый Смотритель' as const;
@@ -162,7 +162,7 @@ function addContainer(
     id,
     x: wx,
     y: wy,
-    z: 200,
+    floor: FloorLevel.VOID,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(wx, wy)],
     kind: ContainerKind.SECRET_STASH,
@@ -286,7 +286,7 @@ function publishSeryyEvent(
       sourceY: ctx.sourceY,
       sourceDisabled: ctx.disabled,
       sourceAvoided: ctx.avoided,
-      roomDefId: ctx.world.rooms[ctx.roomId]?.name,
+      roomName: ctx.world.rooms[ctx.roomId]?.name,
     },
   });
 }
@@ -317,7 +317,7 @@ function spawnShadowAmbush(ctx: SeryyContext, player: Entity | undefined, event:
     type: EntityType.MONSTER,
     x: pos.x + 0.5,
     y: pos.y + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, level),
@@ -477,7 +477,7 @@ export function generateSeryySmotritel(
     y: entry.y + (entry.h >> 1) + 0.5,
     targetX: reward.x + 4.5,
     targetY: reward.y + 2.5,
-    z: 200,
+    floor: FloorLevel.VOID,
     roomId: entry.id,
     targetRoomId: reward.id,
     zoneId: world.zoneMap[world.idx(entry.x + 2, entry.y + (entry.h >> 1))],

@@ -8,6 +8,7 @@ import {
   type ZoneFaction,
   type ContextFact,
   type WorldEventType,
+  FloorLevel,
   RoomType,
   W,
 } from '../core/types';
@@ -18,12 +19,12 @@ import { factionToTerritoryOwner } from '../data/factions';
 import { territoryOwnerAtIndex } from './territory';
 
 export interface ContextSnapshot {
-  z?: number;
+  floor?: FloorLevel;
   zoneId?: number;
   zoneFaction?: ZoneFaction;
   zoneLevel?: number;
   roomType?: RoomType;
-  roomDefId?: string;
+  roomName?: string;
   npcFaction?: Faction;
   npcOccupation?: number;
   npcNeeds?: Needs;
@@ -63,7 +64,7 @@ export interface ContextSnapshot {
 
 export interface ContextBuildOptions {
   world?: World;
-  state?: Pick<GameState, 'currentZ' | 'samosborActive'> & Partial<Pick<GameState, 'quests' | 'time' | 'worldEvents'>>;
+  state?: Pick<GameState, 'currentFloor' | 'samosborActive'> & Partial<Pick<GameState, 'quests' | 'time' | 'worldEvents'>>;
   player?: Entity;
   time?: number;
 }
@@ -77,7 +78,7 @@ export function buildContextSnapshot(npc: Entity, options: ContextBuildOptions =
   let zoneFaction: ZoneFaction | undefined;
   let zoneLevel: number | undefined;
   let roomType: RoomType | undefined;
-  let roomDefId: string | undefined;
+  let roomName: string | undefined;
   let roomMemory: RoomMemoryRecord | undefined;
   let playerDistance: number | undefined;
   let nearbyContainer = false;
@@ -97,8 +98,8 @@ export function buildContextSnapshot(npc: Entity, options: ContextBuildOptions =
     const room = world.roomAt(npc.x, npc.y);
     if (room) {
       roomType = room.type;
-      roomDefId = room.name;
-      roomMemory = getRoomMemory(options.state?.currentZ, room.id);
+      roomName = room.name;
+      roomMemory = getRoomMemory(options.state?.currentFloor, room.id);
     }
     nearbyContainer = hasNearbyContainer(world, x, y);
     nearbyScreenRumorIds = screenRumorsNear(world, x, y);
@@ -119,12 +120,12 @@ export function buildContextSnapshot(npc: Entity, options: ContextBuildOptions =
   const playerId = options.player?.id;
 
   return {
-    z: options.state?.currentZ,
+    floor: options.state?.currentFloor,
     zoneId,
     zoneFaction,
     zoneLevel,
     roomType,
-    roomDefId,
+    roomName,
     npcFaction: npc.faction,
     npcOccupation: npc.occupation,
     npcNeeds: n,

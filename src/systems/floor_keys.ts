@@ -1,10 +1,11 @@
 /* ── Canonical runtime keys for route stops and floor instances ─ */
 
-import { } from '../core/types';
+import { FloorLevel } from '../core/types';
 import type { DesignFloorId } from '../data/floor_keys';
 import {
   floorKeyForDesign,
   floorKeyForProcedural,
+  floorKeyForStory,
   floorKeyForZ,
 } from '../data/floor_keys';
 
@@ -15,6 +16,7 @@ export {
   floorKeyForDesign,
   floorKeyForFloorInstance,
   floorKeyForProcedural,
+  floorKeyForStory,
   floorKeyForZ,
   floorKeyKind,
   floorKeyKnown,
@@ -26,16 +28,16 @@ export {
 
 export interface FloorKeyEntryLike {
   z?: number;
-  themeTags: readonly string[];
-  storyFloor?: number;
+  baseFloor: FloorLevel;
+  storyFloor?: FloorLevel;
   designFloorId?: DesignFloorId | string;
   spec?: { key: string };
 }
 
 export function floorKeyForEntry(entry: FloorKeyEntryLike): string {
-  if (entry.storyFloor !== undefined) return floorKeyForDesign(String(entry.storyFloor));
+  if (entry.storyFloor !== undefined) return floorKeyForStory(entry.storyFloor);
   if (entry.designFloorId) return floorKeyForDesign(entry.designFloorId);
   if (entry.spec) return floorKeyForProcedural(entry.spec.key);
   if (typeof entry.z === 'number' && Number.isFinite(entry.z)) return floorKeyForZ(Math.trunc(entry.z));
-  return 'design:living';
+  return floorKeyForStory(entry.baseFloor);
 }

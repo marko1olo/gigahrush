@@ -1,9 +1,9 @@
 /* ── Угол потерянного ребёнка — Kvartiry social pressure POI ─── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   Cell,
   ContainerKind,
+  FloorLevel,
   Tex,
   Feature,
   RoomType,
@@ -15,52 +15,13 @@ import {
   type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { type PlotNpcDef, registerSideQuest , registerAuthoredNpc } from '../../data/plot';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Женя из сорок третьей',
-  isFemale: false,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.CHILD,
-  sprite: Occupation.CHILD,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'note', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_0_cs8y3', npc: AMBIENT_NPC_0 });
-
-const AMBIENT_NPC_1: PlotNpcDef = {
-  name: 'Девочка с картой',
-  isFemale: true,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.CHILD,
-  sprite: Occupation.CHILD,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'bread', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_1_3xca0', npc: AMBIENT_NPC_1 });
-
-const AMBIENT_NPC_2: PlotNpcDef = {
-  name: 'Сосед-дежурный',
-  isFemale: true,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.LOCKSMITH,
-  sprite: Occupation.LOCKSMITH,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'wrench', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_2_ud6cn', npc: AMBIENT_NPC_2 });
-
+import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import {
   createSocialPoiRoom,
   placeDropNear,
   roomCell,
   setFeatureIfFloor,
+  spawnAmbientNpc,
   spawnSocialNpc,
   type SocialPoiRoom,
 } from './social_helpers';
@@ -95,7 +56,7 @@ const VERA: PlotNpcDef = {
 
 registerSideQuest('kv_vera_poteryashkina', VERA, [{
   id: LOST_CHILD_RATIONS_QUEST_ID,
-  giverId: getPlotNpcNumericId('kv_vera_poteryashkina')!,
+  giverNpcId: 'kv_vera_poteryashkina',
   type: QuestType.FETCH,
   desc: 'Вера Потеряшкина: «Две бутылки воды для детей, пока коридор их не забрал.»',
   targetItem: 'water', targetCount: 2,
@@ -114,12 +75,12 @@ registerSideQuest('kv_vera_poteryashkina', VERA, [{
   },
 }, {
   id: LOST_CHILD_MEDICINE_TRUST_QUEST_ID,
-  giverId: getPlotNpcNumericId('kv_vera_poteryashkina')!,
+  giverNpcId: 'kv_vera_poteryashkina',
   type: QuestType.TALK,
   desc: 'Вера Потеряшкина: «Скажите Нине {dir}: Женя пьёт и может дойти. Без этого она не откроет детский аптечный запас.»',
-  targetNpcId: getPlotNpcNumericId('kv_nina_tabletkina')!,
-  targetFloorZ: 60,
-  targetRoomDefId: 'Аптечный разменник',
+  targetNpcId: 'kv_nina_tabletkina',
+  targetFloor: FloorLevel.KVARTIRY,
+  targetRoomName: 'Аптечный разменник',
   targetZoneTag: KV_MEDICINE_TRUST_TAG,
   targetHint: 'Квартиры: от угла потерянного ребёнка дойдите до Аптечного разменника и поговорите с Ниной.',
   rewardItem: 'bandage', rewardCount: 1,
@@ -173,7 +134,7 @@ function addLostChildContainer(
     id: nextContainerId(world),
     x: pos.x,
     y: pos.y,
-    z: 60,
+    floor: FloorLevel.KVARTIRY,
     roomId: poi.room.id,
     zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
     kind: ContainerKind.SECRET_STASH,
@@ -204,9 +165,9 @@ export function generateLostChildCorner(
 
   const veraId = nextId.v;
   spawnSocialNpc(entities, nextId, VERA, 'kv_vera_poteryashkina', poi.x + 2, poi.y + 3);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_0, 'kv_ambient_0_cs8y3', poi.x + 6, poi.y + 4);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_1, 'kv_ambient_1_3xca0', poi.x + 7, poi.y + 3);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_2, 'kv_ambient_2_ud6cn', poi.x + 4, poi.y + 5, { weapon: 'wrench' });
+  spawnAmbientNpc(entities, nextId, 'Женя из сорок третьей', Faction.CITIZEN, Occupation.CHILD, poi.x + 6, poi.y + 4, [{ defId: 'note', count: 1 }]);
+  spawnAmbientNpc(entities, nextId, 'Девочка с картой', Faction.CITIZEN, Occupation.CHILD, poi.x + 7, poi.y + 3, [{ defId: 'bread', count: 1 }]);
+  spawnAmbientNpc(entities, nextId, 'Сосед-дежурный', Faction.CITIZEN, Occupation.LOCKSMITH, poi.x + 4, poi.y + 5, [{ defId: 'wrench', count: 1 }], 'wrench');
 
   addLostChildContainer(world, poi, poi.w - 2, 2, 'Картонка детских карт', 'owner', [
     { defId: 'child_map', count: 1 },

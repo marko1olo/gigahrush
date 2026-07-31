@@ -1,11 +1,11 @@
 /* ── AG50 lift repair shaft — repair/reroute/loot expedition ─── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
   ContainerKind,
   Faction,
   Feature,
+  FloorLevel,
   MonsterKind,
   Occupation,
   QuestType,
@@ -75,17 +75,17 @@ const GUARD_DEF: PlotNpcDef = {
 registerSideQuest('ag50_shaft_sasha', SASHA_DEF, [
   {
     id: 'ag50_shaft_inspect',
-    giverId: getPlotNpcNumericId('ag50_shaft_sasha')!,
+    giverNpcId: 'ag50_shaft_sasha',
     type: QuestType.VISIT,
     desc: 'Саша: «Проверь шахту N-089 {dir}. Если трос целый и кабель не теплый, будем чинить маршрут, а не хоронить кабину.»',
-    targetRoomDefId: SHAFT_ROOM_NAME,
+    targetRoomName: SHAFT_ROOM_NAME,
     rewardItem: 'fuse', rewardCount: 1,
     extraRewards: [{ defId: 'water', count: 1 }],
     relationDelta: 8, xpReward: 35, moneyReward: 25,
   },
   {
     id: 'ag50_shaft_replace_fuses',
-    giverId: getPlotNpcNumericId('ag50_shaft_sasha')!,
+    giverNpcId: 'ag50_shaft_sasha',
     type: QuestType.FETCH,
     desc: 'Саша: «Три предохранителя в щиток N-089. Сухими руками. После этого лифт хотя бы перестанет выбирать этаж по запаху.»',
     targetItem: 'fuse', targetCount: 3,
@@ -95,7 +95,7 @@ registerSideQuest('ag50_shaft_sasha', SASHA_DEF, [
   },
   {
     id: 'ag50_shaft_rebar_guides',
-    giverId: getPlotNpcNumericId('ag50_shaft_sasha')!,
+    giverNpcId: 'ag50_shaft_sasha',
     type: QuestType.KILL,
     desc: 'Саша: «Две арматуры бьют по направляющим. Убери их, пока кабина не решила стать стеной.»',
     targetMonsterKind: MonsterKind.REBAR,
@@ -109,7 +109,7 @@ registerSideQuest('ag50_shaft_sasha', SASHA_DEF, [
 registerSideQuest('ag50_shaft_guard', GUARD_DEF, [
   {
     id: 'ag50_shaft_override_form',
-    giverId: getPlotNpcNumericId('ag50_shaft_guard')!,
+    giverNpcId: 'ag50_shaft_guard',
     type: QuestType.FETCH,
     desc: 'Рельс: «Бланк обхода лифта принеси. Ремонт ремонтом, а номерной сбой без бумаги опять сделает нас пассажирами.»',
     targetItem: 'elevator_override_form', targetCount: 1,
@@ -119,7 +119,7 @@ registerSideQuest('ag50_shaft_guard', GUARD_DEF, [
   },
   {
     id: 'ag50_shaft_lampovy',
-    giverId: getPlotNpcNumericId('ag50_shaft_guard')!,
+    giverNpcId: 'ag50_shaft_guard',
     type: QuestType.KILL,
     desc: 'Рельс: «Ламповый жрет свет у аварийной лестницы. Без света ремонтник становится слухом.»',
     targetMonsterKind: MonsterKind.LAMPOVY,
@@ -138,7 +138,7 @@ function addOwnerToolLocker(ctx: MaintContentCtx, room: Room, ownerNpcId: number
     id: nextContainerId(ctx),
     x,
     y,
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     roomId: room.id,
     zoneId: ctx.world.zoneMap[ci],
     kind: ContainerKind.TOOL_LOCKER,

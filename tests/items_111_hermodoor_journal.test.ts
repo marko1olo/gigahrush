@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType, type Entity } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
@@ -51,7 +51,7 @@ test('hermodoor journal is reachable from the hospital quarantine filing cabinet
 
 test('hermodoor journal can be sold as door audit evidence in the living block', () => {
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 111 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 111 });
 
   assert.equal(addItem(player, ITEM_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter проверить');

@@ -1,15 +1,13 @@
 /* ── Дайвер Кот — side quest (maintenance floor) ──────────────── */
 /* Дикий ныряльщик из водяных каналов. Жрёт сырое мясо.           */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
-  W, Cell, RoomType,
+  W, Cell, FloorLevel, RoomType,
   type Entity, Faction, Occupation, QuestType,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng } from '../../core/rand';
 
 const NPC_DEF: PlotNpcDef = {
   name: 'Дайвер Кот',
@@ -39,7 +37,7 @@ const NPC_DEF: PlotNpcDef = {
 registerSideQuest('diver_kot', NPC_DEF, [
   {
     id: 'kot_meat',
-    giverId: getPlotNpcNumericId('diver_kot')!,
+    giverNpcId: 'diver_kot',
     type: QuestType.FETCH,
     desc: 'Кот: «Шесть кусков сырого мяса. Тварей кормить. Иначе — меня сожрут.»',
     targetItem: 'rawmeat', targetCount: 6,
@@ -52,11 +50,11 @@ registerSideQuest('diver_kot', NPC_DEF, [
   },
   {
     id: 'kot_water_bridge_tag',
-    giverId: getPlotNpcNumericId('diver_kot')!,
+    giverNpcId: 'diver_kot',
     type: QuestType.FETCH,
     desc: 'Кот: «На сухом мосту есть бирка водолазного маршрута. Принесёшь — скажу, где угорь воздух не любит.»',
     targetItem: 'diver_route_tag', targetCount: 1,
-    targetFloorZ: 140,
+    targetFloor: FloorLevel.MAINTENANCE,
     targetRoomType: RoomType.CORRIDOR,
     targetZoneTag: 'water_bridge',
     targetHint: 'Коллекторы: сухой мост над угревым лотком; дальний маршрутный ящик стоит на сухой кромке за водой.',
@@ -83,11 +81,11 @@ export function spawnDiverKot(
   world: World, entities: Entity[], nextId: { v: number },
 ): void {
   for (let i = 0; i < 3000; i++) {
-    const x = Math.floor(rng() * W);
-    const y = Math.floor(rng() * W);
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
     if (world.cells[world.idx(x, y)] !== Cell.FLOOR) continue;
     requireSpawnedPlotNpcFromPackage(entities, nextId, 'diver_kot', x + 0.5, y + 0.5, {
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       weapon: 'knife',
       canGiveQuest: true,
       isTraveler: true,

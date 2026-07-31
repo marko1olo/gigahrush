@@ -1,7 +1,7 @@
 /* ── Eye — flying demonic eye (глаз) ──────────────────────────── */
 /*   Ranged monster: shoots projectiles like a cacodemon.        */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { rgba, noise, clamp, CLEAR, outline } from '../render/pixutil';
 const S = 128;
@@ -18,6 +18,7 @@ export const DEF: MonsterDef = {
   projSpeed: 8,
   projSprite: 0,        // auto-assigned to Spr.EYE_BOLT
   aiFlags: ['flying'],
+  floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
   counterplay: 'Зеленый разогрев значит залп: ломайте линию огня углом или дверью до вспышки, затем сближайтесь, пока глаз перезаряжается.',
   lootHint: 'перегоревшая нить, стеклянная пыль, редкая лампа или ПСИ-пыль',
 };

@@ -2,6 +2,7 @@
 
 import {
   Faction,
+  FloorLevel,
   MonsterKind,
   RoomType,
   type Entity,
@@ -32,12 +33,12 @@ export interface RumorEventLike {
   type?: string;
   time?: number;
   severity?: number;
-  z?: number;
+  floor?: FloorLevel;
   zoneId?: number;
   zoneName?: string;
   roomId?: number;
   roomType?: RoomType;
-  roomDefId?: string;
+  roomName?: string;
   x?: number;
   y?: number;
   itemId?: string;
@@ -110,14 +111,6 @@ export function selectRumorForNpc(npc: Entity, snapshot: ContextSnapshot, now: n
   if (!best) return undefined;
   markRumorSpoken(npc, memory, best.id, now);
   return renderRumor(best, snapshot, memory, now);
-}
-
-/* New game / restart clears the cross-run rumor event pool. state.worldEvents is
- * re-created per run so event ids restart at 1; without this, surviving run-1
- * records collide by eventId and silently drop early run-2 rumors at the dedup below. */
-export function resetRumorEvents(): void {
-  rumorEvents.length = 0;
-  syntheticRumorEventId = 1_000_000;
 }
 
 export function recordRumorEvent(event: WorldEvent | RumorEventLike): boolean {
@@ -235,7 +228,7 @@ function rumorEventDedupeKey(event: RumorEventLike, rumorId: string): string {
   return [
     rumorId,
     event.type ?? '',
-    event.z ?? '',
+    event.floor ?? '',
     event.zoneId ?? '',
     event.roomId ?? '',
     event.itemId ?? '',
@@ -291,7 +284,7 @@ function selectScreenRumor(snapshot: ContextSnapshot, memory: NpcMemory): RumorD
 
 function rumorAllowed(rumor: RumorDef, snapshot: ContextSnapshot, memory: NpcMemory): boolean {
   if (memory.trustPlayer < rumor.minTrust) return false;
-  if (snapshot.z !== undefined && !rumor.floors.includes(snapshot.z)) return false;
+  if (snapshot.floor !== undefined && !rumor.floors.includes(snapshot.floor)) return false;
   if (isEventOnlyRumor(rumor) && memory.lastEventRumorId !== rumor.id) return false;
   return true;
 }
@@ -321,14 +314,14 @@ function selectRoomMemoryRumor(npc: Entity, snapshot: ContextSnapshot, memory: N
   const rumorId = roomMemoryRumorId(snapshot);
   if (!rumorId || memory.knownRumorIds.includes(rumorId)) return undefined;
   rememberRumor(npc, rumorId, now);
-  const room = snapshot.roomDefId ?? 'эта комната';
+  const room = snapshot.roomName ?? 'эта комната';
   const zone = snapshot.zoneId === undefined ? '' : `, зона ${snapshot.zoneId + 1}`;
-  if (snapshot.hasRoomMemoryTheft) return `${room}${zone}: тут помнят кражу. Чужие контейнеры теперь ведут к ревизии.`;
-  if (snapshot.hasRoomMemoryCombat) return `${room}${zone}: после боя жильцы слушают шаги. Разговоры и цены стали жестче.`;
-  if (snapshot.hasRoomMemoryRepair) return `${room}${zone}: ремонт записали в добрую строку. Спроси про тайник или скидку.`;
-  if (snapshot.hasRoomMemoryHelp) return `${room}${zone}: помощь не забыли. Общий запас отвечает мягче.`;
-  if (snapshot.hasRoomMemoryInform) return `${room}${zone}: кто-то сдал бумагу дальше. Фракции будут сверять имена.`;
-  if (snapshot.hasRoomMemorySamosbor) return `${room}${zone}: после гермы считают, кто выжил. Тайники и долги рядом.`;
+  if (snapshot.hasRoomMemoryTheft) return `${room}${zone}: тут помнят кражу. Зацепка: чужие контейнеры теперь ведут к ревизии.`;
+  if (snapshot.hasRoomMemoryCombat) return `${room}${zone}: после боя жильцы слушают шаги. Зацепка: разговоры и цены стали жестче.`;
+  if (snapshot.hasRoomMemoryRepair) return `${room}${zone}: ремонт записали в добрую строку. Зацепка: спроси про тайник или скидку.`;
+  if (snapshot.hasRoomMemoryHelp) return `${room}${zone}: помощь не забыли. Зацепка: общий запас отвечает мягче.`;
+  if (snapshot.hasRoomMemoryInform) return `${room}${zone}: кто-то сдал бумагу дальше. Зацепка: фракции будут сверять имена.`;
+  if (snapshot.hasRoomMemorySamosbor) return `${room}${zone}: после гермы считают, кто выжил. Зацепка: тайники и долги рядом.`;
   return undefined;
 }
 
@@ -391,10 +384,10 @@ function renderRumor(
   let fallback: string;
   if (lead) {
     rememberRecentLead(rumor, lead, now, event);
-    fallback = `${text} (${lead}).`;
+    fallback = `${text} Зацепка: ${lead}.`;
   } else {
     const reveal = formatRevealLine(rumor.reveals);
-    if (reveal) rememberRecentLead(rumor, reveal.replace(/\.$/, ''), now, event);
+    if (reveal) rememberRecentLead(rumor, reveal.slice('Зацепка: '.length).replace(/\.$/, ''), now, event);
     fallback = reveal ? `${text} ${reveal}` : text;
   }
   return renderMarkovRumorFlavor({
@@ -410,13 +403,13 @@ function renderRumor(
   }).text;
 }
 
-const FLOOR_NAMES: Record<number, string> = {
-  [34]: 'Министерство',
-  [2]: 'Квартиры',
-  [-6]: 'Жилая зона',
-  [-14]: 'Коллекторы',
-  [-40]: 'Ад',
-  [-48]: 'Пустота',
+const FLOOR_NAMES: Record<FloorLevel, string> = {
+  [FloorLevel.MINISTRY]: 'Министерство',
+  [FloorLevel.KVARTIRY]: 'Квартиры',
+  [FloorLevel.LIVING]: 'Жилая зона',
+  [FloorLevel.MAINTENANCE]: 'Коллекторы',
+  [FloorLevel.HELL]: 'Ад',
+  [FloorLevel.VOID]: 'Пустота',
 };
 
 const ROOM_TYPE_NAMES: Record<RoomType, string> = {
@@ -460,7 +453,7 @@ function formatRevealLine(input: RumorDef['reveals']): string {
     const part = formatReveal(reveal);
     if (part && !parts.includes(part)) parts.push(part);
   }
-  return parts.length > 0 ? `${parts.join(', ')}.` : '';
+  return parts.length > 0 ? `Зацепка: ${parts.join(', ')}.` : '';
 }
 
 function revealIsActionable(reveal: RumorReveal): boolean {
@@ -476,13 +469,9 @@ function formatLeadLine(rumor: RumorDef, event?: RumorEventRecord): string {
 
 function formatStaticLead(lead: RumorLead): string {
   const parts: string[] = [];
-  if (lead.z !== undefined) {
-    const floorName = FLOOR_NAMES[lead.z];
-    if (floorName) parts.push(floorName);
-    else parts.push(`этаж ${lead.z}`);
-  }
+  if (lead.floor !== undefined) parts.push(FLOOR_NAMES[lead.floor]);
   if (lead.zoneHint) parts.push(lead.zoneHint);
-  if (lead.roomDefId) parts.push(lead.roomDefId);
+  if (lead.roomName) parts.push(lead.roomName);
   else if (lead.roomType !== undefined) parts.push(ROOM_TYPE_NAMES[lead.roomType]);
   if (lead.itemId) {
     const itemName = ITEMS[lead.itemId]?.name.toLowerCase();
@@ -513,21 +502,17 @@ function eventZoneName(event: RumorEventRecord): string {
 }
 
 function eventRoomName(event: RumorEventRecord): string {
-  return event.roomDefId ?? eventDataString(event, ['roomDefId', 'roomName', 'destinationRoomName', 'targetRoomDefId', 'sourceRoomName']);
+  return event.roomName ?? eventDataString(event, ['roomName', 'destinationRoomName', 'targetRoomName', 'sourceRoomName']);
 }
 
 function formatEventLead(event: RumorEventRecord): string {
   const parts: string[] = [];
-  if (event.z !== undefined) {
-    const floorName = FLOOR_NAMES[event.z];
-    if (floorName) pushLeadPart(parts, floorName);
-    else pushLeadPart(parts, `этаж ${event.z}`);
-  }
+  if (event.floor !== undefined) pushLeadPart(parts, FLOOR_NAMES[event.floor]);
   const zoneName = eventZoneName(event);
   if (zoneName) pushLeadPart(parts, zoneName);
   else if (event.zoneId !== undefined) pushLeadPart(parts, `зона ${event.zoneId + 1}`);
-  const roomDefId = eventRoomName(event);
-  if (roomDefId) pushLeadPart(parts, roomDefId);
+  const roomName = eventRoomName(event);
+  if (roomName) pushLeadPart(parts, roomName);
   else if (event.roomType !== undefined) pushLeadPart(parts, ROOM_TYPE_NAMES[event.roomType]);
   else if (event.roomId !== undefined) pushLeadPart(parts, `комната ${event.roomId}`);
   const resourceName = typeof event.data?.resourceName === 'string' ? event.data.resourceName : '';
@@ -576,9 +561,8 @@ function rememberRecentLead(rumor: RumorDef, text: string, now: number, event?: 
     rumorId: rumor.id,
     text,
     heardAt: now,
-    z: rumor.lead?.z ?? event?.z,
-    roomDefId: rumor.lead?.roomDefId ?? (event ? eventRoomName(event) : undefined),
-    roomName: (event ? eventRoomName(event) : undefined) ?? (typeof (rumor.lead as any)?.roomName === 'string' ? (rumor.lead as any).roomName : undefined),
+    floor: rumor.lead?.floor ?? event?.floor,
+    roomName: rumor.lead?.roomName ?? (event ? eventRoomName(event) : undefined),
     itemId: rumor.lead?.itemId ?? event?.itemId,
     monsterKind: rumor.lead?.monsterKind ?? event?.monsterKind,
   });
@@ -591,13 +575,13 @@ export function describeRumorReveal(reveal: RumorReveal): string {
 function formatReveal(reveal: RumorReveal): string {
   switch (reveal.kind) {
     case 'floor':
-      return FLOOR_NAMES[reveal.z];
+      return FLOOR_NAMES[reveal.floor];
     case 'zone':
       if (reveal.zoneId !== undefined) return `зона ${reveal.zoneId + 1}`;
       if (reveal.faction !== undefined) return `зона: ${ZONE_FACTION_NAMES[reveal.faction] ?? 'чужая'}`;
       return '';
     case 'room':
-      return reveal.roomDefId ?? (reveal.roomType !== undefined ? ROOM_TYPE_NAMES[reveal.roomType] : '');
+      return reveal.roomName ?? (reveal.roomType !== undefined ? ROOM_TYPE_NAMES[reveal.roomType] : '');
     case 'danger':
       return 'опасность';
     case 'monster':
@@ -758,13 +742,12 @@ function warningTagName(tag: string): string {
 function fillSlots(text: string, snapshot: ContextSnapshot): string {
   let out = text;
   if (out.includes('{zone}')) out = out.split('{zone}').join(snapshot.zoneId === undefined ? 'этой зоне' : `зоне ${snapshot.zoneId + 1}`);
-  if (out.includes('{room}')) out = out.split('{room}').join(snapshot.roomDefId ?? 'этой комнате');
+  if (out.includes('{room}')) out = out.split('{room}').join(snapshot.roomName ?? 'этой комнате');
   return out;
 }
 
 function eventToStaticRumorId(event: RumorEventLike): string | undefined {
   const type = event.type ?? '';
-  if (type === 'arena_champion_crowned') return 'arena_champion_rumor';
   const dataRumor = eventDataRumorId(event);
   if (dataRumor) return dataRumor;
   const veretarWindowRumor = veretarWindowEventRumorId(event);
@@ -810,7 +793,6 @@ function eventToStaticRumorId(event: RumorEventLike): string | undefined {
 
 function isHighSignalRumorEvent(event: RumorEventLike): boolean {
   const type = event.type ?? '';
-  if (type === 'arena_champion_crowned') return true;
   if (eventDataRumorId(event)) return (event.severity ?? 0) >= 2;
   if (veretarWindowEventRumorId(event)) return (event.severity ?? 0) >= 2;
   if (event.tags?.includes('resource_shortage') || event.tags?.includes('resource_recovery')) return (event.severity ?? 0) >= 3;
@@ -1011,7 +993,7 @@ function isRareMonsterKind(kind: MonsterKind | undefined): boolean {
 
 function eventRelevantToNpc(event: RumorEventRecord, snapshot: ContextSnapshot): boolean {
   if (event.privacy === 'secret' || event.privacy === 'private') return false;
-  if (snapshot.z !== undefined && event.z !== undefined && snapshot.z !== event.z) return false;
+  if (snapshot.floor !== undefined && event.floor !== undefined && snapshot.floor !== event.floor) return false;
   if (event.zoneId !== undefined && snapshot.zoneId !== undefined) {
     if (event.zoneId === snapshot.zoneId) return true;
     return (event.severity ?? 0) >= 5 && event.privacy === 'public';

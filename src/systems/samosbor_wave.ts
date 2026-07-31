@@ -6,6 +6,7 @@ import {
   DoorState,
   EntityType,
   Feature,
+  FloorLevel,
   RoomType,
   Tex,
   msg,
@@ -25,7 +26,6 @@ import { publishEvent } from "./events";
 import { hideMapExplorationCells } from "./map_exploration";
 import { pruneRouteCuesInCells } from "./route_cues";
 import { isPlayerEntity } from "./player_actor";
-import { rng } from '../core/rand';
 
 export type SamosborWaveScale = "small" | "medium" | "full";
 
@@ -126,7 +126,7 @@ interface SamosborWave {
   patchRoomId: number;
   protectedRooms: Set<number>;
   player?: Entity;
-  z: number;
+  floor: FloorLevel;
   startedAt: number;
   changedCells: number;
   regeneratedCells: number;
@@ -342,7 +342,7 @@ export function canRunSamosborWave(_state: GameState): boolean {
 export function chooseSamosborScale(state: GameState): SamosborWaveScale {
   if (!canRunSamosborWave(state)) return "full";
   // ~40% full (global fronts only), ~30% small, ~30% medium
-  const roll = rng();
+  const roll = Math.random();
   if (roll < 0.4) return "full";
   const defs = [
     SAMOSBOR_WAVE_SCALE_DEFS.small,
@@ -350,7 +350,7 @@ export function chooseSamosborScale(state: GameState): SamosborWaveScale {
   ];
   let total = 0;
   for (const def of defs) total += def.weight;
-  let localRoll = rng() * total;
+  let localRoll = Math.random() * total;
   for (const def of defs) {
     localRoll -= def.weight;
     if (localRoll <= 0) return def.scale;
@@ -1010,12 +1010,12 @@ function cleanupContainers(
   world: World,
   wave: SamosborWave,
   touchedSet: Set<number>,
-  z: number,
+  floor: FloorLevel,
 ): void {
   let changed = false;
   for (let i = world.containers.length - 1; i >= 0; i--) {
     const container = world.containers[i];
-    if (container.z !== z) continue;
+    if (container.floor !== floor) continue;
     const idx = world.idx(container.x, container.y);
     if (!touchedSet.has(idx)) continue;
     if (!walkableCell(world.cells[idx])) {
@@ -1362,7 +1362,7 @@ function applyGeneratedFieldPatch(
   );
   refreshPassiveFeatureLists(world, source, field.mask);
   clearFieldSideEffects(world, field.mask);
-  cleanupContainers(world, wave, fieldSet, state.currentZ);
+  cleanupContainers(world, wave, fieldSet, state.currentFloor);
   cleanupFinalEntities(world, wave, entities, fieldSet);
   rebuildPathBlockersFromWorldObjects(world, wave.seed, field.indices);
   wave.prunedRouteCues += pruneRouteCuesInCells(world, fieldSet);
@@ -1583,7 +1583,7 @@ export function applyFrontFieldStitch(
   clearFieldSideEffects(world, mask);
   rebuildPathBlockersFromWorldObjects(
     world,
-    (rng() * 0xffffffff) | 0,
+    (Math.random() * 0xffffffff) | 0,
     allIndices,
   );
   pruneRouteCuesInCells(world, fieldSet);
@@ -1740,7 +1740,7 @@ function createInitialSamosborWave(
     patchRoomId: -1,
     protectedRooms,
     player: _entities.find((e) => isPlayerEntity(e) && e.alive),
-    z: state.currentZ,
+    floor: state.currentFloor,
     startedAt: state.time,
     changedCells: 0,
     regeneratedCells: 0,
@@ -1815,7 +1815,7 @@ export function tickSamosborWave(
 ): SamosborWaveTickResult {
   const wave = activeWave;
   if (!wave?.active) return EMPTY_WAVE_RESULT;
-  if (wave.z !== state.currentZ) {
+  if (wave.floor !== state.currentFloor) {
     cancelSamosborWave();
     return { active: false, processed: 0, changed: 0, finished: true };
   }
@@ -1883,7 +1883,7 @@ function completeWaveRuntime(
 ): void {
   if (wave.finished) return;
   const touchedSet = new Set(wave.touched);
-  cleanupContainers(world, wave, touchedSet, state.currentZ);
+  cleanupContainers(world, wave, touchedSet, state.currentFloor);
   cleanupFinalEntities(world, wave, entities, touchedSet);
   pruneScreenAndSlideCells(world, touchedSet);
   rebuildPathBlockersFromWorldObjects(world, wave.seed, wave.touched);

@@ -17,7 +17,6 @@ import {
   VISUAL_SLOTS_PER_CELL,
   type World,
 } from '../../core/world';
-import { getCeilingHeightForTier } from '../../gen/ceiling_heights';
 import {
   VISUAL_CELL_DEFS,
   visualCellDefByCode,
@@ -34,6 +33,7 @@ import {
 } from '../../data/visual_corridor_coverings';
 import { VISUAL_GEOMETRY_MODE_BUDGETS } from '../../data/visual_geometry_profiles';
 import type { CameraView } from '../../systems/camera';
+import { ENTITY_MASK_BILLBOARD, type EntityIndex } from '../../systems/entity_index';
 
 export type VisualModelId = string;
 export type MeshGraphicsMode = 'off' | 'low' | 'medium' | 'high';
@@ -108,8 +108,6 @@ export interface ResolvedMeshSceneProfile {
   includeContainers: boolean;
   includeEntities: boolean;
   includeCorridorVolumes: boolean;
-  ceilingDetail: number;
-  furnitureDetail: number;
   corridorVolumeDetail: number;
   organicVolumeDetail: number;
   corridorVolumeStyle: VisualCorridorVolumeStyle;
@@ -127,7 +125,7 @@ export interface MeshPassContext {
   mode?: MeshGraphicsMode;
   profile?: MeshSceneProfile | null;
   fogDensity?: number;
-  entities?: readonly Entity[];
+  entityIndex?: Pick<EntityIndex, 'queryRadiusCapped'>;
 }
 
 export interface MeshSceneCollectStats {
@@ -221,15 +219,7 @@ const FEATURE_MESH_DEFS: Partial<Record<Feature, FeatureMeshDef>> = {
 const MODEL_PRIORITY_CACHE = new Map<string, number>();
 
 for (const def of VISUAL_CELL_DEFS) {
-  if (def.modelId) {
-    if (typeof def.modelId === 'string') {
-      if (!MODEL_PRIORITY_CACHE.has(def.modelId)) MODEL_PRIORITY_CACHE.set(def.modelId, def.priority);
-    } else {
-      for (const id of def.modelId) {
-        if (!MODEL_PRIORITY_CACHE.has(id)) MODEL_PRIORITY_CACHE.set(id, def.priority);
-      }
-    }
-  }
+  if (!MODEL_PRIORITY_CACHE.has(def.modelId)) MODEL_PRIORITY_CACHE.set(def.modelId, def.priority);
   if (!MODEL_PRIORITY_CACHE.has(def.id)) MODEL_PRIORITY_CACHE.set(def.id, def.priority);
 }
 
@@ -243,6 +233,7 @@ export const MESH_FEATURE_MODEL_IDS: Readonly<Partial<Record<Feature, string>>> 
   Object.fromEntries(Object.entries(FEATURE_MESH_DEFS).map(([feature, def]) => [feature, def?.modelId])),
 );
 
+const ENTITY_QUERY_SCRATCH: Entity[] = [];
 const MAX_MERGE_RUN = 16;
 const MAX_CLUSTER_CELLS = 16;
 const MAX_CORRIDOR_CEILING_RUN = 14;
@@ -553,8 +544,6 @@ export function resolveMeshSceneProfile(context: MeshPassContext): ResolvedMeshS
     includeContainers: source.includeContainers !== false,
     includeEntities: source.includeEntities !== false,
     includeCorridorVolumes: source.includeCorridorVolumes !== false,
-    ceilingDetail: Math.max(0, Math.min(1, source.ceilingDetail ?? 0)),
-    furnitureDetail: Math.max(0, Math.min(1, source.furnitureDetail ?? 0)),
     corridorVolumeDetail: Math.max(0, Math.min(1, source.corridorVolumeDetail ?? 0)),
     organicVolumeDetail: Math.max(0, Math.min(1, source.organicVolumeDetail ?? 0)),
     corridorVolumeStyle: sourceStyle,
@@ -676,12 +665,7 @@ function emitVisualInstance(
     sourceY?: number;
   } = {},
 ): void {
-  const h = mixHash(context.seed, x, y, slot, def.code);
-  let baseModelId = def.modelId ?? def.id;
-  if (typeof baseModelId !== 'string') {
-    baseModelId = baseModelId[(h >>> 15) % baseModelId.length];
-  }
-  const modelId = contextualVisualModelId(context, baseModelId, Math.floor(options.sourceX ?? x), Math.floor(options.sourceY ?? y));
+  const modelId = contextualVisualModelId(context, def.modelId ?? def.id, Math.floor(options.sourceX ?? x), Math.floor(options.sourceY ?? y));
   const face = options.face;
   const length = Math.max(1, options.length ?? 1);
   const axis = options.axis;
@@ -724,13 +708,13 @@ function emitVisualInstance(
       scaleX = scale.x;
       scaleY = scale.y;
       scaleZ = scale.z;
-    } else if (def.mount === 'floor') {
-      z += 0.01 + slot * 0.002; // Micro Z-offset to avoid Z-fighting for floor items
     } else if (def.merge === 'cluster') {
+      const h = mixHash(context.seed, x, y, slot, def.code);
       scaleX = 0.45 + (h & 7) * 0.035;
       scaleY = 0.45 + ((h >>> 4) & 7) * 0.035;
       scaleZ = 0.18 + ((h >>> 8) & 3) * 0.04;
     } else if (def.family === 'clutter') {
+      const h = mixHash(context.seed, x, y, slot, def.code);
       const ox = (((h >>> 12) & 255) / 255 - 0.5) * 0.75;
       const oy = (((h >>> 20) & 255) / 255 - 0.5) * 0.75;
       ix += ox;
@@ -1047,11 +1031,7 @@ function collectFeatureAtCell(context: MeshPassContext, idx: number, x: number, 
   const cell = context.world.cells[idx];
   if (cell !== Cell.FLOOR && cell !== Cell.WATER) {
     if ((def.flags ?? 0) & MeshInstanceFlag.WallMount) {
-      const visualDef = VISUAL_CELL_DEFS.find(row => {
-        if (row.mount !== 'wallFace') return false;
-        if (typeof row.modelId !== 'string' && row.modelId !== undefined) return row.modelId.includes(def.modelId as any);
-        return row.modelId === def.modelId;
-      });
+      const visualDef = VISUAL_CELL_DEFS.find(row => row.modelId === def.modelId && row.mount === 'wallFace');
       const face = visualDef ? resolveWallFace(context.world, x, y, visualDef, 0, context.seed) : null;
       if (!face) return;
       emitInstance(out, {
@@ -1108,7 +1088,6 @@ function collectContainersAtCell(context: MeshPassContext, idx: number, x: numbe
   for (const id of ids) {
     const container = context.world.containerById.get(id);
     if (!container || (container.access === 'secret' && !container.discovered)) continue;
-    if (container.tags.includes('feature_loot') || container.tags.includes('mesh_hidden')) continue;
     const def = containerModelDef(container);
     emitInstance(out, {
       modelId: def.modelId,
@@ -1125,12 +1104,28 @@ function collectContainersAtCell(context: MeshPassContext, idx: number, x: numbe
   }
 }
 
+function numericProfileDetail(
+  context: MeshPassContext,
+  key: 'ceilingDetail' | 'furnitureDetail' | 'corridorVolumeDetail' | 'organicVolumeDetail',
+): number {
+  const value = (context.profile as {
+    ceilingDetail?: number;
+    furnitureDetail?: number;
+    corridorVolumeDetail?: number;
+    organicVolumeDetail?: number;
+  } | null | undefined)?.[key];
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+}
 
+function corridorVolumeStyle(context: MeshPassContext): VisualCorridorVolumeStyle {
+  const value = (context.profile as { corridorVolumeStyle?: unknown } | null | undefined)?.corridorVolumeStyle;
+  return value === 'service' || value === 'organic' || value === 'void' ? value : 'concrete';
+}
 
 function corridorCovering(context: MeshPassContext, profile?: ResolvedMeshSceneProfile): VisualCorridorCoveringDef {
   const explicit = profile?.corridorCoveringId ?? context.profile?.corridorCoveringId;
   if (explicit) return visualCorridorCoveringById(explicit);
-  const style = profile?.corridorVolumeStyle ?? (context.profile?.corridorVolumeStyle === 'service' || context.profile?.corridorVolumeStyle === 'organic' || context.profile?.corridorVolumeStyle === 'void' ? context.profile.corridorVolumeStyle : 'concrete');
+  const style = profile?.corridorVolumeStyle ?? corridorVolumeStyle(context);
   if (style === 'organic') return visualCorridorCoveringById('meat');
   if (style === 'service') return visualCorridorCoveringById('technical');
   if (style === 'void') return visualCorridorCoveringById('void');
@@ -1151,21 +1146,10 @@ function localRoomCoord(room: { x: number; y: number; w: number; h: number }, x:
 }
 
 function doorNear(world: World, x: number, y: number): boolean {
-  if (world.doors.size === 0) return false;
-  const ci = world.idx(x, y);
-  if (world.cells[ci] === Cell.DOOR || world.doors.has(ci)) return true;
-  
-  const DIRS_X = [1, -1, 0, 0];
-  const DIRS_Y = [0, 0, 1, -1];
-  for (let dir = 0; dir < 4; dir++) {
-    const ni = world.idx(x + DIRS_X[dir], y + DIRS_Y[dir]);
-    if (world.cells[ni] === Cell.DOOR || world.doors.has(ni)) return true;
-  }
-  
-  for (let dy = -1; dy <= 1; dy += 2) {
-    for (let dx = -1; dx <= 1; dx += 2) {
-      const ni = world.idx(x + dx, y + dy);
-      if (world.cells[ni] === Cell.DOOR || world.doors.has(ni)) return true;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const idx = world.idx(x + dx, y + dy);
+      if (world.cells[idx] === Cell.DOOR || world.doors.has(idx)) return true;
     }
   }
   return false;
@@ -1294,7 +1278,7 @@ function corridorVolumeCellEligible(context: MeshPassContext, idx: number, x: nu
   const counts = localTopologyCounts(world, x, y);
   if (counts.wallLike <= 0) return false;
   const room = roomForCell(world, idx);
-  const style = context.profile?.corridorVolumeStyle === 'service' || context.profile?.corridorVolumeStyle === 'organic' || context.profile?.corridorVolumeStyle === 'void' ? context.profile.corridorVolumeStyle : 'concrete';
+  const style = corridorVolumeStyle(context);
   if (room?.type === RoomType.CORRIDOR) return true;
   if (style === 'organic') return true;
   if (!room) return counts.wallLike >= 2 && counts.passable <= 2;
@@ -2031,7 +2015,7 @@ function optionalColumnModelId(floorKey: string): string {
   return 'column_concrete_square';
 }
 
-function collectOptionalColumnAtCell(context: MeshPassContext, idx: number, x: number, y: number, profile: ResolvedMeshSceneProfile, out: MeshInstance[]): void {
+function collectOptionalColumnAtCell(context: MeshPassContext, idx: number, x: number, y: number, out: MeshInstance[]): void {
   const world = context.world;
   if (!isPassableVisualCell(world, idx) || world.features[idx] !== Feature.NONE || world.containerMap.has(idx) || doorNear(world, x, y)) return;
   const slots = visualSlotsForWorld(world);
@@ -2045,7 +2029,7 @@ function collectOptionalColumnAtCell(context: MeshPassContext, idx: number, x: n
   const local = localRoomCoord(room, x, y);
   if (!local || local.lx < 2 || local.ly < 2 || local.lx >= room.w - 2 || local.ly >= room.h - 2) return;
 
-  const detail = profile.furnitureDetail;
+  const detail = numericProfileDetail(context, 'furnitureDetail');
   if (detail <= 0) return;
   const h = mixHash(context.seed, x, y, room.id, 0x6c6f6e);
   const spacing = context.mode === 'high' ? 5 : 6;
@@ -2069,7 +2053,7 @@ function collectOptionalColumnAtCell(context: MeshPassContext, idx: number, x: n
   });
 }
 
-function collectOptionalCeilingAtCell(context: MeshPassContext, idx: number, x: number, y: number, profile: ResolvedMeshSceneProfile, out: MeshInstance[]): void {
+function collectOptionalCeilingAtCell(context: MeshPassContext, idx: number, x: number, y: number, out: MeshInstance[]): void {
   const world = context.world;
   if (!isPassableVisualCell(world, idx) || doorNear(world, x, y)) return;
   if (world.features[idx] !== Feature.NONE || world.containerMap.has(idx)) return;
@@ -2077,7 +2061,7 @@ function collectOptionalCeilingAtCell(context: MeshPassContext, idx: number, x: 
   if (slots && cellHasAnyVisualSlot(slots, idx)) return;
   const room = roomForCell(world, idx);
   if (!room) return;
-  const detail = profile.ceilingDetail;
+  const detail = numericProfileDetail(context, 'ceilingDetail');
   if (detail <= 0) return;
   const local = localRoomCoord(room, x, y);
   if (!local) return;
@@ -2127,10 +2111,9 @@ function scanCell(
   collectVisualSlotsAtCell(context, slots, idx, x, y, scope, profile, out, stats);
   if (profile.includeFeatures) collectFeatureAtCell(context, idx, x, y, out);
   if (profile.includeContainers) collectContainersAtCell(context, idx, x, y, out);
-  collectOptionalColumnAtCell(context, idx, x, y, profile, out);
-  collectOptionalCeilingAtCell(context, idx, x, y, profile, out);
+  collectOptionalColumnAtCell(context, idx, x, y, out);
+  collectOptionalCeilingAtCell(context, idx, x, y, out);
   collectCorridorVolumeAtCell(context, idx, x, y, profile, out);
-  collectBillboardsAtCell(context, idx, out);
 }
 
 function scanLocalRadiusCells(
@@ -2201,43 +2184,20 @@ export function collectMeshChunk(
   return out;
 }
 
-interface BillboardCacheEntry {
-  entityCount: number;
-  map: Map<number, Entity[]>;
-}
-const billboardCache = new WeakMap<World, BillboardCacheEntry>();
-
-function getBillboardMap(world: World, entities?: readonly Entity[]): Map<number, Entity[]> | undefined {
-  if (!entities) return undefined;
-  const count = entities.length;
-  let entry = billboardCache.get(world);
-  if (!entry || entry.entityCount !== count) {
-    const map = new Map<number, Entity[]>();
-    for (const e of entities) {
-      if (e.alive && e.type === EntityType.BILLBOARD) {
-        const idx = world.idx(e.x, e.y);
-        let list = map.get(idx);
-        if (!list) {
-          list = [];
-          map.set(idx, list);
-        }
-        list.push(e);
-      }
-    }
-    entry = { entityCount: count, map };
-    billboardCache.set(world, entry);
-  }
-  return entry.map;
-}
-
-export function collectBillboardsAtCell(context: MeshPassContext, idx: number, out: MeshInstance[]): void {
+export function collectStaticEntityMeshes(context: MeshPassContext, out: MeshInstance[]): void {
   const profile = resolveMeshSceneProfile(context);
-  if (!profile.enabled || !profile.includeEntities) return;
-  const map = getBillboardMap(context.world, context.entities);
-  if (!map) return;
-  const list = map.get(idx);
-  if (!list) return;
-  for (const e of list) {
+  if (!profile.enabled || !profile.includeEntities || !context.entityIndex) return;
+  ENTITY_QUERY_SCRATCH.length = 0;
+  context.entityIndex.queryRadiusCapped(
+    context.camera.x,
+    context.camera.y,
+    profile.radius,
+    ENTITY_QUERY_SCRATCH,
+    ENTITY_MASK_BILLBOARD,
+    Math.min(profile.instanceCap, 128),
+  );
+  for (const e of ENTITY_QUERY_SCRATCH) {
+    if (!e.alive || e.type !== EntityType.BILLBOARD) continue;
     emitInstance(out, {
       modelId: 'billboard_prop',
       x: e.x,
@@ -2285,7 +2245,7 @@ const CEILING_SPAN_MODELS = new Set<string>(['column_hint', 'column_concrete_squ
 // raycaster). Standard cells (tier 0) are untouched.
 function applyCeilingHeight(world: World, instance: MeshInstance): void {
   const tier = world.ceilHeight[world.idx(world.wrap(Math.floor(instance.x)), world.wrap(Math.floor(instance.y)))];
-  const ceilZ = getCeilingHeightForTier(Math.max(0, tier));
+  const ceilZ = 1 + Math.max(0, tier) * 0.5;
   if (instance.z >= 0.9) {
     // Nudge ceiling-mounted meshes slightly below the raycaster ceiling plane
     // so they reliably pass the depth test after the variable-height ceiling march.
@@ -2373,6 +2333,12 @@ export const containerSourceAdapter: MeshSourceAdapter = {
   },
 };
 
+export const staticEntitySourceAdapter: MeshSourceAdapter = {
+  collect(context, out) {
+    collectStaticEntityMeshes(context, out);
+  },
+};
+
 export function collectMeshSceneWithStats(context: MeshPassContext, out: MeshInstance[] = []): MeshSceneCollectResult {
   out.length = 0;
   const profile = resolveMeshSceneProfile(context);
@@ -2383,6 +2349,7 @@ export function collectMeshSceneWithStats(context: MeshPassContext, out: MeshIns
   scanLocalRadiusCells(resolvedContext, profile, raw, stats);
   collectProceduralCeilingPipeNetwork(resolvedContext, profile, raw);
   collectProceduralFloorScatter(resolvedContext, profile, raw);
+  collectStaticEntityMeshes(resolvedContext, raw);
   stats.instancesBeforeCap = raw.length;
   capMeshInstances(resolvedContext, raw, out, profile);
   stats.instancesAfterCap = out.length;

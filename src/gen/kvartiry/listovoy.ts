@@ -1,6 +1,5 @@
 /* ── Листовой — side quest NPC for Квартиры floor ─────────────── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   W, Cell,
   type Entity, Faction, Occupation, QuestType,
@@ -8,7 +7,6 @@ import {
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng } from '../../core/rand';
 
 /* ── NPC definition ──────────────────────────────────────────── */
 const NPC_DEF: PlotNpcDef = {
@@ -43,7 +41,7 @@ const NPC_DEF: PlotNpcDef = {
 registerSideQuest('listovoy', NPC_DEF, [
   {
     id: 'dry_ballot_roster',
-    giverId: getPlotNpcNumericId('listovoy')!,
+    giverNpcId: 'listovoy',
     type: QuestType.FETCH,
     desc: 'Листовой: «Собери 100 бюллетеней. Пусть очередь у стояка сама посчитает живых, пока это не сделали ликвидаторы.»',
     targetItem: 'ballot', targetCount: 100,
@@ -57,11 +55,11 @@ export function spawnListovoy(
   world: World, entities: Entity[], nextId: { v: number },
 ): void {
   for (let i = 0; i < 2000; i++) {
-    const x = Math.floor(rng() * W);
-    const y = Math.floor(rng() * W);
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
     if (world.cells[world.idx(x, y)] !== Cell.FLOOR) continue;
     requireSpawnedPlotNpcFromPackage(entities, nextId, 'listovoy', x + 0.5, y + 0.5, {
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       canGiveQuest: true,
       isTraveler: true,
     });

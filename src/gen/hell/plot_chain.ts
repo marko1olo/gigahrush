@@ -1,7 +1,8 @@
 /* ── Hell main plot rooms — contact + Herald threshold ───────── */
 
 import {
-  W, Cell, Feature, type Room, type Entity, type Item,
+  W, Cell, Feature, FloorLevel,
+  type Room, type Entity, type Item,
   EntityType,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -37,7 +38,7 @@ function registerAnchorCue(world: World, anchorRoom: Room): void {
     y,
     targetX: x,
     targetY: y,
-    z: 180,
+    floor: FloorLevel.HELL,
     roomId: anchorRoom.id,
     targetRoomId: anchorRoom.id,
     label: 'зона закрепления',

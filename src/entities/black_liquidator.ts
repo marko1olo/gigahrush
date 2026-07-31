@@ -1,6 +1,6 @@
 /* -- Black Liquidator: false post-samosbor cleanup patrol -------- */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.8,
   sprite: 0,
   aiFlags: ['falsePatrol'],
+  floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING],
   counterplay: 'Не верьте обходу после тяжелого отбоя: держите дистанцию, прячьте образцы и сверяйте номер маски до открытия двери.',
   lootHint: 'обугленная бирка, мел с номером, черный крюк из инструментальной сумки',
 };

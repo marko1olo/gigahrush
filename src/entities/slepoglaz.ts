@@ -1,6 +1,6 @@
 /* -- Slepoglaz: blind last-sound beam turret ------------------- */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 3.4,
   sprite: 0,
   aiFlags: ['lastSoundBeam'],
+  floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL],
   counterplay: 'Слепоглаз заряжает зеленую линию туда, где вы шумели или стояли секунду назад: шумните, шагните в сторону и сближайтесь сразу после луча, пока он слеп и слаб в упоре.',
   lootHint: 'зеленая стеклянная пыль, серые перепонки, редкий слепой нерв',
 };

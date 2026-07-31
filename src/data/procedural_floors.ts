@@ -3,12 +3,14 @@
 import {
   ContainerKind,
   Faction,
+  FloorLevel,
   MonsterKind,
   RoomType,
   Tex,
   ZoneFaction,
 } from '../core/types';
 import { hashSeed, seededRandom } from '../core/rand';
+import { designFloorAtZ } from './design_floors';
 import {
   ECONOMY_PROCEDURAL_LOOT_VALUE_CAP_BY_DANGER,
   proceduralLootValueCap as economyProceduralLootValueCap,
@@ -64,7 +66,7 @@ export const FALSE_SAFE_BLOCK_RESOLVED = 'маркер сорван';
 export interface FloorGeometryDef {
   id: FloorGeometryId;
   title: string;
-  themeTags: string[];
+  baseFloor: FloorLevel;
   weight: number;
   roomCount: number;
   dangerBias: number;
@@ -104,7 +106,7 @@ export interface ProceduralFloorSpec {
   depth: number;
   danger: 1 | 2 | 3 | 4 | 5;
   geometryId: FloorGeometryId;
-  themeTags: string[];
+  baseFloor: FloorLevel;
   majorityId: FloorMajorityId;
   anomalyId: FloorAnomalyId;
   title: string;
@@ -188,9 +190,19 @@ export const FLOOR_RUN_MAX_Z = 50;
 export const FLOOR_RUN_VOID_Z = -50;
 export const FLOOR_RUN_NPC_FREE_Z = -48;
 
-export function isProceduralFloorZ(z: number): boolean {
-  return z >= FLOOR_RUN_MIN_Z && z <= FLOOR_RUN_MAX_Z && Math.abs(z % 2) === 1;
-}
+const STORY_Z_BY_FLOOR: Readonly<Record<FloorLevel, number>> = {
+  [FloorLevel.MINISTRY]: 30,
+  [FloorLevel.KVARTIRY]: 14,
+  [FloorLevel.LIVING]: 0,
+  [FloorLevel.MAINTENANCE]: -26,
+  [FloorLevel.HELL]: -36,
+  [FloorLevel.VOID]: FLOOR_RUN_VOID_Z,
+};
+
+const STORY_FLOOR_BY_Z = new Map<number, FloorLevel>(
+  (Object.values(FloorLevel).filter(v => typeof v === 'number') as FloorLevel[])
+    .map(floor => [STORY_Z_BY_FLOOR[floor], floor])
+);
 
 export function floorRunProfileZ(z: number): number {
   return Math.round(z >= 0 ? z * -44 / 50 : z * -40 / 50);
@@ -199,7 +211,7 @@ export function floorRunProfileZ(z: number): number {
 function makeProceduralFloorZs(): readonly number[] {
   const zs: number[] = [];
   for (let z = FLOOR_RUN_MIN_Z; z <= FLOOR_RUN_MAX_Z; z++) {
-    if (Math.abs(z % 2) === 1) zs.push(z);
+    if (storyFloorAtZ(z) === undefined && designFloorAtZ(z) === undefined) zs.push(z);
   }
   return zs;
 }
@@ -211,7 +223,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   {
     id: 'living_blocks',
     title: 'типовой жилой блок (класс Г)',
-    themeTags: ['living'],
+    baseFloor: FloorLevel.LIVING,
     weight: 42,
     roomCount: 86,
     dangerBias: 0,
@@ -226,7 +238,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   {
     id: 'apartment_pressure',
     title: 'уплотненный сектор Квартир',
-    themeTags: ['kvartiry'],
+    baseFloor: FloorLevel.KVARTIRY,
     weight: 30,
     roomCount: 104,
     dangerBias: 1,
@@ -241,7 +253,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   {
     id: 'communal_knots',
     title: 'коммунально-бытовые узлы',
-    themeTags: ['kvartiry'],
+    baseFloor: FloorLevel.KVARTIRY,
     weight: 26,
     roomCount: 112,
     dangerBias: 0,
@@ -256,7 +268,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   {
     id: 'attic_weatherworks',
     title: 'камеры воздухозабора и вентиляции',
-    themeTags: ['ministry'],
+    baseFloor: FloorLevel.MINISTRY,
     weight: 30,
     roomCount: 360,
     dangerBias: 1,
@@ -271,7 +283,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   {
     id: 'archive_warrens',
     title: 'архивы забытых нормативов',
-    themeTags: ['ministry'],
+    baseFloor: FloorLevel.MINISTRY,
     weight: 28,
     roomCount: 92,
     dangerBias: 0,
@@ -286,7 +298,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   {
     id: 'collectors',
     title: 'технические коллекторы',
-    themeTags: ['maintenance'],
+    baseFloor: FloorLevel.MAINTENANCE,
     weight: 32,
     roomCount: 72,
     dangerBias: 1,
@@ -301,7 +313,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   {
     id: 'workshops',
     title: 'уровень производственных цехов',
-    themeTags: ['maintenance'],
+    baseFloor: FloorLevel.MAINTENANCE,
     weight: 26,
     roomCount: 64,
     dangerBias: 1,
@@ -316,7 +328,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   {
     id: 'service_spines',
     title: 'магистральные сервисные штреки',
-    themeTags: ['maintenance'],
+    baseFloor: FloorLevel.MAINTENANCE,
     weight: 24,
     roomCount: 176,
     dangerBias: 0,
@@ -331,7 +343,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   {
     id: 'sump_causeways',
     title: 'нижние затопленные эстакады',
-    themeTags: ['maintenance'],
+    baseFloor: FloorLevel.MAINTENANCE,
     weight: 34,
     roomCount: 56,
     dangerBias: 2,
@@ -346,7 +358,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   {
     id: 'admin_pockets',
     title: 'канцелярские лабиринты',
-    themeTags: ['ministry'],
+    baseFloor: FloorLevel.MINISTRY,
     weight: 16,
     roomCount: 240,
     dangerBias: 0,
@@ -439,7 +451,7 @@ const LOOT_BY_TAG: Record<string, readonly string[]> = {
   maintenance: ['fuse', 'wire_coil', 'relay_diagram', 'valve_tag', 'sealant_tube', 'asbestos_cord', 'gasmask_filter'],
   emergency_panels: ['fuse', 'wire_coil', 'relay_diagram', 'door_kit', 'lamp_bulb'],
   workshop: ['nailgun', 'ammo_nails', 'circuit_board', 'barrel_part', 'rubber_strip'],
-  service: ['fuse', 'relay_diagram', 'duct_tape', 'wire_coil', 'door_kit', 'flashlight', 'lighter'],
+  service: ['fuse', 'relay_diagram', 'duct_tape', 'wire_coil', 'door_kit', 'flashlight'],
   power: ['fuse', 'relay_diagram', 'circuit_board', 'lamp_bulb', 'wire_coil'],
   water: ['metal_water', 'filter_layer', 'sealant_tube', 'harpoon_gun'],
   sump: ['harpoon_gun', 'metal_water', 'filter_layer', 'sealant_tube', 'valve_tag'],
@@ -468,7 +480,7 @@ const LOOT_BY_TAG: Record<string, readonly string[]> = {
   teleport: ['lift_scheme', 'elevator_access_order', 'missing_record_file'],
   pattern: ['relay_diagram', 'circuit_board', 'lamp_bulb', 'note'],
   radio: ['relay_diagram', 'circuit_board', 'lamp_bulb'],
-  timing: ['relay_diagram', 'siren_energy', 'flashlight', 'lighter'],
+  timing: ['relay_diagram', 'siren_energy', 'flashlight'],
   movement: ['spring', 'rubber_strip', 'gear'],
   conveyor: ['gear', 'spring', 'metal_sheet', 'rubber_strip', 'ammo_nails'],
   fractal: ['lift_scheme', 'elevator_override_form', 'missing_record_file', 'note'],
@@ -492,17 +504,17 @@ const LOOT_BY_TAG: Record<string, readonly string[]> = {
 };
 
 const MONSTERS_BY_TAG: Record<string, readonly MonsterKind[]> = {
-  residential: [MonsterKind.GNOME, MonsterKind.SBORKA, MonsterKind.TVAR, MonsterKind.ZOMBIE, MonsterKind.DIKIY_MERTVYAK, MonsterKind.KRYSNOZHKA, MonsterKind.GREEN_DOG, MonsterKind.NELYUD, MonsterKind.BEZEKHIY, MonsterKind.TRESKOTNIK],
-  civil: [MonsterKind.GNOME, MonsterKind.SHOVNIK, MonsterKind.LAMPOVY, MonsterKind.LAMPOGLAZ, MonsterKind.SBORKA, MonsterKind.BEZEKHIY, MonsterKind.TRESKOTNIK],
+  residential: [MonsterKind.SBORKA, MonsterKind.TVAR, MonsterKind.ZOMBIE, MonsterKind.DIKIY_MERTVYAK, MonsterKind.KRYSNOZHKA, MonsterKind.GREEN_DOG, MonsterKind.NELYUD, MonsterKind.BEZEKHIY, MonsterKind.TRESKOTNIK],
+  civil: [MonsterKind.SHOVNIK, MonsterKind.LAMPOVY, MonsterKind.LAMPOGLAZ, MonsterKind.SBORKA, MonsterKind.BEZEKHIY, MonsterKind.TRESKOTNIK],
   crowd: [MonsterKind.ZOMBIE, MonsterKind.DIKIY_MERTVYAK, MonsterKind.KRYSNOZHKA, MonsterKind.GREEN_DOG, MonsterKind.NELYUD, MonsterKind.SHADOW, MonsterKind.TRESKOTNIK],
   riot: [MonsterKind.ZOMBIE, MonsterKind.DIKIY_MERTVYAK, MonsterKind.SHOVNIK, MonsterKind.PECHATEED, MonsterKind.NELYUD],
   queue: [MonsterKind.ZOMBIE, MonsterKind.DIKIY_MERTVYAK, MonsterKind.NELYUD, MonsterKind.KRYSNOZHKA, MonsterKind.SHOVNIK],
   canteen: [MonsterKind.KRYSNOZHKA, MonsterKind.GREEN_DOG, MonsterKind.ZOMBIE, MonsterKind.DIKIY_MERTVYAK, MonsterKind.TVAR],
-  industrial: [MonsterKind.GNOME, MonsterKind.REBAR, MonsterKind.RZHAVNIK, MonsterKind.POLZUN, MonsterKind.ROBOT, MonsterKind.TRUBNYY_AVTOMAT, MonsterKind.LAMPOVY, MonsterKind.SAFEGUARD],
-  maintenance: [MonsterKind.GNOME, MonsterKind.LAMPOVY, MonsterKind.ROBOT, MonsterKind.TRUBNYY_AVTOMAT, MonsterKind.REBAR, MonsterKind.RZHAVNIK, MonsterKind.TUBE_EEL, MonsterKind.VODYANOY_KOSHMAR, MonsterKind.OLGOY, MonsterKind.BORSHCHEVIK],
+  industrial: [MonsterKind.REBAR, MonsterKind.RZHAVNIK, MonsterKind.POLZUN, MonsterKind.ROBOT, MonsterKind.TRUBNYY_AVTOMAT, MonsterKind.LAMPOVY, MonsterKind.SAFEGUARD],
+  maintenance: [MonsterKind.LAMPOVY, MonsterKind.ROBOT, MonsterKind.TRUBNYY_AVTOMAT, MonsterKind.REBAR, MonsterKind.RZHAVNIK, MonsterKind.TUBE_EEL, MonsterKind.VODYANOY_KOSHMAR, MonsterKind.OLGOY, MonsterKind.BORSHCHEVIK],
   emergency_panels: [MonsterKind.LAMPOVY, MonsterKind.ROBOT, MonsterKind.EYE],
-  workshop: [MonsterKind.GNOME, MonsterKind.REBAR, MonsterKind.RZHAVNIK, MonsterKind.ROBOT, MonsterKind.SBORKA],
-  service: [MonsterKind.GNOME, MonsterKind.LAMPOVY, MonsterKind.ROBOT, MonsterKind.TRUBNYY_AVTOMAT, MonsterKind.REBAR, MonsterKind.RZHAVNIK, MonsterKind.TUBE_EEL, MonsterKind.VODYANOY_KOSHMAR, MonsterKind.BORSHCHEVIK],
+  workshop: [MonsterKind.REBAR, MonsterKind.RZHAVNIK, MonsterKind.ROBOT, MonsterKind.SBORKA],
+  service: [MonsterKind.LAMPOVY, MonsterKind.ROBOT, MonsterKind.TRUBNYY_AVTOMAT, MonsterKind.REBAR, MonsterKind.RZHAVNIK, MonsterKind.TUBE_EEL, MonsterKind.VODYANOY_KOSHMAR, MonsterKind.BORSHCHEVIK],
   power: [MonsterKind.LAMPOVY, MonsterKind.LAMPOGLAZ, MonsterKind.ROBOT, MonsterKind.EYE],
   machines: [MonsterKind.ROBOT, MonsterKind.TRUBNYY_AVTOMAT, MonsterKind.LAMPOVY, MonsterKind.REBAR, MonsterKind.RZHAVNIK, MonsterKind.SAFEGUARD],
   pipes: [MonsterKind.TUBE_EEL, MonsterKind.TRUBNYY_AVTOMAT, MonsterKind.VODYANOY_KOSHMAR, MonsterKind.OLGOY, MonsterKind.POLZUN, MonsterKind.REBAR],
@@ -589,18 +601,15 @@ function pickWeighted<T>(
   defs: readonly T[],
   rng: () => number,
   weightOf: (def: T) => number,
-  fallback?: T,
 ): T {
-  if (defs.length === 0) return fallback ?? ({} as T);
   let total = 0;
   for (const def of defs) total += Math.max(0, weightOf(def));
-  if (total <= 0) return defs[0] ?? fallback ?? ({} as T);
   let roll = rng() * total;
   for (const def of defs) {
     roll -= Math.max(0, weightOf(def));
     if (roll <= 0) return def;
   }
-  return defs[defs.length - 1] ?? fallback ?? ({} as T);
+  return defs[defs.length - 1];
 }
 
 function uniquePicks<T>(pool: readonly T[], rng: () => number, count: number): T[] {
@@ -643,7 +652,17 @@ function collectTagged<T>(tags: readonly string[], table: Record<string, readonl
   return out;
 }
 
+export function storyFloorAtZ(z: number): FloorLevel | undefined {
+  return STORY_FLOOR_BY_Z.get(z);
+}
 
+export function zForStoryFloor(floor: FloorLevel): number {
+  return STORY_Z_BY_FLOOR[floor] ?? 0;
+}
+
+export function isProceduralFloorZ(z: number): boolean {
+  return z >= FLOOR_RUN_MIN_Z && z <= FLOOR_RUN_MAX_Z && storyFloorAtZ(z) === undefined && designFloorAtZ(z) === undefined;
+}
 
 export function floorRunZAllowsNpcs(z: number): boolean {
   return z > FLOOR_RUN_NPC_FREE_Z;
@@ -670,7 +689,15 @@ export function proceduralFloorMonsterBiasTags(spec: Pick<ProceduralFloorSpec, '
   return proceduralFloorSourceTags(spec).filter(tag => MONSTERS_BY_TAG[tag]?.length);
 }
 
-
+export function proceduralMonsterFloor(spec: Pick<ProceduralFloorSpec, 'z' | 'baseFloor'>): FloorLevel {
+  const profileZ = floorRunProfileZ(spec.z);
+  if (spec.z <= FLOOR_RUN_NPC_FREE_Z) return FloorLevel.VOID;
+  if (profileZ >= 25) return FloorLevel.HELL;
+  if (profileZ >= 13) return FloorLevel.MAINTENANCE;
+  if (profileZ <= -17) return FloorLevel.MINISTRY;
+  if (profileZ <= -5) return FloorLevel.KVARTIRY;
+  return spec.baseFloor;
+}
 
 export function proceduralFloorAnomalyRoutePressure(spec: Pick<ProceduralFloorSpec, 'anomalyId'>): number {
   if (spec.anomalyId === 'samosbor_seed' || spec.anomalyId === 'wall_snake' || spec.anomalyId === 'living_tunnels' || spec.anomalyId === 'section_shift' || spec.anomalyId === 'zombie_apocalypse' || spec.anomalyId === 'sandpile_perekrytie') return 2;
@@ -694,7 +721,7 @@ export function proceduralFloorRoutePressureLevel(spec: Pick<ProceduralFloorSpec
 }
 
 export function makeProceduralFloorSpec(runSeed: number, z: number): ProceduralFloorSpec {
-  const seed = hashSeed(`z: ${runSeed}:${z}`, runSeed);
+  const seed = hashSeed(`floor:${runSeed}:${z}`, runSeed);
   const rng = seededRandom(seed);
   const depth = Math.abs(z);
   const profileZ = floorRunProfileZ(z);
@@ -703,25 +730,22 @@ export function makeProceduralFloorSpec(runSeed: number, z: number): ProceduralF
     rng,
     def => {
       let w = def.weight;
-      if (profileZ < 0 && def.themeTags.includes('ministry')) w *= 1.8;
-      if (profileZ > 0 && def.themeTags.includes('maintenance')) w *= 1.6;
+      if (profileZ < 0 && def.baseFloor === FloorLevel.MINISTRY) w *= 1.8;
+      if (profileZ > 0 && def.baseFloor === FloorLevel.MAINTENANCE) w *= 1.6;
       return w;
     },
-    FLOOR_GEOMETRIES[0],
   );
-  const baseDangerScore = routeDangerScore(profileZ) + (geometry?.dangerBias ?? 0) * 0.55 + rng() - 0.5;
+  const baseDangerScore = routeDangerScore(profileZ) + geometry.dangerBias * 0.55 + rng() - 0.5;
   const earlyDanger = clampDanger(baseDangerScore);
   const majority = pickWeighted(
     FLOOR_MAJORITY_FACTIONS.filter(def => (def.minDanger ?? 1) <= earlyDanger),
     rng,
     def => def.weight * (earlyDanger >= 4 && def.id === 'cultists' ? 2.2 : 1),
-    FLOOR_MAJORITY_FACTIONS[0],
   );
   const anomaly = pickWeighted(
     FLOOR_ANOMALIES.filter(def => def.minDanger <= earlyDanger),
     rng,
     def => def.weight * (earlyDanger >= 4 && def.id !== 'none' ? 1.35 : 1),
-    FLOOR_ANOMALIES[0],
   );
   const danger = clampDanger(baseDangerScore + anomalyDangerPressure(anomaly));
   const tags = [...geometry.tags, ...majority.tags, ...anomaly.tags];
@@ -742,7 +766,7 @@ export function makeProceduralFloorSpec(runSeed: number, z: number): ProceduralF
     depth,
     danger,
     geometryId: geometry.id,
-    themeTags: [...geometry.themeTags],
+    baseFloor: geometry.baseFloor,
     majorityId: majority.id,
     anomalyId: anomaly.id,
     title: `${anomalyPrefix}${geometry.title}, ${majority.title}`,

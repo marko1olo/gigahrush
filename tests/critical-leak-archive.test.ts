@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, EntityType, LiftDirection, RoomType, W, ZoneFaction } from '../src/core/types';
+import { Cell, EntityType, FloorLevel, LiftDirection, RoomType, W, ZoneFaction } from '../src/core/types';
 import { auditReachability, hasReachableAdjacentCell } from '../src/core/world';
 import { designFloorById } from '../src/data/design_floors';
 import { designFloorPopulationProfile } from '../src/data/design_floor_population';
@@ -13,7 +13,7 @@ import {
   CRITICAL_LEAK_ARCHIVE_ROUTE_ID,
   CRITICAL_LEAK_ARCHIVE_Z,
   type CriticalLeakArchiveGeneration,
-} from '../src/gen/critical_leak_archive';
+} from '../src/gen/design_floors/critical_leak_archive';
 import { generateDesignFloor } from '../src/gen/design_floors/manifest';
 import {
   countTerritoryCells,
@@ -32,13 +32,14 @@ function generatedCriticalLeakArchive(): CriticalLeakArchiveGeneration {
 test('critical_leak_archive is registered as a Ministry archive route stop', () => {
   const route = designFloorById(CRITICAL_LEAK_ARCHIVE_ROUTE_ID);
   assert.equal(route?.z, CRITICAL_LEAK_ARCHIVE_Z);
-    assert.equal(route?.displayName, 'Архив критической протечки');
+  assert.equal(route?.baseFloor, CRITICAL_LEAK_ARCHIVE_BASE_FLOOR);
+  assert.equal(route?.displayName, 'Архив критической протечки');
   assert.equal(PROCEDURAL_FLOOR_ZS.includes(CRITICAL_LEAK_ARCHIVE_Z), false);
 
   assert.ok(route);
   const profile = designFloorPopulationProfile(route);
-  assert.ok(profile.npcTarget >= 76 && profile.npcTarget <= 7600, 'npcTarget in bounds');
-  assert.ok(profile.monsterTarget >= 105 && profile.monsterTarget <= 10500, 'monsterTarget in bounds');
+  assert.equal(profile.npcTarget, 760);
+  assert.equal(profile.monsterTarget, 1050);
   assert.equal(profile.monsterTags.includes('water'), true);
   assert.equal(profile.monsterTags.includes('documents'), true);
 });
@@ -148,7 +149,7 @@ test('critical_leak_archive exposes dry packet, contaminated shortcut and floodg
   assert.equal(reachableTagged('contaminated_shortcut') >= 1, true, 'contaminated shortcut sample should be reachable');
   assert.equal(reachableTagged('raise_floodgate') >= 1, true, 'floodgate control should be reachable');
 
-  const plotIds = new Set(gen.entities.map(entity => (entity as any).npcPackageId).filter(Boolean));
+  const plotIds = new Set(gen.entities.map(entity => entity.plotNpcId).filter(Boolean));
   assert.equal(plotIds.has('critical_leak_archivist_varvara'), true);
   assert.equal(plotIds.has('critical_leak_liquidator_egor'), true);
   assert.equal(gen.entities.some(entity => entity.type === EntityType.NPC), true);

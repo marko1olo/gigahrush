@@ -2,12 +2,13 @@
 
 import {
   Faction,
+  FloorLevel,
   LiftDirection,
   Occupation,
   type Item,
   type WorldEventSeverity,
 } from '../core/types';
-import { floorKeyForDesign } from './floor_keys';
+import { floorKeyForStory } from './floor_keys';
 
 export interface ScriptedArrivalAmmoDef {
   defId: string;
@@ -32,8 +33,8 @@ export interface ScriptedArrivalEscortDef {
 export interface ScriptedArrivalDef {
   id: string;
   triggerPlotEventTag: string;
-  currentZ: number;
-  currentStoryFloor?: number;
+  currentFloor: FloorLevel;
+  currentStoryFloor?: FloorLevel;
   leaderPlotNpcId: string;
   leaderWeapon?: string;
   leaderTraveler?: boolean;
@@ -49,12 +50,12 @@ export const SCRIPTED_ARRIVALS: readonly ScriptedArrivalDef[] = [
   {
     id: 'hell_holdout_major_grom_group',
     triggerPlotEventTag: 'hell_holdout',
-    currentZ: -36,
-    currentStoryFloor: 180,
+    currentFloor: FloorLevel.HELL,
+    currentStoryFloor: FloorLevel.HELL,
     leaderPlotNpcId: 'major_grom',
     leaderWeapon: 'ak47',
     leaderTraveler: true,
-    sourceFloorKey: floorKeyForDesign('ministry'),
+    sourceFloorKey: floorKeyForStory(FloorLevel.MINISTRY),
     preferredLiftDirection: LiftDirection.UP,
     escort: {
       count: 5,

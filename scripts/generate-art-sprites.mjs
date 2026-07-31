@@ -140,38 +140,24 @@ function rowHasOpaquePixel(decoded, y) {
   return false;
 }
 
-function colHasOpaquePixel(decoded, x) {
-  for (let y = 0; y < decoded.height; y++) {
-    if ((decoded.pixels[y * decoded.width + x] >>> 24) !== 0) return true;
-  }
-  return false;
-}
-
-function trimTransparency(decoded) {
+function trimVerticalTransparency(decoded) {
   let top = 0;
   while (top < decoded.height && !rowHasOpaquePixel(decoded, top)) top++;
   let bottom = decoded.height - 1;
   while (bottom >= top && !rowHasOpaquePixel(decoded, bottom)) bottom--;
-  
-  let left = 0;
-  while (left < decoded.width && !colHasOpaquePixel(decoded, left)) left++;
-  let right = decoded.width - 1;
-  while (right >= left && !colHasOpaquePixel(decoded, right)) right--;
-
-  if (top === 0 && bottom === decoded.height - 1 && left === 0 && right === decoded.width - 1) return decoded;
+  if (top === 0 && bottom === decoded.height - 1) return decoded;
 
   const height = bottom - top + 1;
-  const width = right - left + 1;
-  const pixels = new Uint32Array(width * height);
+  const pixels = new Uint32Array(decoded.width * height);
   for (let y = 0; y < height; y++) {
-    const srcStart = (top + y) * decoded.width + left;
-    pixels.set(decoded.pixels.subarray(srcStart, srcStart + width), y * width);
+    const srcStart = (top + y) * decoded.width;
+    pixels.set(decoded.pixels.subarray(srcStart, srcStart + decoded.width), y * decoded.width);
   }
-  return { width, height, pixels };
+  return { width: decoded.width, height, pixels };
 }
 
 function normalizeToRuntimeSprite(decoded) {
-  const trimmed = trimTransparency(decoded);
+  const trimmed = trimVerticalTransparency(decoded);
   if (trimmed.width === SIZE && trimmed.height === SIZE) return trimmed.pixels;
   const scale = Math.min(SIZE / trimmed.width, SIZE / trimmed.height);
   const outW = Math.max(1, Math.min(SIZE, Math.round(trimmed.width * scale)));

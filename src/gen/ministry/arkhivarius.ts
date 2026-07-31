@@ -1,7 +1,6 @@
 /* ── Архивариус Кафкин — side quest (ministry floor) ──────────── */
 /* Старый архивариус. Ищет потерянные дела (записки).              */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   W, Cell,
   type Entity, Faction, Occupation, QuestType,
@@ -9,7 +8,6 @@ import {
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng } from '../../core/rand';
 
 const NPC_DEF: PlotNpcDef = {
   name: 'Архивариус Кафкин',
@@ -40,7 +38,7 @@ const NPC_DEF: PlotNpcDef = {
 registerSideQuest('arkhivarius_kafkin', NPC_DEF, [
   {
     id: 'kafkin_notes',
-    giverId: getPlotNpcNumericId('arkhivarius_kafkin')!,
+    giverNpcId: 'arkhivarius_kafkin',
     type: QuestType.FETCH,
     desc: 'Кафкин: «Десять записок. Подошью в дело. Иначе формуляр не закроется.»',
     targetItem: 'note', targetCount: 10,
@@ -58,12 +56,12 @@ export function spawnArkhivariusKafkin(
   world: World, entities: Entity[], nextId: { v: number },
 ): void {
   for (let i = 0; i < 3000; i++) {
-    const x = Math.floor(rng() * W);
-    const y = Math.floor(rng() * W);
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
     if (world.cells[world.idx(x, y)] !== Cell.FLOOR) continue;
     if (world.roomMap[world.idx(x, y)] < 0 && i < 2000) continue; // prefer rooms
     requireSpawnedPlotNpcFromPackage(entities, nextId, 'arkhivarius_kafkin', x + 0.5, y + 0.5, {
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       canGiveQuest: true,
     });
     return;

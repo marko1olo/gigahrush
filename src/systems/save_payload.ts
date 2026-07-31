@@ -17,12 +17,12 @@ import {
 import { MAX_INVENTORY_SLOTS, MAX_ITEM_STACK } from '../data/inventory_limits';
 import { ITEMS, getStack } from '../data/items';
 import { clampCharacterAge, DEFAULT_PLAYER_AGE, DEFAULT_PLAYER_SEX, sanitizeCharacterSex } from '../data/demographics';
-import { getPlotNpcNumericId } from '../data/npc_packages';
+
 export const SAVE_PLAYER_INVENTORY_CAP = MAX_INVENTORY_SLOTS;
-export const SAVE_CONTAINER_CAP = 2048;
+export const SAVE_CONTAINER_CAP = 128;
 export const SAVE_CONTAINER_TAG_CAP = 12;
 export const SAVE_CONTAINER_STOLEN_ITEM_CAP = 16;
-export const SAVE_QUEST_CAP = 2048;
+export const SAVE_QUEST_CAP = 512;
 export const SAVE_STATUS_CAP = 12;
 export const PORTAL_COMPACT_QUEST_CAP = 64;
 export const PORTAL_COMPACT_CONTAINER_CAP = 16;
@@ -45,7 +45,6 @@ export interface SavePayloadSections {
   liftArachna: unknown;
   pseudolift: unknown;
   floorMemory: unknown;
-  playedCinematics?: unknown;
   alife: unknown;
   alifeMobility: unknown;
   computers?: unknown;
@@ -59,7 +58,6 @@ export interface SavePayloadSections {
   banking: unknown;
   stockMarket: unknown;
   production: unknown;
-  factionRelations?: number[];
 }
 
 export interface SavePayloadBuildInput {
@@ -101,10 +99,9 @@ export interface SavePayload {
     samosborTimer: number;
     quests: Quest[];
     nextQuestId: number;
-    currentZ: GameState['currentZ'];
+    currentFloor: GameState['currentFloor'];
     tutorialMode?: boolean;
     tutorialStep?: number;
-    tutorialExitTimer?: number;
     floorRun: unknown;
     floorInstances: unknown;
     voidReturnPortal?: unknown;
@@ -112,7 +109,6 @@ export interface SavePayload {
     liftArachna: unknown;
     pseudolift: unknown;
     floorMemory: unknown;
-    playedCinematics?: unknown;
     alife: unknown;
     alifeMobility: unknown;
     computers?: unknown;
@@ -126,7 +122,6 @@ export interface SavePayload {
     banking: unknown;
     stockMarket: unknown;
     production: ProductionState[];
-    factionRelations?: number[];
     containers: WorldContainer[];
   };
 }
@@ -306,10 +301,9 @@ export function buildSavePayload(input: SavePayloadBuildInput): SavePayload {
       samosborTimer: state.samosborTimer,
       quests: questsForSave(state.quests),
       nextQuestId: state.nextQuestId,
-      currentZ: state.currentZ,
+      currentFloor: state.currentFloor,
       tutorialMode: state.tutorialMode,
       tutorialStep: state.tutorialStep,
-      tutorialExitTimer: state.tutorialExitTimer,
       floorRun: sections.floorRun,
       floorInstances: sections.floorInstances,
       voidReturnPortal: sections.voidReturnPortal,
@@ -317,7 +311,6 @@ export function buildSavePayload(input: SavePayloadBuildInput): SavePayload {
       liftArachna: sections.liftArachna,
       pseudolift: sections.pseudolift,
       floorMemory: sections.floorMemory,
-      playedCinematics: sections.playedCinematics,
       alife: sections.alife,
       alifeMobility: sections.alifeMobility,
       computers: sections.computers,
@@ -330,8 +323,7 @@ export function buildSavePayload(input: SavePayloadBuildInput): SavePayload {
       economy: sections.economy,
       banking: sections.banking,
       stockMarket: sections.stockMarket,
-      production: normalizeProductionStateList(sections.production, state.currentZ),
-      factionRelations: sections.factionRelations,
+      production: normalizeProductionStateList(sections.production, state.currentFloor),
       containers: containersForSave(input.containers),
     },
   };
@@ -396,7 +388,6 @@ export function summarizeSavePayload(
     { label: 'liftArachna', value: payload.state.liftArachna },
     { label: 'pseudolift', value: payload.state.pseudolift },
     { label: 'floorMemory', value: payload.state.floorMemory },
-    { label: 'playedCinematics', value: payload.state.playedCinematics },
     { label: 'voidReturnPortal', value: payload.state.voidReturnPortal },
     { label: 'voidEntryFromFloor', value: payload.state.voidEntryFromFloor },
   ];
@@ -453,7 +444,7 @@ function compactAlifeForPortal(input: unknown): unknown {
     playerRelationTargetAlifeId: input.playerRelationTargetAlifeId,
     deadIds: Array.isArray(input.deadIds) ? input.deadIds.slice(0, PORTAL_COMPACT_ALIFE_DEAD_ID_CAP) : [],
     deadPlotNpcIds: Array.isArray(input.deadPlotNpcIds)
-      ? input.deadPlotNpcIds.map(x => typeof x === 'string' ? (getPlotNpcNumericId(x)! ?? NaN) : Number(x)).filter(n => !Number.isNaN(n)).slice(0, PORTAL_COMPACT_ALIFE_PLOT_DEATH_CAP)
+      ? input.deadPlotNpcIds.slice(0, PORTAL_COMPACT_ALIFE_PLOT_DEATH_CAP)
       : [],
     overrides: Array.isArray(input.overrides) ? input.overrides.slice(0, PORTAL_COMPACT_ALIFE_OVERRIDE_CAP) : [],
   };

@@ -69,17 +69,11 @@ interface GamePushSounds {
   on?(event: 'mute' | 'unmute', handler: () => void): void;
 }
 
-interface GamePushAds {
-  showFullscreen?(): void | Promise<void>;
-  on?(event: 'fullscreen:start' | 'fullscreen:close', handler: (success?: boolean) => void): void;
-}
-
 interface GamePushSdk {
   ready?: Promise<void>;
   player?: GamePushPlayer;
   language?: string;
   sounds?: GamePushSounds;
-  ads?: GamePushAds;
   gameStart?(): void | Promise<void>;
   gameReady?(): void;
   changeLanguage?(lang: string): void;
@@ -215,18 +209,7 @@ export function portalAllowsCasinoLikeContent(): boolean {
 }
 
 export function portalAllowsOptionalNetwork(): boolean {
-  if (isStrictPortalMode()) return false;
-  return netSphereBackendAvailable();
-}
-
-/** A real Net Sphere backend (/api/net) exists only in the Cloudflare/Wrangler
- *  build (`--mode cloudflare`, i.e. cf:dev/cf:deploy — also covers `wrangler dev`
- *  on localhost) or the GitHub build (which targets workers.dev by absolute URL).
- *  itch, pikabu and plain static/dev hosts have no backend, so any request just
- *  404s — treat optional network as unavailable there. See cloudflare.md. */
-function netSphereBackendAvailable(): boolean {
-  if (typeof window !== 'undefined' && window.location?.hostname === 'gigahrush.github.io') return true;
-  return Boolean((globalThis as { __GIGAHRUSH_NET_BACKEND__?: boolean }).__GIGAHRUSH_NET_BACKEND__);
+  return !isStrictPortalMode();
 }
 
 export function portalBlocksDesignFloor(id: string | undefined): boolean {
@@ -380,9 +363,6 @@ function gamePushSdkAsync(): Promise<GamePushSdk | null> {
   return gamePushSdkPromise;
 }
 
-let activeFullscreenAdResolve: ((success: boolean) => void) | null = null;
-let activeFullscreenAdTimeout: ReturnType<typeof setTimeout> | undefined;
-
 function bindGamePushEvents(gp = gamePushSdk()): void {
   if (!gp || gamePushEventsBound || !gp.on) return;
   gp.on('pause', () => bridgeOptions.onPauseChange?.(true));
@@ -394,31 +374,11 @@ function bindGamePushEvents(gp = gamePushSdk()): void {
   if (gp.language) {
     bridgeOptions.onLanguageDetected?.(gp.language);
   }
-  if (gp.ads && typeof gp.ads.on === 'function') {
-    gp.ads.on('fullscreen:start', () => {
-      if (activeFullscreenAdTimeout !== undefined) {
-        clearTimeout(activeFullscreenAdTimeout);
-        activeFullscreenAdTimeout = undefined;
-      }
-      bridgeOptions.onPauseChange?.(true);
-    });
-    gp.ads.on('fullscreen:close', (success?: boolean) => {
-      if (activeFullscreenAdTimeout !== undefined) {
-        clearTimeout(activeFullscreenAdTimeout);
-        activeFullscreenAdTimeout = undefined;
-      }
-      bridgeOptions.onPauseChange?.(false);
-      if (activeFullscreenAdResolve) {
-        activeFullscreenAdResolve(success ?? false);
-        activeFullscreenAdResolve = null;
-      }
-    });
-  }
   gamePushEventsBound = true;
 
   // GamePush Sandbox STRICTLY checks the JavaScript call stack.
   // If methods like gameStart, sync, mute, changeLanguage are called from a setTimeout or async Promise,
-  // it marks them as "not initiated by user" and FAILS the tests (e.g. "вовремя", "кнопка звука", "сохранение").
+  // it marks them as "not initiated by user" and FAILS the tests (e.g. "вовремя", "кнопка звука").
   //
   // gameStart dual-path strategy:
   //   1. markPlatformReady() tries synchronous gameStart when SDK is already on the global (sandbox preload).
@@ -432,7 +392,7 @@ function bindGamePushEvents(gp = gamePushSdk()): void {
     // 1. gameStart fallback (Test 2, 3) — only if not already sent from markPlatformReady
     if (!gamePushGameStartSent) {
       gamePushGameStartSent = true;
-      try { if (typeof gp.gameStart === 'function') gp.gameStart(); } catch (e) { console.error('GamePush SDK error:', e); }
+      try { if (typeof gp.gameStart === 'function') gp.gameStart(); } catch {}
     }
 
     // 2. Player sync (Test 4: сохранение)
@@ -444,16 +404,24 @@ function bindGamePushEvents(gp = gamePushSdk()): void {
           if (typeof gp.player.sync === 'function') void gp.player.sync();
         }
       }
-    } catch (e) { console.error('GamePush SDK error:', e); }
+    } catch {}
 
     // 3. Language (Test 6, 7)
     try {
       if (gp.language && typeof gp.changeLanguage === 'function') {
         gp.changeLanguage(gp.language === 'es' ? 'en' : gp.language);
       }
-    } catch (e) { console.error('GamePush SDK error:', e); }
+    } catch {}
 
-
+    // 4. Sounds (Test 8, 9)
+    try {
+      if (gp.sounds) {
+        const muted = gp.sounds.isMuted;
+        if (typeof gp.sounds.mute === 'function') gp.sounds.mute();
+        if (typeof gp.sounds.unmute === 'function') gp.sounds.unmute();
+        if (muted && typeof gp.sounds.mute === 'function') gp.sounds.mute();
+      }
+    } catch {}
   };
 
   if (typeof document !== 'undefined') {
@@ -572,11 +540,11 @@ export function markPlatformReady(): void {
     bindGamePushEvents(gpImmediate);
     if (!gamePushReadySent) {
       gamePushReadySent = true;
-      try { if (typeof gpImmediate.gameReady === 'function') gpImmediate.gameReady(); } catch (e) { console.error('GamePush SDK error:', e); }
+      try { if (typeof gpImmediate.gameReady === 'function') gpImmediate.gameReady(); } catch {}
     }
     if (!gamePushGameStartSent) {
       gamePushGameStartSent = true;
-      try { if (typeof gpImmediate.gameStart === 'function') gpImmediate.gameStart(); } catch (e) { console.error('GamePush SDK error:', e); }
+      try { if (typeof gpImmediate.gameStart === 'function') gpImmediate.gameStart(); } catch {}
     }
   }
 
@@ -588,7 +556,7 @@ export function markPlatformReady(): void {
     
     if (!gamePushReadySent) {
       gamePushReadySent = true;
-      try { if (typeof gp.gameReady === 'function') gp.gameReady(); } catch (e) { console.error('GamePush SDK error:', e); }
+      try { if (typeof gp.gameReady === 'function') gp.gameReady(); } catch {}
     }
   });
 }
@@ -731,12 +699,7 @@ export async function loadPlatformRawGameSave(localRaw?: string | null): Promise
 
 export async function hydratePlatformSaveFromCloud(): Promise<PlatformLoadResult> {
   if (typeof localStorage === 'undefined' || !localStorage.getItem) return { status: 'no-sdk' };
-  let localRaw: string | null = null;
-  try {
-    localRaw = localStorage.getItem(LOCAL_SAVE_KEY);
-  } catch {
-    // Local storage can be blocked in embedded portal contexts.
-  }
+  const localRaw = localStorage.getItem(LOCAL_SAVE_KEY);
   const result = await loadPlatformRawGameSave(localRaw);
   if (result.status !== 'loaded' || !result.raw) return result;
   try {
@@ -751,33 +714,6 @@ export async function hydratePlatformSaveFromCloud(): Promise<PlatformLoadResult
   }
 }
 
-export function showPlatformFullscreenAd(): Promise<boolean> {
-  return new Promise((resolve) => {
-    const gp = gamePushSdk();
-    if (gp && gp.ads && typeof gp.ads.showFullscreen === 'function') {
-      activeFullscreenAdResolve = resolve;
-      try {
-        gp.ads.showFullscreen();
-      } catch (e) {
-        console.error('GamePush showFullscreen error:', e);
-        activeFullscreenAdResolve = null;
-        resolve(false);
-        return;
-      }
-      // Timeout fallback: if the ad does not start within 800ms, assume it was skipped or failed.
-      activeFullscreenAdTimeout = setTimeout(() => {
-        activeFullscreenAdTimeout = undefined;
-        if (activeFullscreenAdResolve === resolve) {
-          activeFullscreenAdResolve = null;
-          resolve(false);
-        }
-      }, 800);
-    } else {
-      resolve(false);
-    }
-  });
-}
-
 export function resetPlatformBridgeForTests(): void {
   bridgeOptions = {};
   yandexSdkPromise = null;
@@ -789,9 +725,4 @@ export function resetPlatformBridgeForTests(): void {
   gamePushReadySent = false;
   gamePushGameStartSent = false;
   gamePushGameplayActive = false;
-  activeFullscreenAdResolve = null;
-  if (activeFullscreenAdTimeout !== undefined) {
-    clearTimeout(activeFullscreenAdTimeout);
-    activeFullscreenAdTimeout = undefined;
-  }
 }

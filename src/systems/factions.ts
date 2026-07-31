@@ -5,7 +5,7 @@
 import {
   type Entity, type GameState,
   EntityType, AIGoal, Faction, ZoneFaction,
-  type WorldEventSeverity, type WorldEventType,
+  type FloorLevel, type WorldEventSeverity, type WorldEventType,
 } from '../core/types';
 import { World } from '../core/world';
 import { ITEMS } from '../data/catalog';
@@ -38,7 +38,6 @@ import {
 import { applyDemosRelationDelta } from './demos_social';
 import { addKarma } from './alife_rating';
 import { isPassiveDefensiveNeutralMonster } from './monster_traits';
-import { checkAssaultResolution } from './alife/squad_logic';
 
 /* ── Faction relation accessors (dynamic — reads live matrix) ─── */
 // Monsters use a fixed attitude, not tracked in the matrix
@@ -144,7 +143,7 @@ export interface FactionOwnerUiSnapshot {
 export interface FactionRecentEventUiSnapshot {
   id: number;
   time: number;
-  z: number;
+  floor: FloorLevel;
   zoneId: number;
   x: number;
   y: number;
@@ -159,7 +158,7 @@ export interface FactionRecentEventUiSnapshot {
 
 export interface FactionUiSnapshot {
   time: number;
-  z: number;
+  floor: FloorLevel;
   zones: FactionZoneUiSnapshot[];
   zoneById: (FactionZoneUiSnapshot | undefined)[];
   owners: FactionOwnerUiSnapshot[];
@@ -292,7 +291,7 @@ function refreshFactionUiSnapshot(world: World, state: GameState): void {
   const recentEvents = getRecentEvents(state, { tags: ['faction_event'], limit: UI_RECENT_EVENT_LIMIT }).map(event => {
     const zoneId = event.zoneId ?? -1;
     const zone = zoneId >= 0 ? zoneById[zoneId] : undefined;
-    if (event.z === state.currentZ && zone) {
+    if (event.floor === state.currentFloor && zone) {
       zone.recentEventCount++;
       if (event.severity > zone.lastEventSeverity) zone.lastEventSeverity = event.severity;
       if (event.time >= zone.lastEventTime) zone.lastEventTime = event.time;
@@ -300,7 +299,7 @@ function refreshFactionUiSnapshot(world: World, state: GameState): void {
     return {
       id: event.id,
       time: event.time,
-      z: event.z,
+      floor: event.floor,
       zoneId,
       x: event.x ?? zone?.x ?? 0,
       y: event.y ?? zone?.y ?? 0,
@@ -316,7 +315,7 @@ function refreshFactionUiSnapshot(world: World, state: GameState): void {
 
   factionUiSnapshot = {
     time: state.time,
-    z: state.currentZ,
+    floor: state.currentFloor,
     zones,
     zoneById,
     owners: ZONE_UI_FACTIONS.map(faction => ownerCounts.get(faction) ?? { faction, cells: 0, fronts: 0 }),
@@ -357,12 +356,12 @@ export function updateFactionActivity(
   const elapsed = activityAccum;
   activityAccum = 0;
   updateNoisePatrolResponse(world, entities, state);
-  evaluateMacroGoalsGC(world, state, elapsed, entities);
+  evaluateMacroGoalsGC(state, elapsed, entities);
   updateFactionEvents(state, world, player, entities, nextId, elapsed, allowSpawns);
   tickCaravans(state, elapsed, false, MAX_CARAVAN_LANES_PER_TICK, world, entities, player, nextId);
   factionUiSnapshotAccum += elapsed;
   const uiRefreshSec = state.showFactions ? UI_OPEN_REFRESH_SEC : UI_IDLE_REFRESH_SEC;
-  if (!factionUiSnapshot || factionUiSnapshot.z !== state.currentZ || factionUiSnapshotAccum >= uiRefreshSec) {
+  if (!factionUiSnapshot || factionUiSnapshot.floor !== state.currentFloor || factionUiSnapshotAccum >= uiRefreshSec) {
     factionUiSnapshotAccum = 0;
     refreshFactionUiSnapshot(world, state);
   }
@@ -383,12 +382,9 @@ function noiseZoneId(world: World, record: NoiseRecord): number {
 }
 
 function shouldRespondToNoise(state: GameState, zoneId: number, record: NoiseRecord): boolean {
-  const key = `${state.currentZ}:${zoneId}:${record.source}`;
+  const key = `${state.currentFloor}:${zoneId}:${record.source}`;
   const last = lastNoisePatrolResponseAt.get(key) ?? -Infinity;
-  // `last <= state.time` guards an in-session restart: initGame resets state.time
-  // to 0 while this module Map persists, so a stale future timestamp would wrongly
-  // suppress responses. Time is monotonic within a run, so this never changes normal play.
-  if (last <= state.time && state.time - last < NOISE_PATROL_COOLDOWN_S) return false;
+  if (state.time - last < NOISE_PATROL_COOLDOWN_S) return false;
   lastNoisePatrolResponseAt.set(key, state.time);
   return true;
 }
@@ -523,15 +519,9 @@ export function canCreateMacroGoal(state: GameState): boolean {
   return (state.factionGoals?.length ?? 0) < MAX_ACTIVE_MACRO_GOALS;
 }
 
-export function evaluateMacroGoalsGC(world: World, state: GameState, dt: number, entities: Entity[]): void {
-  // Check assault resolution periodically
+export function evaluateMacroGoalsGC(state: GameState, dt: number, entities: Entity[]): void {
   if (state.factionGoalsTimer === undefined) state.factionGoalsTimer = 0;
   state.factionGoalsTimer += dt;
-
-  if (state.factionGoalsTimer % 5 < dt) {
-    checkAssaultResolution(world, state, dt);
-  }
-
   if (state.factionGoalsTimer < 60) return;
   state.factionGoalsTimer = 0;
 

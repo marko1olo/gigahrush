@@ -6,10 +6,11 @@
 import {
   W, Cell, Feature,
   type Entity,
-  EntityType, AIGoal, MonsterKind, } from '../../core/types';
+  EntityType, AIGoal, MonsterKind, FloorLevel,
+} from '../../core/types';
 import { World } from '../../core/world';
 
-import { generateZones } from '../shared';
+import { rng, generateZones } from '../shared';
 import { VOID_POPULATION_PROFILE } from '../../data/population_profiles';
 import { activeActorCountAtDefaultSoftLimit } from '../../data/entity_limits';
 import { calcZoneLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
@@ -18,7 +19,6 @@ import { MONSTERS } from '../../entities/monster';
 import { Spr, monsterSpr } from '../../render/sprite_index';
 import { runVoidContent } from './content_manifest';
 import { applyVoidRevealLighting, buildVoidGeometry, paintVoidDefaults } from './geometry';
-import { rng, irand } from '../../core/rand';
 
 export function generateVoid(): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
   const world = new World();
@@ -38,7 +38,7 @@ export function generateVoid(): { world: World; entities: Entity[]; spawnX: numb
      Phase 2: Zones
      ══════════════════════════════════════════════════════════════ */
   generateZones(world);
-  for (const z of world.zones) z.level = calcZoneLevel(z.cx, z.cy, -50) + 5;
+  for (const z of world.zones) z.level = calcZoneLevel(z.cx, z.cy, FloorLevel.VOID) + 5;
 
   nextId = runVoidContent(world, entities, nextId, spawnX, spawnY);
   paintVoidDefaults(world);
@@ -47,7 +47,7 @@ export function generateVoid(): { world: World; entities: Entity[]; spawnX: numb
      Phase 3: Sparse eerie lighting
      ══════════════════════════════════════════════════════════════ */
   for (let i = 0; i < W * W; i++) {
-    if (world.cells[i] === Cell.FLOOR && rng() < 0.0015) {
+    if (world.cells[i] === Cell.FLOOR && Math.random() < 0.0015) {
       world.features[i] = Feature.LAMP;
     }
   }
@@ -103,7 +103,7 @@ export function generateVoid(): { world: World; entities: Entity[]; spawnX: numb
   for (let i = 0; i < guardianTarget; i++) {
     const cell = randomFloorCell(world, spawnX, spawnY, 26);
     if (cell < 0) continue;
-    const kind = voidKinds[irand(0, voidKinds.length - 1)];
+    const kind = voidKinds[rng(0, voidKinds.length - 1)];
     const mdef = MONSTERS[kind];
     if (!mdef) continue;
     const x = (cell % W) + 0.5;
@@ -115,7 +115,7 @@ export function generateVoid(): { world: World; entities: Entity[]; spawnX: numb
     entities.push({
       id: nextId++, type: EntityType.MONSTER,
       x, y,
-      angle: rng() * Math.PI * 2, pitch: 0,
+      angle: Math.random() * Math.PI * 2, pitch: 0,
       alive: true,
       speed: scaleMonsterSpeed(mdef.speed, zoneLevel),
       sprite: monsterSpr(kind),
@@ -138,7 +138,7 @@ export function generateVoid(): { world: World; entities: Entity[]; spawnX: numb
       id: nextId++, type: EntityType.ITEM_DROP,
       x: (cell % W) + 0.5, y: ((cell / W) | 0) + 0.5,
       angle: 0, pitch: 0, alive: true, speed: 0, sprite: Spr.ITEM_DROP,
-      inventory: [{ defId: drops[irand(0, drops.length - 1)], count: irand(1, 3) }],
+      inventory: [{ defId: drops[rng(0, drops.length - 1)], count: rng(1, 3) }],
     });
   }
 
@@ -148,7 +148,7 @@ export function generateVoid(): { world: World; entities: Entity[]; spawnX: numb
 function randomFloorCell(world: World, avoidX = -1000, avoidY = -1000, minDist = 0): number {
   const minDist2 = minDist * minDist;
   for (let attempt = 0; attempt < 2048; attempt++) {
-    const cell = irand(0, W * W - 1);
+    const cell = rng(0, W * W - 1);
     if (world.cells[cell] !== Cell.FLOOR) continue;
     if (minDist > 0 && world.dist2(avoidX, avoidY, cell % W, (cell / W) | 0) < minDist2) continue;
     return cell;

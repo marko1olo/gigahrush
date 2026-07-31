@@ -1,7 +1,5 @@
 /* ── Водомерный пост — radio/water bureaucracy quest hub ─────── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
-import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import {
   Tex,
   Feature,
@@ -11,24 +9,10 @@ import {
   QuestType,
   MonsterKind,
 } from '../../core/types';
-import { type PlotNpcDef, registerSideQuest , registerAuthoredNpc } from '../../data/plot';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Практикантка Неля',
-  isFemale: true,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.SECRETARY,
-  sprite: Occupation.SECRETARY,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'book', count: 1 }, { defId: 'tea', count: 1 }],
-  talkLines: ['...'],
-  talkLinesPost: ['...']
-};
-registerAuthoredNpc({ id: 'maintenance_ambient_0_px4os', npc: AMBIENT_NPC_0 });
-
+import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import {
   type MaintContentCtx, dropItems, findMaintArea, setFeature, setWater,
-  spawnMonstersNear, spawnPlotNpc, stampMaintRoom,
+  spawnAmbientNpc, spawnMonstersNear, spawnPlotNpc, stampMaintRoom,
 } from './content_helpers';
 
 const SAVA_DEF: PlotNpcDef = {
@@ -58,7 +42,7 @@ const SAVA_DEF: PlotNpcDef = {
 registerSideQuest('ag04_watermeter_sava', SAVA_DEF, [
   {
     id: 'ag04_watermeter_tools',
-    giverId: getPlotNpcNumericId('ag04_watermeter_sava')!,
+    giverNpcId: 'ag04_watermeter_sava',
     type: QuestType.FETCH,
     desc: 'Сава: «Два ключа для поверки. Один крутит гайку, второй убеждает комиссию.»',
     targetItem: 'wrench', targetCount: 2,
@@ -68,16 +52,16 @@ registerSideQuest('ag04_watermeter_sava', SAVA_DEF, [
   },
   {
     id: 'ag04_watermeter_relay_talk',
-    giverId: getPlotNpcNumericId('ag04_watermeter_sava')!,
+    giverNpcId: 'ag04_watermeter_sava',
     type: QuestType.TALK,
     desc: 'Сава: «Передай Борису: водомер крутится без воды. Пусть подпишет, что это норма.»',
-    targetNpcId: getPlotNpcNumericId('ag04_pressure_boris')!,
+    targetNpcId: 'ag04_pressure_boris',
     rewardItem: 'note', rewardCount: 1,
     relationDelta: 10, xpReward: 35, moneyReward: 25,
   },
   {
     id: 'ag04_watermeter_visit_flooded',
-    giverId: getPlotNpcNumericId('ag04_watermeter_sava')!,
+    giverNpcId: 'ag04_watermeter_sava',
     type: QuestType.VISIT,
     desc: 'Сава: «Зайди в затопленную комнату и вернись сухим хотя бы в отчете.»',
     targetRoomType: RoomType.STORAGE,
@@ -86,7 +70,7 @@ registerSideQuest('ag04_watermeter_sava', SAVA_DEF, [
   },
   {
     id: 'ag04_watermeter_eye',
-    giverId: getPlotNpcNumericId('ag04_watermeter_sava')!,
+    giverNpcId: 'ag04_watermeter_sava',
     type: QuestType.KILL,
     desc: 'Сава: «Один глаз смотрит на счетчик. Убей его, пока он не стал ревизором.»',
     targetMonsterKind: MonsterKind.EYE,
@@ -97,7 +81,7 @@ registerSideQuest('ag04_watermeter_sava', SAVA_DEF, [
   },
   {
     id: 'ag04_watermeter_medicine',
-    giverId: getPlotNpcNumericId('ag04_watermeter_sava')!,
+    giverNpcId: 'ag04_watermeter_sava',
     type: QuestType.FETCH,
     desc: 'Сава: «Таблетки нужны для радиосмены. Помехи кусают прямо в затылок.»',
     targetItem: 'pills', targetCount: 2,
@@ -131,7 +115,11 @@ export function generateWatermeterPost(ctx: MaintContentCtx): void {
   spawnPlotNpc(ctx, 'ag04_watermeter_sava', SAVA_DEF, room.x + 2, room.y + 3, Math.PI / 2, {
     weapon: 'makarov',
   });
-  requireSpawnedPlotNpcFromPackage(ctx.entities, ctx.nextId, 'maintenance_ambient_0_px4os', room.x + 9 + 0.5, room.y + 4 + 0.5, { angle: 0});
+  spawnAmbientNpc(
+    ctx, 'Практикантка Неля', Faction.CITIZEN, Occupation.SECRETARY,
+    room.x + 9, room.y + 4,
+    [{ defId: 'book', count: 1 }, { defId: 'tea', count: 1 }],
+  );
 
   dropItems(ctx, room, ['book', 'note', 'tea', 'water', 'ammo_9mm', 'bandage']);
 

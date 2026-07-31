@@ -42,7 +42,7 @@ interface HladonCache {
 export interface HladonColdStatus {
   level: 0 | 1 | 2;
   countered: boolean;
-  roomDefId: string;
+  roomName: string;
   activeRooms: number;
   coreCells: number;
   fringeCells: number;
@@ -143,17 +143,12 @@ function buildHladonCache(world: World, roomSignature = hladonRoomSignature(worl
 }
 
 function getHladonCache(world: World): HladonCache {
-  let cache = hladonCaches.get(world);
-  if (cache && cache.cellVersion === world.cellVersion) return cache;
-  
   const roomSignature = hladonRoomSignature(world);
-  if (cache && cache.roomSignature === roomSignature) {
-    cache.cellVersion = world.cellVersion;
-    return cache;
+  let cache = hladonCaches.get(world);
+  if (!cache || cache.cellVersion !== world.cellVersion || cache.roomSignature !== roomSignature) {
+    cache = buildHladonCache(world, roomSignature);
+    hladonCaches.set(world, cache);
   }
-  
-  cache = buildHladonCache(world, roomSignature);
-  hladonCaches.set(world, cache);
   return cache;
 }
 
@@ -239,7 +234,7 @@ function publishHladonEvent(
       system: 'hladon_cold_pocket',
       kind,
       level,
-      roomDefId: room?.name,
+      roomName: room?.name,
       method,
     },
   });
@@ -252,7 +247,7 @@ export function getHladonColdStatus(world: World, player: Entity): HladonColdSta
   return {
     level,
     countered: isColdCountered(world, player, level),
-    roomDefId: room?.name ?? '',
+    roomName: room?.name ?? '',
     activeRooms: cache.rooms.length,
     coreCells: cache.coreCells,
     fringeCells: cache.fringeCells,
@@ -391,7 +386,7 @@ export function summarizeHladonColdPockets(world: World, player?: Entity, limit 
   ];
   if (player) {
     const status = getHladonColdStatus(world, player);
-    lines.push(`[HLADON] player level=${status.level} countered=${status.countered ? 1 : 0} room=${status.roomDefId || 'none'}`);
+    lines.push(`[HLADON] player level=${status.level} countered=${status.countered ? 1 : 0} room=${status.roomName || 'none'}`);
   }
   for (const room of cache.rooms.slice(0, limit)) {
     lines.push(`[HLADON] #${room.id} ${room.type} ${room.name}`);

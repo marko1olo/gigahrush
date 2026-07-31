@@ -1,9 +1,8 @@
 /* -- AG12 Mushroom Shift: first playable cellar slice ----------- */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
-  Cell, EntityType, Faction, Feature, Occupation, QuestType, RoomType, Tex,
+  Cell, EntityType, Faction, Feature, FloorLevel, Occupation, QuestType, RoomType, Tex,
   type Entity, type Room,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -96,7 +95,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
 registerSideQuest('ag12_egor_plesen', NPC_DEFS.ag12_egor_plesen, [
   {
     id: 'ag12_repair_wet_vent',
-    giverId: getPlotNpcNumericId('ag12_egor_plesen')!,
+    giverNpcId: 'ag12_egor_plesen',
     type: QuestType.FETCH,
     desc: 'Егор Плесень: «Принеси две изоленты. Заклеим мокрый вентиль, пока гриб не решил стать самосбором.»',
     targetItem: 'duct_tape', targetCount: 2,
@@ -106,10 +105,10 @@ registerSideQuest('ag12_egor_plesen', NPC_DEFS.ag12_egor_plesen, [
   },
   {
     id: 'ag12_expose_hoarder',
-    giverId: getPlotNpcNumericId('ag12_egor_plesen')!,
+    giverNpcId: 'ag12_egor_plesen',
     type: QuestType.TALK,
     desc: 'Егор Плесень: «Скажи Валере Мешкову, что я знаю про мешки под сушилкой. Пусть выбирает: очередь или позор.»',
-    targetNpcId: getPlotNpcNumericId('ag12_valera_meshkov')!,
+    targetNpcId: 'ag12_valera_meshkov',
     rewardItem: 'spore_print', rewardCount: 1,
     extraRewards: [{ defId: 'bread', count: 2 }],
     relationDelta: 10, xpReward: 35, moneyReward: 15,
@@ -119,7 +118,7 @@ registerSideQuest('ag12_egor_plesen', NPC_DEFS.ag12_egor_plesen, [
 registerSideQuest('ag12_olga_sanpropusk', NPC_DEFS.ag12_olga_sanpropusk, [
   {
     id: 'ag12_fetch_disinfectant',
-    giverId: getPlotNpcNumericId('ag12_olga_sanpropusk')!,
+    giverNpcId: 'ag12_olga_sanpropusk',
     type: QuestType.FETCH,
     desc: 'Ольга Санпропуск: «Нужен чистящий комплект. Тогда часть урожая пойдет в пайки, а не в санитарный ящик.»',
     targetItem: 'cleaning_kit', targetCount: 1,
@@ -129,11 +128,11 @@ registerSideQuest('ag12_olga_sanpropusk', NPC_DEFS.ag12_olga_sanpropusk, [
   },
   {
     id: 'ag12_trace_brown_spore_route',
-    giverId: getPlotNpcNumericId('ag12_olga_sanpropusk')!,
+    giverNpcId: 'ag12_olga_sanpropusk',
     type: QuestType.FETCH,
     desc: 'Ольга Санпропуск: «После чистки нужен коричневый соскоб с живой петли: Маврин поддон, сырой погреб Желемышника, костяная сушилка. Соль к краю, огонь к плотоядной, пробу - мне.»',
     targetItem: 'slime_sample_brown', targetCount: 1,
-    targetFloorZ: 100,
+    targetFloor: FloorLevel.LIVING,
     targetRoomType: RoomType.STORAGE,
     targetZoneTag: 'living_fungal_loop',
     targetHint: 'Жилая зона: начните в грибной прачечной, проверьте желемышный погреб, затем берите коричневую пробу из сырого ядра Погреба Желемышника; плотоядную сушилку проходите с солью или топливом.',
@@ -159,7 +158,7 @@ registerSideQuest('ag12_olga_sanpropusk', NPC_DEFS.ag12_olga_sanpropusk, [
 registerSideQuest('ag12_valera_meshkov', NPC_DEFS.ag12_valera_meshkov, [
   {
     id: 'ag12_dirty_ration_choice',
-    giverId: getPlotNpcNumericId('ag12_valera_meshkov')!,
+    giverNpcId: 'ag12_valera_meshkov',
     type: QuestType.FETCH,
     desc: 'Валера Мешков: «Принеси две зараженные шляпки. Очередь получит еду быстро, а чистый паек пусть ждёт инспектора.»',
     targetItem: 'infected_mushroom', targetCount: 2,

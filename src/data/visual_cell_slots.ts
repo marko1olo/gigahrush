@@ -30,13 +30,13 @@ export interface VisualCellDef {
   zBand?: VisualCellZBand;
   source: VisualCellSource;
   facePolicy?: VisualCellFacePolicy;
-  modelId?: VisualModelId | readonly VisualModelId[];
+  modelId?: VisualModelId;
   merge: VisualCellMerge;
   priority: number;
   densityCost: number;
 }
 
-export const VISUAL_CELL_DEFS: readonly VisualCellDef[] = [
+export const VISUAL_CELL_DEFS = [
   {
     code: 1,
     id: 'pipe_wall_small',
@@ -508,19 +508,6 @@ export const VISUAL_CELL_DEFS: readonly VisualCellDef[] = [
     merge: 'none',
     priority: 45,
     densityCost: 1,
-  },
-  {
-    code: 36,
-    id: 'organic_tree',
-    family: 'organic',
-    anchor: 'floor',
-    mount: 'volume',
-    zBand: 'fullHeight',
-    source: 'floorCell',
-    modelId: 'organic_tree',
-    merge: 'none',
-    priority: 90,
-    densityCost: 4,
   },
 ] as const satisfies readonly VisualCellDef[];
 

@@ -4,7 +4,7 @@ import * as assert from 'node:assert/strict';
 import { ItemType, RoomType } from '../src/core/types';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { resourceForItem } from '../src/data/resources';
-import { generateSlimeNiiDesignFloor } from '../src/gen/slime_nii';
+import { generateSlimeNiiDesignFloor } from '../src/gen/design_floors/slime_nii';
 import { getRecentEvents } from '../src/systems/events';
 import { addItem, useItem } from '../src/systems/inventory';
 import {

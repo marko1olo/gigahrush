@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { msg, setMsgLocationProvider } from '../src/core/types';
+import { FloorLevel, msg, setMsgLocationProvider } from '../src/core/types';
 import { createWorldEventState, getRecentEvents, publishEvent } from '../src/systems/events';
 import { setWorldLogSpatialContext, worldLogDistanceForLocation } from '../src/systems/world_log';
 import { makeGameState } from './helpers';
 
 test('localized world log events carry distance from event coordinates', () => {
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
   setWorldLogSpatialContext({
-    z: 0,
+    floor: FloorLevel.LIVING,
     playerX: 10,
     playerY: 10,
     dist2: (ax, ay, bx, by) => (ax - bx) ** 2 + (ay - by) ** 2,
@@ -33,9 +33,9 @@ test('localized world log events carry distance from event coordinates', () => {
 });
 
 test('localized world log events fall back to actor coordinates', () => {
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
   setWorldLogSpatialContext({
-    z: 0,
+    floor: FloorLevel.LIVING,
     playerX: 10,
     playerY: 10,
     dist2: (ax, ay, bx, by) => (ax - bx) ** 2 + (ay - by) ** 2,
@@ -63,7 +63,7 @@ test('localized world log events fall back to actor coordinates', () => {
 });
 
 test('death world log facts dedupe by target id after unrelated events', () => {
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
 
   publishEvent(state, {
     type: 'npc_kill_monster',
@@ -113,9 +113,9 @@ test('death world log facts dedupe by target id after unrelated events', () => {
 });
 
 test('localized world log events fall back to zone center distance', () => {
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
   setWorldLogSpatialContext({
-    z: 0,
+    floor: FloorLevel.LIVING,
     playerX: 10,
     playerY: 10,
     dist2: (ax, ay, bx, by) => (ax - bx) ** 2 + (ay - by) ** 2,
@@ -134,16 +134,16 @@ test('localized world log events fall back to zone center distance', () => {
     assert.match(state.msgLog.at(-1)?.text ?? '', /Фракционный сдвиг: зона 55/);
     assert.equal(state.msgLog.at(-1)?.distanceMeters, 55);
     assert.equal(state.msgs.at(-1)?.distanceMeters, 55);
-    assert.equal(worldLogDistanceForLocation({ z: 14, zoneId: 54 }), undefined);
+    assert.equal(worldLogDistanceForLocation({ floor: FloorLevel.KVARTIRY, zoneId: 54 }), undefined);
   } finally {
     setWorldLogSpatialContext();
   }
 });
 
 test('territory capture faction events stay out of HUD and full log', () => {
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
   setWorldLogSpatialContext({
-    z: 0,
+    floor: FloorLevel.LIVING,
     playerX: 10,
     playerY: 10,
     dist2: (ax, ay, bx, by) => (ax - bx) ** 2 + (ay - by) ** 2,
@@ -170,9 +170,9 @@ test('territory capture faction events stay out of HUD and full log', () => {
 });
 
 test('localized world log events fall back to room center distance', () => {
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
   setWorldLogSpatialContext({
-    z: 0,
+    floor: FloorLevel.LIVING,
     playerX: 10,
     playerY: 10,
     dist2: (ax, ay, bx, by) => (ax - bx) ** 2 + (ay - by) ** 2,
@@ -196,9 +196,9 @@ test('localized world log events fall back to room center distance', () => {
 });
 
 test('localized world log events beyond hearing radius stay out of HUD and log', () => {
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
   setWorldLogSpatialContext({
-    z: 0,
+    floor: FloorLevel.LIVING,
     playerX: 10,
     playerY: 10,
     audibleRadiusMeters: 50,
@@ -223,7 +223,7 @@ test('localized world log events beyond hearing radius stay out of HUD and log',
 });
 
 test('plain messages inherit active AI actor location before log stamping', () => {
-  setMsgLocationProvider(() => ({ z: 0, x: 42, y: 10, actorId: 777 }));
+  setMsgLocationProvider(() => ({ floor: FloorLevel.LIVING, x: 42, y: 10, actorId: 777 }));
   const line = msg('Теневик убил Павел Подзалог', 1, '#f44');
   setMsgLocationProvider();
 

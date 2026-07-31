@@ -1,6 +1,6 @@
 /* ── Kostorez: readable melee elite with blade windup ─────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -12,6 +12,7 @@ export const DEF: MonsterDef = {
   dmg: 17,
   attackRate: 2.8,
   sprite: 0,
+  floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL],
   counterplay: 'Не стойте в замахе: три шага, угол или колонна срывают рывок; дробь сбивает пилы, бронелист принимает один рез.',
   lootHint: 'резаный металл, бронелист, обломок арматуры',
 };

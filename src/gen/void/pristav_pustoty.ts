@@ -1,7 +1,7 @@
 /* ── Пристав Пустоты — local VOID rule enforcer chamber ───────── */
 
 import {
-  AIGoal, Cell, ContainerKind, DoorState, EntityType, Feature, ItemType,
+  AIGoal, Cell, ContainerKind, DoorState, EntityType, Feature, FloorLevel, ItemType,
   MonsterKind, RoomType, Tex, msg,
   type Entity, type GameState, type Item, type WorldContainer, type WorldEvent, type WorldEventType,
 } from '../../core/types';
@@ -15,7 +15,6 @@ import { registerRouteCue } from '../../systems/route_cues';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { carveCorridor, findClearArea, placeDoorAt, stampRoom } from '../shared';
 import { isPlayerEntity } from '../../systems/player_actor';
-import { rng } from '../../core/rand';
 
 const PROTOCOL_ID = 'pristav_pustoty';
 const PROTOCOL_NAME = 'Пристав Пустоты';
@@ -217,7 +216,7 @@ function spawnPristavMonster(ctx: PristavContext, kind: MonsterKind, name: strin
     type: EntityType.MONSTER,
     x: cell.x + 0.5,
     y: cell.y + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, level),
@@ -417,7 +416,7 @@ function addPristavContainer(
     id,
     x: world.wrap(x),
     y: world.wrap(y),
-    z: 200,
+    floor: FloorLevel.VOID,
     roomId,
     zoneId: world.zoneMap[world.idx(x, y)],
     kind: ContainerKind.SECRET_STASH,
@@ -559,7 +558,7 @@ export function generatePristavPustoty(
     y: entranceY + 0.5,
     targetX: room.x + (room.w >> 1) + 0.5,
     targetY: room.y + 1.5,
-    z: 200,
+    floor: FloorLevel.VOID,
     roomId: room.id,
     targetRoomId: room.id,
     zoneId: world.zoneMap[world.idx(room.x + 1, entranceY)],

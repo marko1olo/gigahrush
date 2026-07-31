@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { EntityType, type GameState } from '../src/core/types';
+import { EntityType, FloorLevel, type GameState } from '../src/core/types';
 import {
   floorRunZAllowsNpcs,
   makeProceduralFloorSpec,
@@ -26,7 +26,7 @@ function socialProceduralSpec(): ProceduralFloorSpec {
     key: 'z1',
     danger: 2,
     geometryId: 'communal_knots',
-    baseFloor: 'kvartiry',
+    baseFloor: FloorLevel.KVARTIRY,
     majorityId: 'citizens',
     anomalyId: 'none',
     title: 'тестовый коммунальный процедурный этаж',
@@ -37,7 +37,7 @@ function socialProceduralSpec(): ProceduralFloorSpec {
 }
 
 function stateForSpec(spec: ProceduralFloorSpec): GameState {
-  const state = { currentZ: spec.baseFloor } as GameState;
+  const state = { currentFloor: spec.baseFloor } as GameState;
   const floorKey = `procedural:${spec.key}`;
   setFloorRunState(state, {
     runSeed: 17,
@@ -45,14 +45,14 @@ function stateForSpec(spec: ProceduralFloorSpec): GameState {
     specs: { [spec.key]: spec },
     visited: { [floorKey]: true },
   }, spec.baseFloor);
-  setAlifeState(state, { seed: 12345, total: 100_000 }, { populationPlan: 'empty_packages' });
+  setAlifeState(state, { seed: 12345, total: 100_000 });
   return state;
 }
 
 function ordinaryNpcCount(entities: readonly { type: EntityType; plotNpcId?: string; persistentNpcId?: string; alifeId?: number; questId?: number }[]): number {
   return entities.filter(entity =>
     entity.type === EntityType.NPC &&
-    !(entity as any).npcPackageId &&
+    !entity.plotNpcId &&
     !entity.persistentNpcId &&
     entity.alifeId === undefined &&
     entity.questId === -1
@@ -91,7 +91,7 @@ testGenerationMatrix('procedural route templates are suppressed when the active 
   const spec = socialProceduralSpec();
   const state = stateForSpec(spec);
   const floorKey = `procedural:${spec.key}`;
-  const alife = setAlifeState(state, { seed: 12345, total: 1 }, { populationPlan: 'empty_packages' }) as {
+  const alife = setAlifeState(state, { seed: 12345, total: 1 }) as {
     floorIndex: Record<string, number[]>;
   };
   alife.floorIndex[floorKey] = [];
@@ -106,25 +106,25 @@ testGenerationMatrix('procedural route templates are suppressed when the active 
 });
 
 testGenerationMatrix('floor 69 adult sprite templates survive A-Life materialization', () => {
-  const state = { currentZ: -26 } as GameState;
-  setFloorRunState(state, { runSeed: 17, currentZ: -4 });
-  setAlifeState(state, { seed: 12345, total: 100_000 }, { populationPlan: 'empty_packages' });
+  const state = { currentFloor: FloorLevel.MAINTENANCE } as GameState;
+  setFloorRunState(state, { runSeed: 17, currentZ: -4 }, FloorLevel.MAINTENANCE);
+  setAlifeState(state, { seed: 12345, total: 100_000 });
   const generated = generateDesignFloor('floor_69');
   const templateSprites = generated.entities.filter(entity =>
     entity.type === EntityType.NPC &&
-    !(entity as any).npcPackageId &&
+    !entity.plotNpcId &&
     entity.alifeId === undefined &&
     isFloor69FemaleSprite(entity.sprite)
   );
   const templateWorkers = generated.entities.filter(entity =>
     entity.type === EntityType.NPC &&
-    !(entity as any).npcPackageId &&
+    !entity.plotNpcId &&
     entity.alifeId === undefined &&
     entity.name?.startsWith('Этаж 69: работница ')
   );
   const templateVisitors = generated.entities.filter(entity =>
     entity.type === EntityType.NPC &&
-    !(entity as any).npcPackageId &&
+    !entity.plotNpcId &&
     entity.alifeId === undefined &&
     entity.name?.startsWith('Этаж 69: посетитель ')
   );

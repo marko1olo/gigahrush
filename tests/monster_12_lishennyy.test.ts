@@ -1,12 +1,12 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, Feature, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, Feature, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
 import { DEF, generateSprite } from '../src/entities/lishennyy';
+import { MONSTERS, MONSTER_SPRITES, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { S } from '../src/render/pixutil';
 import { setListenerPos } from '../src/systems/audio';
 import { setEntityMap, updateMonster } from '../src/systems/ai/monster';
@@ -118,8 +118,11 @@ test('Lishennyy is standalone deep light-follower content', () => {
 
   assert.equal(DEF.kind, MonsterKind.LISHENNYY);
   assert.deepEqual(DEF.aiFlags, ['lightFollower']);
+  assert.deepEqual(DEF.floors, [FloorLevel.HELL, FloorLevel.VOID]);
   assert.equal(MONSTERS[MonsterKind.LISHENNYY], DEF);
   assert.equal(MONSTER_SPRITES[MonsterKind.LISHENNYY], generateSprite);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.HELL].includes(MonsterKind.LISHENNYY), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.VOID].includes(MonsterKind.LISHENNYY), true);
   assert.equal(ecology?.rooms.includes(RoomType.CORRIDOR), true);
   assert.deepEqual(ecology?.rumorIds, ['monster_lishennyy_light_lure', 'ecology_lishennyy_contact_decay']);
   assert.equal(RUMORS.some(r => r.id === 'monster_lishennyy_light_lure'), true);
@@ -137,7 +140,7 @@ test('Lishennyy follows a dropped light decoy instead of a dark player', () => {
   const decoy = lightDrop(3, 15.5, 10.5, 'flashlight');
   const entities = [target, threat, decoy];
   const msgs: Msg[] = [];
-  const state = makeGameState({ currentZ: -36, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.VOID, worldEvents: createWorldEventState() });
 
   sync(entities);
   updateMonster(world, entities, threat, 0.2, 1, msgs, target.id, { v: 20 }, state);
@@ -156,7 +159,7 @@ test('Lishennyy light search is bounded and ignores far lightmap cells', () => {
   const target = player(10.5, 10.5);
   const threat = lishennyy(18.5, 10.5);
   const entities = [target, threat];
-  const state = makeGameState({ currentZ: -26, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.HELL, worldEvents: createWorldEventState() });
 
   sync(entities);
   updateMonster(world, entities, threat, 0.2, 2, [], target.id, { v: 20 }, state);
@@ -174,7 +177,7 @@ test('Lishennyy contact applies decay while the player stands in light', () => {
   const threat = lishennyy(11.15, 10.5);
   const entities = [target, threat];
   const msgs: Msg[] = [];
-  const state = makeGameState({ currentZ: -36, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.VOID, worldEvents: createWorldEventState() });
 
   sync(entities);
   updateMonster(world, entities, threat, 0.2, 3, msgs, target.id, { v: 20 }, state);
@@ -193,7 +196,7 @@ test('Lishennyy contact decay applies to lit NPC targets', () => {
   world.light[world.idx(10, 10)] = 0.72;
   const threat = lishennyy(11.15, 10.5);
   const entities = [target, threat];
-  const state = makeGameState({ currentZ: -26, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.HELL, worldEvents: createWorldEventState() });
 
   sync(entities);
   updateMonster(world, entities, threat, 0.2, 6, [], 1, { v: 20 }, state);

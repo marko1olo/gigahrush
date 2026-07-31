@@ -1,10 +1,10 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* ── AG62 NII slime sample post: field containers and liability ─ */
 
 import {
   ContainerKind,
   Faction,
   Feature,
+  FloorLevel,
   Occupation,
   QuestType,
   RoomType,
@@ -130,11 +130,11 @@ const SENYA_DEF: PlotNpcDef = {
 registerSideQuest(BOKOVA_ID, BOKOVA_DEF, [
   {
     id: BROWN_CLEANUP_LEAD_QUEST,
-    giverId: getPlotNpcNumericId(BOKOVA_ID)!,
+    giverNpcId: BOKOVA_ID,
     type: QuestType.FETCH,
     desc: 'Бокова: «Начни с сухого обхода: принеси акт зачистки токсичной коричневой слизи. Там же возьми пломбированную пробу, если решишь спорить с наукой, печью или рынком.»',
     targetItem: CLEANUP_ACT_ITEM, targetCount: 1,
-    targetFloorZ: 140,
+    targetFloor: FloorLevel.MAINTENANCE,
     targetRoomType: RoomType.PRODUCTION,
     targetZoneTag: 'brown_slime_cleanup',
     targetHint: 'Коллекторы: сухой обход с коричневым налётом. Акт лежит рядом с комплектом зачистки; проба нужна для сдачи, прожига или тихой продажи.',
@@ -153,11 +153,11 @@ registerSideQuest(BOKOVA_ID, BOKOVA_DEF, [
   },
   {
     id: SCIENCE_QUEST,
-    giverId: getPlotNpcNumericId(BOKOVA_ID)!,
+    giverNpcId: BOKOVA_ID,
     type: QuestType.FETCH,
     desc: 'Бокова: «Теперь принеси коричневую пробу в пломбе и не вскрывай банку в жилой зоне. НИИ запишет её как факт, а тебя как ответственного за факт.»',
     targetItem: SAMPLE_ITEM, targetCount: 1,
-    targetFloorZ: 140,
+    targetFloor: FloorLevel.MAINTENANCE,
     targetRoomType: RoomType.MEDICAL,
     targetZoneTag: 'nii_sample_post',
     targetHint: 'Коллекторы: коричневая проба из сухого обхода или выданной тары. Не вскрывать пломбу до поста НИИ.',
@@ -172,11 +172,11 @@ registerSideQuest(BOKOVA_ID, BOKOVA_DEF, [
   },
   {
     id: REPORT_QUEST,
-    giverId: getPlotNpcNumericId(BOKOVA_ID)!,
+    giverNpcId: BOKOVA_ID,
     type: QuestType.FETCH,
     desc: 'Бокова: «Если пломба уже кривая, несите заражённую пробу как нарушение хранения. Награда меньше, зато НИИ пишет рапорт, а не розыск банки.»',
     targetItem: CONTAMINATED_SAMPLE_ITEM, targetCount: 1,
-    targetFloorZ: 140,
+    targetFloor: FloorLevel.MAINTENANCE,
     targetRoomType: RoomType.MEDICAL,
     targetZoneTag: 'nii_sample_post',
     targetHint: 'Коллекторы: полевой пост НИИ. Криво запечатанную пробу сдавать Боковой по рапорту, не продавать как чистую.',
@@ -193,11 +193,11 @@ registerSideQuest(BOKOVA_ID, BOKOVA_DEF, [
 
 registerSideQuest(LIQUIDATOR_ID, SEREDA_DEF, [{
   id: LIQUIDATOR_QUEST,
-  giverId: getPlotNpcNumericId(LIQUIDATOR_ID)!,
+  giverNpcId: LIQUIDATOR_ID,
   type: QuestType.FETCH,
   desc: 'Середа: «Ту же коричневую пробу отдашь мне. Запишем как опасный остаток и сожжём без научной гордости.»',
   targetItem: SAMPLE_ITEM, targetCount: 1,
-  targetFloorZ: 140,
+  targetFloor: FloorLevel.MAINTENANCE,
   targetRoomType: RoomType.MEDICAL,
   targetZoneTag: 'nii_sample_post',
   targetHint: 'Коллекторы: после акта зачистки забери коричневую пробу и отдай ликвидатору на посту НИИ или неси дальше к печи.',
@@ -214,11 +214,11 @@ registerSideQuest(LIQUIDATOR_ID, SEREDA_DEF, [{
 registerSideQuest(MARKET_ID, SENYA_DEF, [
   {
     id: MARKET_QUEST,
-    giverId: getPlotNpcNumericId(MARKET_ID)!,
+    giverNpcId: MARKET_ID,
     type: QuestType.FETCH,
     desc: 'Сеня: «Пробу мне, пломбу целой. В журнале будет недостача, у тебя — деньги и лишний повод не задерживаться.»',
     targetItem: SAMPLE_ITEM, targetCount: 1,
-    targetFloorZ: 140,
+    targetFloor: FloorLevel.MAINTENANCE,
     targetRoomType: RoomType.MEDICAL,
     targetZoneTag: 'nii_sample_post',
     targetHint: 'Коллекторы: коричневая проба после сухого обхода. Для рынка важна целая пломба и отсутствие лишних свидетелей.',
@@ -233,11 +233,11 @@ registerSideQuest(MARKET_ID, SENYA_DEF, [
   },
   {
     id: HIDE_QUEST,
-    giverId: getPlotNpcNumericId(MARKET_ID)!,
+    giverNpcId: MARKET_ID,
     type: QuestType.FETCH,
     desc: 'Сеня: «Кривую пробу можно не продавать, а спрятать под липовым актом. Денег меньше, зато НИИ ищет бумагу, а не тебя.»',
     targetItem: CONTAMINATED_SAMPLE_ITEM, targetCount: 1,
-    targetFloorZ: 140,
+    targetFloor: FloorLevel.MAINTENANCE,
     targetRoomType: RoomType.MEDICAL,
     targetZoneTag: 'nii_sample_post',
     targetHint: 'Коллекторы: криво запечатанную пробу можно скрыть у Сени на полевом посту, если не хочешь рапорт Боковой.',
@@ -294,7 +294,7 @@ function handleSampleReturn(state: GameState, event: WorldEvent): void {
 
   publishEvent(state, {
     type: 'quest_completed',
-    z: event.z,
+    floor: event.floor,
     zoneId: event.zoneId,
     roomId: event.roomId,
     x: event.x,
@@ -341,8 +341,7 @@ function addContainer(
     id: nextContainerId(ctx),
     x: wx,
     y: wy,
-    // @ts-ignore
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     roomId: room.id,
     zoneId: ctx.world.zoneMap[ci],
     ...container,
@@ -366,7 +365,6 @@ function dressPost(ctx: MaintContentCtx, room: Room): void {
 }
 
 function addSampleContainers(ctx: MaintContentCtx, room: Room, ownerNpcId: number): void {
-  // @ts-ignore
   addContainer(ctx, room, room.x + 2, room.y + room.h - 4, {
     kind: ContainerKind.MEDICAL_CABINET,
     name: 'Выдачный ящик порожней тары НИИ',
@@ -382,7 +380,6 @@ function addSampleContainers(ctx: MaintContentCtx, room: Room, ownerNpcId: numbe
     tags: [CONTENT_TAG, 'nii', 'slime', 'sample', 'equipment', 'public', 'issue'],
   });
 
-  // @ts-ignore
   addContainer(ctx, room, room.x + room.w - 3, room.y + 3, {
     kind: ContainerKind.MEDICAL_CABINET,
     name: 'Шкаф проб Боковой, форма 728/01-Д',

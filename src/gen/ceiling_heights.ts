@@ -26,11 +26,6 @@ import { Cell, type Room, RoomType, W } from '../core/types';
  * `t` to height `1 + t*0.5`.
  */
 
-
-export function getCeilingHeightForTier(tier: number): number {
-  return 1.0 + tier * 0.5;
-}
-
 const TIER_ROOM = 0;
 const TIER_CORRIDOR = 1;
 const TIER_LARGE = 2;
@@ -92,25 +87,21 @@ export function stampCeilingHeights(world: World): void {
       // If a global ceiling is used (like the sky), do not let the walls rise to the sky level.
       // Instead, assign a deterministic pseudo-random height to create a varied skyline of parapets.
       if (world.globalCeilingTier !== undefined && m === world.globalCeilingTier) {
-        if (world.hasOpenSky) {
-          m = TIER_ROOM; // Disable varied skyline and tall walls when sky is explicitly open
+        const rid = roomMap[i];
+        if (rid >= 0) {
+          // If the wall belongs to a room, use a consistent height for the whole room
+          const hash = (rid * 113) % 100;
+          if (hash < 15) m = TIER_GRAND;
+          else if (hash < 40) m = TIER_LARGE;
+          else if (hash < 75) m = TIER_CORRIDOR;
+          else m = TIER_ROOM;
         } else {
-          const rid = roomMap[i];
-          if (rid >= 0) {
-            // If the wall belongs to a room, use a consistent height for the whole room
-            const hash = (rid * 113) % 100;
-            if (hash < 15) m = TIER_GRAND;
-            else if (hash < 40) m = TIER_LARGE;
-            else if (hash < 75) m = TIER_CORRIDOR;
-            else m = TIER_ROOM;
-          } else {
-            // For abyss walls with no room, use a chunked spatial hash
-            const hash = ((x >> 3) * 73 + (y >> 3) * 13) % 100;
-            if (hash < 10) m = TIER_GRAND;
-            else if (hash < 30) m = TIER_LARGE;
-            else if (hash < 65) m = TIER_CORRIDOR;
-            else m = TIER_ROOM;
-          }
+          // For abyss walls with no room, use a chunked spatial hash
+          const hash = ((x >> 3) * 73 + (y >> 3) * 13) % 100;
+          if (hash < 10) m = TIER_GRAND;
+          else if (hash < 30) m = TIER_LARGE;
+          else if (hash < 65) m = TIER_CORRIDOR;
+          else m = TIER_ROOM;
         }
       }
       

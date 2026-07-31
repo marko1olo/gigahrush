@@ -5,7 +5,7 @@ import { Faction, ItemType } from '../src/core/types';
 import { ITEMS, WEAPON_ROLE_TIERS, WEAPON_STATS } from '../src/data/catalog';
 import { ITEM_TAGS } from '../src/data/items';
 import { resourceForItem } from '../src/data/resources';
-import { generateProductionBeltDesignFloor } from '../src/gen/production_belt';
+import { generateProductionBeltDesignFloor } from '../src/gen/design_floors/production_belt';
 import { containerAccessInfo } from '../src/systems/containers';
 import { makeTestPlayer } from './helpers';
 

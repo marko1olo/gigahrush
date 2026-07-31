@@ -1,13 +1,13 @@
-import { getPlotNpcCount } from '../src/data/npc_packages';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SeedRng, _overrideRng, _restoreRng } from '../src/core/rand';
+import { SeedRng } from '../src/core/rand';
 
 import { World } from '../src/core/world';
 import {
   Cell,
   EntityType,
   Faction,
+  FloorLevel,
   Occupation,
   type Entity,
 } from '../src/core/types';
@@ -54,13 +54,14 @@ function patrolWorld(): World {
 }
 
 function withRandom<T>(value: number, run: () => T): T {
+  const originalMath = Math.random;
   const originalSeed = SeedRng.prototype.random;
   try {
-    _overrideRng(() => value);
+    Math.random = () => value;
     SeedRng.prototype.random = () => value;
     return run();
   } finally {
-    _restoreRng();
+    Math.random = originalMath;
     SeedRng.prototype.random = originalSeed;
   }
 }
@@ -69,17 +70,17 @@ test('samosbor extra patrol is a fixed-pool A-Life migration, not anonymous refi
   initFactionRelations();
   const state = makeGameState({
     time: 100,
-    currentZ: 2,
+    currentFloor: FloorLevel.LIVING,
     samosborActive: true,
     samosborCount: 7,
     worldEvents: createWorldEventState(),
   });
-  state.floorRun!.runSeed = 7;
-  setAlifeState(state, { seed: 223344, total: 100_000 }, { populationPlan: 'empty_packages' });
+  setFloorRunState(state, { runSeed: 7, currentZ: 0, specs: {}, visited: {} }, FloorLevel.LIVING);
+  setAlifeState(state, { seed: 223344, total: 100_000 });
   const world = patrolWorld();
   const player = makeTestPlayer({ id: 1, x: 10.5, y: 10.5 });
   const entities: Entity[] = [player];
-  const nextId = { v: getPlotNpcCount() + 1000 };
+  const nextId = { v: 30 };
   const result = withRandom(0.99, () => 
     tickSamosborDirector(world, entities, state, nextId, classicVariant(), 'active_cadence')
   );
@@ -92,8 +93,8 @@ test('samosbor extra patrol is a fixed-pool A-Life migration, not anonymous refi
 
   const event = getRecentEvents(state, { tags: ['samosbor', 'alife_migration'], limit: 1 })[0];
   assert.ok(event);
-  assert.equal(event.data?.fromFloorKey, 'design:ministry');
-  assert.equal(event.data?.toFloorKey, 'design:moebius_podezd');
+  assert.equal(event.data?.fromFloorKey, 'story:ministry');
+  assert.equal(event.data?.toFloorKey, 'story:living');
   assert.equal(event.data?.reason, 'samosbor');
   assert.equal(event.data?.intent, 'active_liquidator_patrol');
   assert.deepEqual(event.data?.alifeIds, patrol.map(e => e.alifeId));
@@ -103,13 +104,13 @@ test('samosbor extra patrol fails instead of spawning when no A-Life identities 
   initFactionRelations();
   const state = makeGameState({
     time: 100,
-    currentZ: 2,
+    currentFloor: FloorLevel.LIVING,
     samosborActive: true,
     samosborCount: 8,
     worldEvents: createWorldEventState(),
   });
-  state.floorRun!.runSeed = 8;
-  setAlifeState(state, { seed: 334455, total: ALIFE_POPULATION_CAPACITY }, { populationPlan: 'empty_packages' });
+  setFloorRunState(state, { runSeed: 8, currentZ: 0, specs: {}, visited: {} }, FloorLevel.LIVING);
+  setAlifeState(state, { seed: 334455, total: ALIFE_POPULATION_CAPACITY });
   debugMarkAllAlifeNpcRecordsTouched(state);
   const world = patrolWorld();
   const player = makeTestPlayer({ id: 1, x: 10.5, y: 10.5 });

@@ -1,4 +1,3 @@
-import { currentFloorRunEntry } from './procedural_floors';
 /* ── Seroburmaline visual-risk residue ──────────────────────────
  * Runtime state stays here; render reads only the HUD snapshot.
  */
@@ -6,6 +5,7 @@ import { currentFloorRunEntry } from './procedural_floors';
 import {
   Cell,
   Feature,
+  FloorLevel,
   type Entity,
   type GameState,
   type Room,
@@ -40,7 +40,7 @@ interface SeroburmalineSource {
   x: number;
   y: number;
   roomId: number;
-  roomDefId: string;
+  roomName: string;
   covered: boolean;
 }
 
@@ -115,7 +115,7 @@ function sourceAtCell(world: World, x: number, y: number, includeCovered: boolea
 
   const active = world.features[ci] === SEROBURMALINE_ACTIVE_FEATURE;
   if (!active && !includeCovered) return null;
-  return { x: wx, y: wy, roomId, roomDefId: room.name, covered: !active };
+  return { x: wx, y: wy, roomId, roomName: room.name, covered: !active };
 }
 
 export function seroburmalineSourceCellState(world: World, x: number, y: number): 'active' | 'covered' | '' {
@@ -203,7 +203,7 @@ function publishSeroburmalineEvent(
       outcome,
       sourceX: source.x,
       sourceY: source.y,
-      roomDefId: source.roomDefId,
+      roomName: source.roomName,
       psi: player.rpg?.psi,
     },
   });
@@ -211,7 +211,7 @@ function publishSeroburmalineEvent(
 
 export function updateSeroburmalineExposure(world: World, player: Entity, state: GameState, dt: number): void {
   const rt = runtimeFor(state);
-  if (!currentFloorRunEntry(state)!.themeTags.includes('maintenance') || !player.alive) {
+  if (state.currentFloor !== FloorLevel.MAINTENANCE || !player.alive) {
     fadeRuntime(rt, dt);
     return;
   }
@@ -310,7 +310,7 @@ export function tryCoverSeroburmalineSource(
   lookY: number,
   toolId?: string,
 ): boolean {
-  if (currentFloorRunEntry(state)!.themeTags.includes('maintenance') || !isPlayerEntity(player)) return false;
+  if (state.currentFloor !== FloorLevel.MAINTENANCE || !isPlayerEntity(player)) return false;
   const source = sourceAtCell(world, Math.floor(lookX), Math.floor(lookY), true);
   if (!source) return false;
 

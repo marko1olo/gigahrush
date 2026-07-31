@@ -6,6 +6,7 @@ import {
   Cell,
   EntityType,
   Faction,
+  FloorLevel,
   MonsterKind,
   type Entity,
   type Msg,
@@ -23,7 +24,6 @@ import { activateInteraction, findInteractionTarget } from '../src/systems/inter
 import { rebuildEntityIndex } from '../src/systems/entity_index';
 import { setEntityMap, updateMonster } from '../src/systems/ai/monster';
 import { makeGameState, makeTestPlayer } from './helpers';
-import { _overrideRng, _restoreRng } from '../src/core/rand';
 
 function openWorld(): World {
   const world = new World();
@@ -85,6 +85,7 @@ test('gnilushka definition, ecology, rumors, and sprite read as a rare defensive
 
   assert.equal(DEF.kind, MonsterKind.GNILUSHKA);
   assert.deepEqual(DEF.aiFlags, ['defensiveNeutral']);
+  assert.deepEqual(DEF.floors, [FloorLevel.LIVING, FloorLevel.KVARTIRY]);
   assert.equal(ecology?.rare, true);
   assert.equal((ecology?.spawnWeight ?? 1) < 0.25, true);
   assert.match(DEF.counterplay ?? '', /Не загоняйте|тара НИИ|рани/);
@@ -107,7 +108,7 @@ test('gnilushka interaction supports help and noncombat NII handoff', () => {
   });
   const target = gnilushka(2, 12.0, 10.5);
   const entities = [player, target];
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
   const nextEntityId = { v: 3 };
 
   prime(entities);
@@ -136,7 +137,7 @@ test('gnilushka flees while calm and only turns dangerous after being hurt and c
   const player = makeTestPlayer({ id: 1, x: 10.5, y: 10.5, weapon: 'knife', hp: 80, maxHp: 80 });
   const calm = gnilushka(2, 12.2, 10.5);
   const entities = [player, calm];
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
   const msgs: Msg[] = [];
 
   assert.equal(isHostile(player, calm), false);
@@ -153,7 +154,7 @@ test('gnilushka flees while calm and only turns dangerous after being hurt and c
   const hurt = gnilushka(11, 20.5, 20.5);
   hurt.hp = (hurt.maxHp ?? DEF.hp) - 5;
   const cornerEntities = [cornerPlayer, hurt];
-  const cornerState = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const cornerState = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
   prime(cornerEntities);
   updateMonster(cornerWorld, cornerEntities, hurt, 0.2, 2, [], cornerPlayer.id, { v: 12 }, cornerState);
 
@@ -179,13 +180,14 @@ test('living lost cell spawns reachable gnilushka content and handoff supplies',
   };
   world.cells[world.idx(90, 55)] = Cell.FLOOR;
   const entities: Entity[] = [];
-  const nextId = { v: getPlotNpcCount() + 1 }
-  _overrideRng(() => 0);
+  const nextId = { v: 1 };
+  const oldRandom = Math.random;
+  Math.random = () => 0;
   try {
     const result = generateGnilushkaLostCell(world, 0, entities, nextId, 50, 50);
     assert.equal(result.nextRoomId > 0, true);
   } finally {
-    _restoreRng();
+    Math.random = oldRandom;
   }
 
   const room = world.rooms.find(candidate => candidate?.name === 'Потерянная ячейка Гнилушки');

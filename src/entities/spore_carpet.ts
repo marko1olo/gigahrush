@@ -1,6 +1,6 @@
 /* ── Spore Carpet: domestic lurking rug trap ─────────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.4,
   sprite: 0,
   aiFlags: ['lurkingFurniture'],
+  floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
   counterplay: 'Смотрите на поднятые углы и зеленые жилы: обходите проем, жгите с дистанции или держите фильтр до пересечения ковра.',
   lootHint: 'плесневелая бахрома, споровый отпечаток, редкий фильтрующий слой из старой подкладки',
 };

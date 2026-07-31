@@ -1,5 +1,5 @@
 import { hashSeed } from '../core/rand';
-import { } from '../core/types';
+import { FloorLevel } from '../core/types';
 import type { FloorThemeProfile } from './floor_theme_profiles';
 import {
   selectVisualCorridorCovering,
@@ -207,7 +207,7 @@ export interface VisualGeometryThemeModulation {
 export const VISUAL_GEOMETRY_THEME_MODULATIONS: readonly VisualGeometryThemeModulation[] = [
   {
     id: 'maintenance_pipes_cables',
-    floorKeys: ['design:maintenance'],
+    floorKeys: ['story:maintenance'],
     requiredTags: ['maintenance'],
     instanceMul: 1.1,
     triangleMul: 1.08,
@@ -290,7 +290,7 @@ export function visualGeometryThemeTags(theme: FloorThemeProfile): readonly stri
   const tags = new Set<string>();
   tags.add(theme.kind);
   tags.add(`kind_${theme.kind}`);
-  const floorName = (theme.themeTags && theme.themeTags[0]) || 'floor';
+  const floorName = (FloorLevel[theme.themeClass] ?? 'floor').toLowerCase();
   tags.add(floorName);
   tags.add(`floor_${floorName}`);
   tags.add(`danger_${theme.danger}`);
@@ -305,15 +305,15 @@ export function visualGeometryThemeTags(theme: FloorThemeProfile): readonly stri
     else if (depth >= 12) tags.add('mid_route');
     else tags.add('near_route');
   }
-  if (theme.themeTags.includes('living') || theme.themeTags.includes('kvartiry')) tags.add('residential');
-  if (theme.themeTags.includes('ministry')) tags.add('documents');
-  if (theme.themeTags.includes('maintenance')) {
+  if (theme.themeClass === FloorLevel.LIVING || theme.themeClass === FloorLevel.KVARTIRY) tags.add('residential');
+  if (theme.themeClass === FloorLevel.MINISTRY) tags.add('documents');
+  if (theme.themeClass === FloorLevel.MAINTENANCE) {
     tags.add('maintenance');
     tags.add('industrial');
     tags.add('water');
   }
-  if (theme.themeTags.includes('hell')) tags.add('meat');
-  if (theme.themeTags.includes('void')) tags.add('void');
+  if (theme.themeClass === FloorLevel.HELL) tags.add('meat');
+  if (theme.themeClass === FloorLevel.VOID) tags.add('void');
   return [...tags].sort();
 }
 

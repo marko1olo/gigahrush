@@ -3,6 +3,7 @@ import {
   Cell,
   EntityType,
   Feature,
+  FloorLevel,
   W,
   type Entity,
   type GameState,
@@ -18,9 +19,6 @@ import { ALIFE_POPULATION_CAPACITY } from '../data/alife_population_plan';
 import { occupationHasRoutineTag } from '../data/occupation_profiles';
 import { DESIGN_FLOOR_ROUTES } from '../data/design_floors';
 import {
-  getPlotNpcStringId,
-} from '../data/npc_packages';
-import {
   anomalyById,
   majorityById,
   type ProceduralFloorSpec,
@@ -28,6 +26,7 @@ import {
 import {
   themeForDesignRoute,
   themeForProceduralSpec,
+  themeForStoryFloor,
 } from '../data/floor_theme_profiles';
 import {
   alifeNpcRecordCount,
@@ -141,7 +140,7 @@ export interface AlifeMobilitySaveState {
 
 interface RouteInfo {
   floorKey: string;
-  themeTags: readonly string[];
+  baseFloor: FloorLevel;
   z?: number;
   danger: 1 | 2 | 3 | 4 | 5;
   npcAllowed: boolean;
@@ -165,6 +164,14 @@ type MobilityHost = GameState & { alifeMobility?: AlifeMobilityState; alifeMigra
 
 const anchorCache = new WeakMap<World, AnchorCache>();
 
+const STORY_ROUTE_INFO: readonly RouteInfo[] = [
+  storyRouteInfo(FloorLevel.MINISTRY),
+  storyRouteInfo(FloorLevel.KVARTIRY),
+  storyRouteInfo(FloorLevel.LIVING),
+  storyRouteInfo(FloorLevel.MAINTENANCE),
+  storyRouteInfo(FloorLevel.HELL),
+  storyRouteInfo(FloorLevel.VOID),
+];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -200,13 +207,24 @@ function uniqueTags(tags: readonly string[], cap = 16): readonly string[] {
   return out;
 }
 
+function storyRouteInfo(floor: FloorLevel): RouteInfo {
+  const theme = themeForStoryFloor(floor);
+  return {
+    floorKey: theme.floorKey,
+    baseFloor: floor,
+    z: theme.routeZ,
+    danger: theme.danger,
+    npcAllowed: theme.npcAllowed,
+    tags: uniqueTags(['story', ...theme.specialContentTags, ...theme.economyTags, ...theme.objectProfileTags, ...theme.monsterPressureTags]),
+  };
+}
+
 function designRouteInfo(): RouteInfo[] {
-  // @ts-ignore
   return DESIGN_FLOOR_ROUTES.map(route => {
     const theme = themeForDesignRoute(route);
     return {
       floorKey: theme.floorKey,
-      themeTags: route.themeTags,
+      baseFloor: route.baseFloor,
       z: route.z,
       danger: route.danger,
       npcAllowed: theme.npcAllowed,
@@ -222,7 +240,7 @@ function proceduralRouteInfo(specs: Record<string, ProceduralFloorSpec>): RouteI
     const anomaly = anomalyById(spec.anomalyId);
     return {
       floorKey: theme.floorKey,
-      themeTags: spec.themeTags,
+      baseFloor: spec.baseFloor,
       z: spec.z,
       danger: spec.danger,
       npcAllowed: theme.npcAllowed,
@@ -245,7 +263,7 @@ function proceduralRouteInfo(specs: Record<string, ProceduralFloorSpec>): RouteI
 
 function routeContext(state: GameState): RouteInfo[] {
   const run = ensureFloorRunState(state);
-  return [...designRouteInfo(), ...proceduralRouteInfo(run.specs)];
+  return [...STORY_ROUTE_INFO, ...designRouteInfo(), ...proceduralRouteInfo(run.specs)];
 }
 
 function createMobilityState(): AlifeMobilityState {
@@ -447,25 +465,22 @@ function pickIntent(seed: number, time: number, record: AlifeNpcSnapshot, cursor
 
 function selectorMatches(route: RouteInfo, selector: AlifeDestinationSelector): boolean {
   if (selector.allowsNpcOnly !== false && !route.npcAllowed) return false;
-  const absZ = Math.abs(route.z ?? 0);
   if (selector.floorKeys?.includes(route.floorKey)) return true;
-  // @ts-ignore
-  if (selector.themeTags?.some(t => route.themeTags?.includes(t))) {
-    
-    // @ts-ignore
+  if (selector.baseFloors?.includes(route.baseFloor)) {
+    const absZ = Math.abs(route.z ?? 0);
+    if (selector.minAbsZ !== undefined && absZ < selector.minAbsZ) return false;
     if (selector.maxAbsZ !== undefined && absZ > selector.maxAbsZ) return false;
     return true;
   }
   if (selector.routeTags?.some(tag => route.tags.includes(tag))) {
-    
-    // @ts-ignore
+    const absZ = Math.abs(route.z ?? 0);
+    if (selector.minAbsZ !== undefined && absZ < selector.minAbsZ) return false;
     if (selector.maxAbsZ !== undefined && absZ > selector.maxAbsZ) return false;
     return true;
   }
-  // @ts-ignore
-  if (!selector.floorKeys?.length && !selector.themeTags?.length && !selector.routeTags?.length) {
-    
-    // @ts-ignore
+  if (!selector.floorKeys?.length && !selector.baseFloors?.length && !selector.routeTags?.length) {
+    const absZ = Math.abs(route.z ?? 0);
+    if (selector.minAbsZ !== undefined && absZ < selector.minAbsZ) return false;
     if (selector.maxAbsZ !== undefined && absZ > selector.maxAbsZ) return false;
     return true;
   }
@@ -486,7 +501,7 @@ function resolveDestination(
   const source = resolveRoute(context, record.floorKey);
   const candidates = context.filter(route => {
     if (route.floorKey === record.floorKey) return false;
-    if (route.themeTags.includes('void')) return false;
+    if (route.baseFloor === FloorLevel.VOID) return false;
     if (!selectorMatches(route, intent.destination)) return false;
     if (intent.maxRisk !== undefined) {
       const sourceRisk = source?.danger ?? 3;
@@ -1061,13 +1076,7 @@ export function processAlifePendingArrivals(
 function canStartDeparture(state: GameState, entity: Entity, reason: AlifeMigrationReason): boolean {
   if (!entity.alive || entity.type !== EntityType.NPC || entity.alifeId === undefined) return false;
   if (isPlayerEntity(entity) || isNativePlayerBodyEntity(entity) || entity.persistentNpcId === 'player') return false;
-  if (
-    ('npcPackageId' in entity && (entity as any).npcPackageId !== undefined) ||
-    (typeof entity.persistentNpcId === 'string' && entity.persistentNpcId !== 'player' && !entity.persistentNpcId.startsWith('alife:')) ||
-    (entity.id !== undefined && getPlotNpcStringId(entity.id) !== undefined && entity.alifeId === undefined && !entity.persistentNpcId?.startsWith('alife:'))
-  ) {
-    return false;
-  }
+  if (entity.plotNpcId) return false;
   if (entity.questId !== undefined && entity.questId !== -1) return false;
   if (entity.canGiveQuest === true) return false;
   if (state.showNpcMenu && state.npcMenuTarget === entity.id) return false;

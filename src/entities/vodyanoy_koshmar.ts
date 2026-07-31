@@ -1,6 +1,6 @@
 /* ── Vodyanoy Koshmar: water-line PSI predator ───────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.2,
   sprite: 0,
   aiFlags: ['waterPressureLine'],
+  floors: [FloorLevel.MAINTENANCE],
   counterplay: 'Сухой бетон рвет мокрую ПСИ-линию: не пятитесь по воде, переходите на сухую кромку и бейте коротким burst, пока давление сбито.',
   lootHint: 'мокрый ПСИ-налет, вода с привкусом металла, редкая ПСИ-пыль из сливного лица',
 };

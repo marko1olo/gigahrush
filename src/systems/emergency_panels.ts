@@ -40,7 +40,6 @@ import { applyInfrastructureRelationResponse } from './factions';
 import { territoryFactionAt } from './territory';
 import { setDoorState } from './door_state';
 import { ENTITY_MASK_NPC, ensureEntityIndex } from './entity_index';
-import { rng, mathRng } from '../core/rand';
 
 type PanelAction = Exclude<EmergencyPanelActionId, 'leave'>;
 type PanelStatus = 'idle' | 'repaired' | 'shutdown' | 'forced' | 'overloaded';
@@ -456,10 +455,10 @@ function stampNoise(world: World, panel: EmergencyPanelInstance, action: PanelAc
 }
 
 function monsterKindForPanel(domain: EmergencyPanelDomain): MonsterKind {
-  if (domain === 'power') return rng() < 0.55 ? MonsterKind.LAMPOVY : MonsterKind.ROBOT;
-  if (domain === 'water') return rng() < 0.55 ? MonsterKind.TUBE_EEL : MonsterKind.POLZUN;
-  if (domain === 'doors') return rng() < 0.55 ? MonsterKind.REBAR : MonsterKind.SHOVNIK;
-  return rng() < 0.55 ? MonsterKind.SHADOW : MonsterKind.EYE;
+  if (domain === 'power') return Math.random() < 0.55 ? MonsterKind.LAMPOVY : MonsterKind.ROBOT;
+  if (domain === 'water') return Math.random() < 0.55 ? MonsterKind.TUBE_EEL : MonsterKind.POLZUN;
+  if (domain === 'doors') return Math.random() < 0.55 ? MonsterKind.REBAR : MonsterKind.SHOVNIK;
+  return Math.random() < 0.55 ? MonsterKind.SHADOW : MonsterKind.EYE;
 }
 
 function spawnPanelThreat(
@@ -473,9 +472,9 @@ function spawnPanelThreat(
   const candidates = rooms.filter(room => room.type !== RoomType.BATHROOM && room.w >= 3 && room.h >= 3);
   if (candidates.length === 0) return 0;
   for (let attempt = 0; attempt < 80; attempt++) {
-    const room = candidates[Math.floor(rng() * candidates.length)];
-    const x = world.wrap(room.x + 1 + Math.floor(rng() * Math.max(1, room.w - 2)));
-    const y = world.wrap(room.y + 1 + Math.floor(rng() * Math.max(1, room.h - 2)));
+    const room = candidates[Math.floor(Math.random() * candidates.length)];
+    const x = world.wrap(room.x + 1 + Math.floor(Math.random() * Math.max(1, room.w - 2)));
+    const y = world.wrap(room.y + 1 + Math.floor(Math.random() * Math.max(1, room.h - 2)));
     if (world.solid(x, y) || world.dist2(player.x, player.y, x + 0.5, y + 0.5) < 7 * 7) continue;
     const kind = monsterKindForPanel(def.domain);
     const monsterDef = MONSTERS[kind];
@@ -486,7 +485,7 @@ function spawnPanelThreat(
       type: EntityType.MONSTER,
       x: x + 0.5,
       y: y + 0.5,
-      angle: mathRng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       pitch: 0,
       alive: true,
       speed: monsterDef.speed,
@@ -511,7 +510,7 @@ function spawnPanelInspector(
   entities: Entity[],
   owner: Faction | null,
 ): number {
-  if (owner === null || owner === Faction.PLAYER || rng() > 0.35) return 0;
+  if (owner === null || owner === Faction.PLAYER || Math.random() > 0.35) return 0;
   const room = panel.roomId >= 0 ? world.rooms[panel.roomId] : undefined;
   if (!room) return 0;
   let best: Entity | null = null;
@@ -520,7 +519,7 @@ function spawnPanelInspector(
   const ty = panel.y + 0.5;
   for (const npc of entities) {
     if (!npc.alive || npc.type !== EntityType.NPC || !npc.ai || npc.faction !== owner) continue;
-    if (npc.id || npc.canGiveQuest || (npc.questId !== undefined && npc.questId !== -1)) continue;
+    if (npc.plotNpcId || npc.canGiveQuest || (npc.questId !== undefined && npc.questId !== -1)) continue;
     if (world.zoneMap[world.idx(Math.floor(npc.x), Math.floor(npc.y))] !== panel.zoneId) continue;
     const d2 = world.dist2(tx, ty, npc.x, npc.y);
     if (d2 >= bestD2) continue;

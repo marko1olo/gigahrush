@@ -1,13 +1,13 @@
 /* ── Procedural quest system ──────────────────────────────────── */
 
-import { getPlotNpcNumericId, getPlotNpcStringId } from '../data/npc_packages';
 import {
   type Entity, type Quest, type GameState, type Msg, type Room,
   QuestType, EntityType, Occupation, MonsterKind, Faction,
-  RoomType, Cell, AIGoal, W, ZoneFaction, msg,
+  RoomType, Cell, AIGoal, W, ZoneFaction, FloorLevel,
+  msg,
 } from '../core/types';
 import { World } from '../core/world';
-import { rng } from '../core/rand';
+import { secureRandom } from '../core/rand';
 import { ITEMS } from '../data/catalog';
 import { isSilverSlimeItem, SILVER_SLIME_SEALED_ID } from '../data/items';
 import { craftRecipeSourcesForQuest, getCraftRecipeSource } from '../data/craft_recipe_sources';
@@ -30,7 +30,7 @@ import {
   type KillPressureDef,
   type PlotStep,
 } from '../data/plot';
-import type { StoryQuestOutcomeDef, StoryQuestSelector } from '../data/plot_outcomes';
+import type { StoryQuestOutcomeDef, StoryQuestSelector } from '../data/story_outcomes';
 import {
   CONTRACTS,
   GOVNYAK_COURIER_PACKAGE_ITEM,
@@ -103,6 +103,8 @@ import { territoryOwnerAtIndex } from './territory';
 
 type EntityIndex = {
   byId: Map<number, Entity>;
+  byPlotLive: Map<string, Entity>;
+  byPlotAll: Map<string, Entity>;
   byMonLive: Map<MonsterKind, Entity>;
 };
 
@@ -111,13 +113,16 @@ let _currentIndex: EntityIndex | undefined = undefined;
 function buildEntityIndex(entities: readonly Entity[]): EntityIndex {
   const index = {
     byId: new Map<number, Entity>(),
-    
-    
+    byPlotLive: new Map<string, Entity>(),
+    byPlotAll: new Map<string, Entity>(),
     byMonLive: new Map<MonsterKind, Entity>()
   };
   for (const e of entities) {
     index.byId.set(e.id, e);
-    
+    if (e.type === EntityType.NPC && e.plotNpcId) {
+      if (!index.byPlotAll.has(e.plotNpcId)) index.byPlotAll.set(e.plotNpcId, e);
+      if (e.alive && !index.byPlotLive.has(e.plotNpcId)) index.byPlotLive.set(e.plotNpcId, e);
+    }
     if (e.type === EntityType.MONSTER && e.alive && e.monsterKind !== undefined && !index.byMonLive.has(e.monsterKind)) {
       index.byMonLive.set(e.monsterKind, e);
     }
@@ -129,13 +134,13 @@ function findById(entities: readonly Entity[], id: number) {
   if (_currentIndex) return _currentIndex.byId.get(id);
   return entities.find(e => e.id === id);
 }
-function findByPlotLive(entities: readonly Entity[], plotId: number) {
-  const e = findById(entities, plotId);
-  return (e?.type === EntityType.NPC && e.alive) ? e : undefined;
+function findByPlotLive(entities: readonly Entity[], plotId: string) {
+  if (_currentIndex) return _currentIndex.byPlotLive.get(plotId);
+  return entities.find(e => e.type === EntityType.NPC && e.plotNpcId === plotId && e.alive);
 }
-function findByPlotAll(entities: readonly Entity[], plotId: number) {
-  const e = findById(entities, plotId);
-  return e?.type === EntityType.NPC ? e : undefined;
+function findByPlotAll(entities: readonly Entity[], plotId: string) {
+  if (_currentIndex) return _currentIndex.byPlotAll.get(plotId);
+  return entities.find(e => e.type === EntityType.NPC && e.plotNpcId === plotId);
 }
 function findMonLive(entities: readonly Entity[], kind: MonsterKind) {
   if (_currentIndex) return _currentIndex.byMonLive.get(kind);
@@ -152,7 +157,7 @@ export interface CurrentObjective {
   questId?: number;
   plotStepIndex?: number;
   targetEntityId?: number;
-  targetNpcId?: number;
+  targetPlotNpcId?: string;
   color: string;
 }
 
@@ -165,10 +170,10 @@ export interface NpcQuestMarkerState {
 }
 
 interface AuthoredQuestMeta {
-  targetFloorZ?: number;
+  targetFloor?: FloorLevel;
   targetRoute?: QuestRouteTarget;
   targetRoomType?: number;
-  targetRoomDefId?: string;
+  targetRoomName?: string;
   targetZoneTag?: string;
   targetHint?: string;
   eventTags?: string[];
@@ -176,7 +181,7 @@ interface AuthoredQuestMeta {
   eventPrivacy?: Quest['eventPrivacy'];
   eventSeverity?: Quest['eventSeverity'];
   eventTargetName?: string;
-  failOnNpcDeathId?: number;
+  failOnNpcDeathPlotId?: string;
   abandonsSideQuestIds?: string[];
   timeLimitMinutes?: number;
   holdSeconds?: number;
@@ -188,10 +193,10 @@ interface AuthoredQuestMeta {
 
 function authoredQuestMeta(step: AuthoredQuestMeta, state: GameState): Partial<Quest> {
   const meta: Partial<Quest> = {};
-  if (step.targetFloorZ !== undefined) meta.targetFloorZ = step.targetFloorZ;
+  if (step.targetFloor !== undefined) meta.targetFloor = step.targetFloor;
   if (step.targetRoute) meta.targetRoute = { ...step.targetRoute };
   if (step.targetRoomType !== undefined) meta.targetRoomType = step.targetRoomType as RoomType;
-  if (step.targetRoomDefId) meta.targetRoomDefId = step.targetRoomDefId;
+  if (step.targetRoomName) meta.targetRoomName = step.targetRoomName;
   if (step.targetZoneTag) meta.targetZoneTag = step.targetZoneTag;
   if (step.targetHint) meta.targetHint = step.targetHint;
   if (step.eventTags?.length) meta.eventTags = [...step.eventTags];
@@ -199,7 +204,7 @@ function authoredQuestMeta(step: AuthoredQuestMeta, state: GameState): Partial<Q
   if (step.eventPrivacy) meta.eventPrivacy = step.eventPrivacy;
   if (step.eventSeverity !== undefined) meta.eventSeverity = step.eventSeverity;
   if (step.eventTargetName) meta.eventTargetName = step.eventTargetName;
-  if (step.failOnNpcDeathId) meta.failOnNpcDeathId = step.failOnNpcDeathId;
+  if (step.failOnNpcDeathPlotId) meta.failOnNpcDeathPlotId = step.failOnNpcDeathPlotId;
   if (step.abandonsSideQuestIds?.length) meta.abandonsSideQuestIds = [...step.abandonsSideQuestIds];
   if (step.timeLimitMinutes !== undefined) {
     meta.timeLimitMinutes = step.timeLimitMinutes;
@@ -252,7 +257,7 @@ function proceduralQuestSpeechLine(
 }
 
 function visitNeedsConcreteTarget(q: Quest): boolean {
-  return q.targetRoom !== undefined || q.targetRoomType !== undefined || q.targetRoomDefId !== undefined || q.targetZoneTag !== undefined;
+  return q.targetRoom !== undefined || q.targetRoomType !== undefined || q.targetRoomName !== undefined || q.targetZoneTag !== undefined;
 }
 
 function checkVisitQuestAtPlayer(q: Quest, player: Entity, world: World, state: GameState): boolean {
@@ -264,7 +269,7 @@ function checkVisitQuestAtPlayer(q: Quest, player: Entity, world: World, state: 
     return !!room && resolved !== undefined && room.id === resolved.room.id;
   }
 
-  if (q.visitFloorZ !== undefined) return isQuestTargetOnCurrentFloor(q, state);
+  if (q.visitFloor !== undefined) return isQuestTargetOnCurrentFloor(q, state);
   if (q.targetRoom !== undefined) {
     const room = world.roomAt(player.x, player.y);
     return !!room && room.id === q.targetRoom;
@@ -278,7 +283,7 @@ export function reassignQuestGivers(entities: Entity[]): void {
     if (e.type !== EntityType.NPC || !e.alive) continue;
     if (isPlotNpc(e)) continue;
     if (e.persistentNpcId) continue;
-    e.canGiveQuest = rng() < proceduralQuestGiverChance();
+    e.canGiveQuest = secureRandom() < proceduralQuestGiverChance();
   }
 }
 
@@ -304,9 +309,9 @@ export function nextAvailablePlotStep(quests: readonly Quest[]): { index: number
 }
 
 export function nextAvailablePlotStepForNpc(npc: Entity, state: Pick<GameState, 'quests'>): { index: number; step: PlotStep } | undefined {
-  if (!npc.id) return undefined;
+  if (!npc.plotNpcId) return undefined;
   const available = nextAvailablePlotStep(state.quests);
-  return available?.step.giverId === npc.id ? available : undefined;
+  return available?.step.giverNpcId === npc.plotNpcId ? available : undefined;
 }
 
 export function activeTalkQuestForNpc(npc: Entity, state: Pick<GameState, 'quests'>): Quest | undefined {
@@ -318,7 +323,7 @@ function activeTalkQuestMatchesNpc(q: Quest, npc: Entity): boolean {
     !q.done &&
     !q.failed &&
     q.type === QuestType.TALK &&
-    q.targetNpcId === npc.id
+    (q.targetNpcId === npc.id || (npc.plotNpcId !== undefined && q.targetPlotNpcId === npc.plotNpcId))
   );
 }
 
@@ -342,7 +347,7 @@ function npcCanShowProceduralQuestOffer(npc: Entity, state: Pick<GameState, 'que
   return npc.type === EntityType.NPC &&
     npc.alive &&
     npc.canGiveQuest === true &&
-    !isPlotNpc(npc) &&
+    npc.plotNpcId === undefined &&
     !npcHasAcceptedProceduralQuest(npc, state);
 }
 
@@ -392,7 +397,7 @@ export function resetNonStoryQuestsForNewPlayer(state: ActiveQuestState, entitie
   for (const entity of entities) {
     if (entity.type !== EntityType.NPC || !removedGiverIds.has(entity.id)) continue;
     if (removedQuestIds.has(entity.questId ?? -1)) entity.questId = -1;
-    if (!isPlotNpc(entity)) entity.canGiveQuest = true;
+    if (!entity.plotNpcId) entity.canGiveQuest = true;
   }
   return removedQuestIds.size;
 }
@@ -405,7 +410,7 @@ export function npcHasImportantQuestAction(npc: Entity, state: Pick<GameState, '
 export function npcCanGiveQuestNow(npc: Entity, state: Pick<GameState, 'quests'>): boolean {
   if (npc.type !== EntityType.NPC || !npc.alive) return false;
   if (npc.canGiveQuest !== true) return false;
-  if (isPlotNpc(npc)) return hasAvailableQuest(npc.id, state.quests);
+  if (npc.plotNpcId) return hasAvailableQuest(npc.plotNpcId, state.quests);
   return !state.quests.some(q => !q.done && q.giverId === npc.id);
 }
 
@@ -420,7 +425,7 @@ export function npcQuestMarkerState(npc: Entity, state: Pick<GameState, 'quests'
   if (activeTalkQuestForNpcByTone(npc, state, 'authored')) {
     return { tone: 'authored', active: true, showExclamation: true };
   }
-  if (isPlotNpc(npc) && npcCanGiveQuestNow(npc, state)) {
+  if (npc.plotNpcId && npcCanGiveQuestNow(npc, state)) {
     return { tone: 'authored', active: true, showExclamation: true };
   }
   if (npcCanShowProceduralQuestOffer(npc, state)) {
@@ -429,7 +434,7 @@ export function npcQuestMarkerState(npc: Entity, state: Pick<GameState, 'quests'
   if (activeTalkQuestForNpcByTone(npc, state, 'procedural')) {
     return { tone: 'procedural', active: true, showExclamation: false };
   }
-  if (isPlotNpc(npc)) return { tone: 'authored', active: false, showExclamation: false };
+  if (npc.plotNpcId) return { tone: 'authored', active: false, showExclamation: false };
   return null;
 }
 
@@ -453,7 +458,7 @@ function objectiveTargetEntity(q: Quest, entities: readonly Entity[]): Entity | 
     const byLiveId = findById(entities, q.targetNpcId);
     if (byLiveId && byLiveId.alive) return byLiveId;
   }
-  if (q.targetNpcId) return findByPlotLive(entities, q.targetNpcId);
+  if (q.targetPlotNpcId) return findByPlotLive(entities, q.targetPlotNpcId);
   return undefined;
 }
 
@@ -476,22 +481,22 @@ export function getCurrentObjective(state: Pick<GameState, 'quests' | 'activeQue
       questId: q.id,
       plotStepIndex: q.plotStepIndex,
       targetEntityId: target?.id,
-      targetNpcId: q.targetNpcId,
+      targetPlotNpcId: q.targetPlotNpcId,
       color: q.plotStepIndex !== undefined ? '#6cf' : q.sideQuestId ? '#f7a7d8' : '#ffd35f',
     };
   }
 
   const available = nextAvailablePlotStep(state.quests);
   if (!available) return null;
-  const giverName = plotNpcDisplayName(available.step.giverId) ?? getPlotNpcStringId(available.step.giverId);
-  const target = findByPlotLive(entities, available.step.giverId);
+  const giverName = plotNpcDisplayName(available.step.giverNpcId) ?? available.step.giverNpcId;
+  const target = findByPlotLive(entities, available.step.giverNpcId);
   return {
     line: available.step.offerObjective ?? `Цель: поговорить с ${giverName}.`,
     detail: available.step.offerObjective ? undefined : available.step.desc,
     source: 'plot_offer',
     plotStepIndex: available.index,
     targetEntityId: target?.id,
-    targetNpcId: available.step.giverId,
+    targetPlotNpcId: available.step.giverNpcId,
     color: '#9df',
   };
 }
@@ -641,13 +646,13 @@ function spawnQuestMonstersAt(
   let spawned = 0;
   for (let i = 0; i < slots; i++) {
     // Pick random floor cell in radius 3-8 from anchor (tight corridors)
-    const angle = (Math.PI * 2 * i) / slots + (rng() - 0.5) * 0.5;
-    const dist = 3 + rng() * 5;
+    const angle = (Math.PI * 2 * i) / slots + (Math.random() - 0.5) * 0.5;
+    const dist = 3 + Math.random() * 5;
     let found = false;
     let mx = 0, my = 0;
     for (let attempt = 0; attempt < 60; attempt++) {
-      const a = angle + (attempt > 0 ? (rng() - 0.5) * 1.5 : 0);
-      const d = dist + (attempt > 0 ? (rng() - 0.5) * 4 : 0);
+      const a = angle + (attempt > 0 ? (Math.random() - 0.5) * 1.5 : 0);
+      const d = dist + (attempt > 0 ? (Math.random() - 0.5) * 4 : 0);
       const tx = ((Math.floor(x) + Math.round(Math.cos(a) * d)) % W + W) % W;
       const ty = ((Math.floor(y) + Math.round(Math.sin(a) * d)) % W + W) % W;
       if (world.cells[world.idx(tx, ty)] === Cell.FLOOR) {
@@ -720,7 +725,7 @@ function plotStepKillPressure(q: Quest): KillPressureDef | undefined {
 
 function resolveKillPressureAnchor(def: KillPressureDef, entities: readonly Entity[]): Entity | undefined {
   if (def.anchor.kind === 'plot_npc') {
-    return findByPlotLive(entities, getPlotNpcNumericId(def.anchor.plotNpcId)!);
+    return findByPlotLive(entities, def.anchor.plotNpcId);
   }
   return undefined;
 }
@@ -737,17 +742,17 @@ function spawnKillPressureMonstersAt(
 ): void {
   const min = Math.max(0, Math.floor(def.spawnCountMin));
   const max = Math.max(min, Math.floor(def.spawnCountMax));
-  const count = min + Math.floor(rng() * (max - min + 1));
+  const count = min + Math.floor(Math.random() * (max - min + 1));
   const slots = entitySpawnSlots(entities, EntityType.MONSTER, count);
   let spawned = 0;
   for (let i = 0; i < slots; i++) {
-    const angle = (Math.PI * 2 * i) / Math.max(1, slots) + (rng() - 0.5) * 0.5;
-    const baseDist = 3 + rng() * 5;
+    const angle = (Math.PI * 2 * i) / Math.max(1, slots) + (Math.random() - 0.5) * 0.5;
+    const baseDist = 3 + Math.random() * 5;
     let mx = -1;
     let my = -1;
     for (let attempt = 0; attempt < 60; attempt++) {
-      const a = angle + (attempt > 0 ? (rng() - 0.5) * 1.5 : 0);
-      const d = baseDist + (attempt > 0 ? (rng() - 0.5) * 4 : 0);
+      const a = angle + (attempt > 0 ? (Math.random() - 0.5) * 1.5 : 0);
+      const d = baseDist + (attempt > 0 ? (Math.random() - 0.5) * 4 : 0);
       const tx = ((Math.floor(x) + Math.round(Math.cos(a) * d)) % W + W) % W;
       const ty = ((Math.floor(y) + Math.round(Math.sin(a) * d)) % W + W) % W;
       if (world.cells[world.idx(tx, ty)] === Cell.FLOOR) {
@@ -757,7 +762,7 @@ function spawnKillPressureMonstersAt(
       }
     }
     if (mx < 0) continue;
-    const kind = def.monsterKinds[Math.floor(rng() * def.monsterKinds.length)] ?? MonsterKind.TVAR;
+    const kind = def.monsterKinds[Math.floor(Math.random() * def.monsterKinds.length)] ?? MonsterKind.TVAR;
     const mdef = MONSTERS[kind];
     if (!mdef) continue;
     const ci = world.idx(mx, my);
@@ -859,11 +864,10 @@ function updateHoldoutQuest(
 }
 
 function plotTalkTargetIsDead(q: Quest, entities: readonly Entity[], state: GameState): boolean {
-  if (q.plotStepIndex === undefined || q.type !== QuestType.TALK || !q.targetNpcId) return false;
-  const target = findByPlotAll(entities, q.targetNpcId);
+  if (q.plotStepIndex === undefined || q.type !== QuestType.TALK || !q.targetPlotNpcId) return false;
+  const target = findByPlotAll(entities, q.targetPlotNpcId);
   if (target) return !target.alive;
-  if (!q.targetNpcId) return false;
-  return isPlotNpcDeadKnown(state, q.targetNpcId);
+  return isPlotNpcDeadKnown(state, q.targetPlotNpcId);
 }
 
 /* ── Check all active quests for completion ───────────────────── */
@@ -889,7 +893,6 @@ export function checkQuests(
 
     switch (q.type) {
       case QuestType.FETCH:
-        if (q.contractId === undefined) break; // manual turn-in required for NPC quests
         if (q.targetItem === 'money') {
           if ((player.money ?? 0) >= (q.targetCount ?? 1)) complete = true;
         } else if (q.targetItem) {
@@ -908,7 +911,6 @@ export function checkQuests(
         break;
 
       case QuestType.KILL:
-        if (q.contractId === undefined) break; // manual turn-in required for NPC quests
         if (q.killCount !== undefined && q.killNeeded !== undefined) {
           if (q.killCount >= q.killNeeded) complete = true;
         }
@@ -929,7 +931,7 @@ export function notifyKill(kind: MonsterKind, state: GameState): void {
   for (const q of state.quests) {
     if (q.done || q.type !== QuestType.KILL) continue;
     if (!isQuestTargetOnCurrentFloor(q, state)) continue;
-    const genericMonsterTarget = q.targetMonsterKind === undefined && q.targetNpcId === undefined;
+    const genericMonsterTarget = q.targetMonsterKind === undefined && q.targetNpcId === undefined && q.targetPlotNpcId === undefined;
     if (q.targetMonsterKind === kind || genericMonsterTarget) {
       q.killCount = (q.killCount ?? 0) + 1;
     }
@@ -937,15 +939,15 @@ export function notifyKill(kind: MonsterKind, state: GameState): void {
 }
 
 /* ── Notify NPC kill for KILL quests targeting plotNpcId ───────── */
-export function notifyNpcKill(plotNpcId: number, state: GameState): void {
+export function notifyNpcKill(plotNpcId: string, state: GameState): void {
   for (const q of state.quests) {
     if (q.done || q.type !== QuestType.KILL) continue;
-    if (q.targetNpcId === plotNpcId) {
+    if (q.targetPlotNpcId === plotNpcId) {
       q.killCount = (q.killCount ?? 0) + 1;
     }
   }
   for (const q of state.quests) {
-    if (q.done || q.failOnNpcDeathId !== plotNpcId) continue;
+    if (q.done || q.failOnNpcDeathPlotId !== plotNpcId) continue;
     failQuest(q, [], state, undefined, 'npc_dead', ['npc_dead'], { protectedPlotNpcId: plotNpcId });
   }
 }
@@ -958,7 +960,7 @@ export function questMatchesStorySelector(q: Quest, selector: StoryQuestSelector
   if (selector.contractId !== undefined && q.contractId !== selector.contractId) return false;
   if (selector.type !== undefined && q.type !== selector.type) return false;
   if (selector.targetItem !== undefined && q.targetItem !== selector.targetItem) return false;
-  if (selector.targetNpcId !== undefined && q.targetNpcId !== getPlotNpcNumericId(selector.targetNpcId)) return false;
+  if (selector.targetPlotNpcId !== undefined && q.targetPlotNpcId !== selector.targetPlotNpcId) return false;
   if (selector.targetMonsterKind !== undefined && q.targetMonsterKind !== selector.targetMonsterKind) return false;
   return true;
 }
@@ -1026,7 +1028,7 @@ function failQuest(
       questType: q.type,
       targetItem: q.targetItem,
       targetMonsterKind: q.targetMonsterKind,
-      targetNpcId: q.targetNpcId,
+      targetPlotNpcId: q.targetPlotNpcId,
       sideQuestId: q.sideQuestId,
       contractId: q.contractId,
       contractFaction: q.contractFaction,
@@ -1046,62 +1048,18 @@ export function checkTalkQuest(
   state: GameState, msgs: Msg[],
 ): void {
   for (const q of state.quests) {
-    if (q.done) continue;
-
-    if (q.type === QuestType.TALK) {
-      // Match by entity id OR by persistent alife id
-      const matchById = q.targetNpcId === targetNpc.id;
-      const matchByPersistentId = q.targetNpcId !== undefined && targetNpc.persistentNpcId === `alife:${q.targetNpcId}`;
-      if (!matchById && !matchByPersistentId) continue;
-      const pack = resolveNpcPackageForEntity(targetNpc);
-      const talkQuestResponse = pack ? selectNpcLockedQuestResponse(pack, q.id) : undefined;
-      if (completeQuest(q, player, entities, state, msgs)) {
-        if (talkQuestResponse) {
-          pushNpcQuestMessage(targetNpc, player, world, state, msgs, `${targetNpc.name}: «${talkQuestResponse.text}»`, '#aaf');
-        } else {
-          pushNpcQuestMessage(targetNpc, player, world, state, msgs, `${targetNpc.name}: «Передам, спасибо.»`, '#aaf');
-        }
-      }
-    } else if (q.type === QuestType.FETCH && q.contractId === undefined) {
-      // FETCH quests from NPCs require manual turn in
-      const matchById = q.giverId === targetNpc.id;
-      const matchByPersistentId = q.giverId !== undefined && targetNpc.persistentNpcId === `alife:${q.giverId}`;
-      if (!matchById && !matchByPersistentId) continue;
-      
-      let complete = false;
-      if (q.targetItem === 'money') {
-         if ((player.money ?? 0) >= (q.targetCount ?? 1)) complete = true;
-      } else if (q.targetItem) {
-         const needed = q.targetCount ?? 1;
-         const have = (player.inventory ?? []).reduce((sum, s) => s.defId === q.targetItem ? sum + s.count : sum, 0);
-         if (have >= needed) complete = true;
-      }
-      
-      if (complete && completeQuest(q, player, entities, state, msgs)) {
-        const pack = resolveNpcPackageForEntity(targetNpc);
-        const talkQuestResponse = pack ? selectNpcLockedQuestResponse(pack, q.id) : undefined;
-        if (talkQuestResponse) {
-          pushNpcQuestMessage(targetNpc, player, world, state, msgs, `${targetNpc.name}: «${talkQuestResponse.text}»`, '#aaf');
-        } else {
-          pushNpcQuestMessage(targetNpc, player, world, state, msgs, `${targetNpc.name}: «Отличная работа. То, что нужно.»`, '#aaf');
-        }
-      }
-    } else if (q.type === QuestType.KILL && q.contractId === undefined) {
-      // KILL quests from NPCs require manual turn in
-      const matchById = q.giverId === targetNpc.id;
-      const matchByPersistentId = q.giverId !== undefined && targetNpc.persistentNpcId === `alife:${q.giverId}`;
-      if (!matchById && !matchByPersistentId) continue;
-
-      if (q.killCount !== undefined && q.killNeeded !== undefined && q.killCount >= q.killNeeded) {
-        if (completeQuest(q, player, entities, state, msgs)) {
-          const pack = resolveNpcPackageForEntity(targetNpc);
-          const talkQuestResponse = pack ? selectNpcLockedQuestResponse(pack, q.id) : undefined;
-          if (talkQuestResponse) {
-            pushNpcQuestMessage(targetNpc, player, world, state, msgs, `${targetNpc.name}: «${talkQuestResponse.text}»`, '#aaf');
-          } else {
-            pushNpcQuestMessage(targetNpc, player, world, state, msgs, `${targetNpc.name}: «Меньше тварей — легче дышать.»`, '#aaf');
-          }
-        }
+    if (q.done || q.type !== QuestType.TALK) continue;
+    // Match by entity id OR by plot NPC id (cross-floor quests)
+    const matchById = q.targetNpcId === targetNpc.id;
+    const matchByPlotId = q.targetPlotNpcId && targetNpc.plotNpcId === q.targetPlotNpcId;
+    if (!matchById && !matchByPlotId) continue;
+    const pack = resolveNpcPackageForEntity(targetNpc);
+    const talkQuestResponse = pack ? selectNpcLockedQuestResponse(pack, q.id) : undefined;
+    if (completeQuest(q, player, entities, state, msgs)) {
+      if (talkQuestResponse) {
+        pushNpcQuestMessage(targetNpc, player, world, state, msgs, `${targetNpc.name}: «${talkQuestResponse.text}»`, '#aaf');
+      } else {
+        pushNpcQuestMessage(targetNpc, player, world, state, msgs, `${targetNpc.name}: «Передам, спасибо.»`, '#aaf');
       }
     }
   }
@@ -1110,12 +1068,12 @@ export function checkTalkQuest(
 function contractCompletionTags(contractDef: ContractDef | undefined): string[] {
   if (!contractDef) return ['quest', 'completed'];
   if (!contractDef.tags.includes('cleanup')) return ['quest', 'contract', 'completed', ...contractDef.tags];
-  const tagsSet = new Set<string>(['quest', 'contract', 'completed', 'cleanup_completed']);
+  const tags = ['quest', 'contract', 'completed', 'cleanup_completed'];
   for (const tag of ['slime', 'brown_slime', 'cleanup']) {
-    if (contractDef.tags.includes(tag)) tagsSet.add(tag);
+    if (contractDef.tags.includes(tag)) tags.push(tag);
   }
-  for (const tag of contractDef.tags) tagsSet.add(tag);
-  return Array.from(tagsSet);
+  for (const tag of contractDef.tags) if (!tags.includes(tag)) tags.push(tag);
+  return tags;
 }
 
 function questRewardStacks(q: Quest): { defId: string; count: number }[] {
@@ -1280,7 +1238,7 @@ function completeQuest(
       questType: q.type,
       targetItem: q.targetItem,
       targetMonsterKind: q.targetMonsterKind,
-      targetNpcId: q.targetNpcId,
+      targetPlotNpcId: q.targetPlotNpcId,
       plotStepIndex: q.plotStepIndex,
       sideQuestId: q.sideQuestId,
       contractId: q.contractId,
@@ -1374,7 +1332,7 @@ function expireQuestIfNeeded(q: Quest, player: Entity, entities: Entity[], state
       questType: q.type,
       targetItem: q.targetItem,
       targetMonsterKind: q.targetMonsterKind,
-      targetNpcId: q.targetNpcId,
+      targetPlotNpcId: q.targetPlotNpcId,
       sideQuestId: q.sideQuestId,
       contractId: q.contractId,
       contractFaction: q.contractFaction,
@@ -1390,10 +1348,10 @@ function expireQuestIfNeeded(q: Quest, player: Entity, entities: Entity[], state
 }
 
 function questDeadlineContext(q: Quest, player: Entity, world: World, state: GameState): QuestDeadlineContext {
-  const targetFloorZ = q.visitFloorZ ?? q.targetFloorZ;
+  const targetFloor = q.visitFloor ?? q.targetFloor;
   const ctx: QuestDeadlineContext = {
     samosborDanger: state.samosborActive,
-    crossFloor: targetFloorZ !== undefined && targetFloorZ !== state.currentZ,
+    crossFloor: targetFloor !== undefined && targetFloor !== state.currentFloor,
   };
   if (q.targetRoom !== undefined) {
     const room = world.rooms[q.targetRoom];
@@ -1453,7 +1411,7 @@ function nearestRoomByName(world: World, npc: Entity, roomName: string): Room | 
   return best;
 }
 
-function plotNpcDisplayName(plotNpcId: number): string | undefined {
+function plotNpcDisplayName(plotNpcId: string): string | undefined {
   const pack = getNpcPackageByPlotNpcId(plotNpcId);
   return pack ? npcPackageDisplayName(pack) : undefined;
 }
@@ -1462,10 +1420,10 @@ function plotNpcDisplayName(plotNpcId: number): string | undefined {
 function generatePlotQuest(
   npc: Entity, world: World, entities: Entity[], state: GameState,
 ): Quest | null {
-  const plotId = npc.id!;
+  const plotId = npc.plotNpcId!;
   for (let i = 0; i < PLOT_CHAIN.length; i++) {
     const step = PLOT_CHAIN[i];
-    if (step.giverId !== plotId) continue;
+    if (step.giverNpcId !== plotId) continue;
     // Skip if this step already has a quest (active or done)
     if (state.quests.some(q => q.plotStepIndex === i)) continue;
     // All previous steps must be done
@@ -1479,21 +1437,20 @@ function generatePlotQuest(
     let desc = step.desc;
 
     if (step.type === QuestType.TALK && step.targetNpcId) {
-      const targetNumericId = step.targetNpcId;
-      const target = targetNumericId ? findByPlotLive(entities, targetNumericId) : undefined;
+      const target = findByPlotLive(entities, step.targetNpcId);
       if (target && desc.includes('{dir}')) {
         desc = desc.replace('{dir}', toroidalDirection(world, npc.x, npc.y, target.x, target.y));
       } else if (!target) {
         // Target NPC on a different floor — strip {dir} placeholder
         desc = desc.replace('{dir}', 'на другом уровне');
       }
-      const targetName = step.targetNpcId !== undefined ? plotNpcDisplayName(step.targetNpcId) : undefined;
+      const targetName = plotNpcDisplayName(step.targetNpcId);
       return {
         id, type: step.type,
         giverId: npc.id, giverName: npc.name ?? '???',
-        
         desc,
-        targetNpcId: target?.id ?? targetNumericId, targetNpcName: target?.name ?? targetName,
+        targetNpcId: target?.id, targetNpcName: target?.name ?? targetName,
+        targetPlotNpcId: step.targetNpcId,
         rewardItem: step.rewardItem, rewardCount: step.rewardCount,
         extraRewards: step.extraRewards,
         relationDelta: step.relationDelta, xpReward: step.xpReward,
@@ -1508,7 +1465,6 @@ function generatePlotQuest(
       return {
         id, type: step.type,
         giverId: npc.id, giverName: npc.name ?? '???',
-        
         desc,
         targetItem: step.targetItem, targetCount: step.targetCount,
         rewardItem: step.rewardItem, rewardCount: step.rewardCount,
@@ -1533,7 +1489,7 @@ function generatePlotQuest(
         giverId: npc.id, giverName: npc.name ?? '???',
         desc,
         targetMonsterKind: step.targetMonsterKind,
-        targetNpcId: step.targetNpcId,
+        targetPlotNpcId: step.targetPlotNpcId,
         killCount: 0, killNeeded: step.killNeeded ?? 1,
         rewardItem: step.rewardItem, rewardCount: step.rewardCount,
         extraRewards: step.extraRewards,
@@ -1545,10 +1501,10 @@ function generatePlotQuest(
       };
     }
 
-    if (step.type === QuestType.VISIT && ((step as any).targetRoomType !== undefined || (step as any).targetRoom !== undefined)) {
-      const room = (step as any).targetRoom
-        ? nearestRoomByName(world, npc, (step as any).targetRoom)
-        : nearestRoomOfType(world, npc, (step as any).targetRoomType!);
+    if (step.type === QuestType.VISIT && (step.targetRoomType !== undefined || step.targetRoomName !== undefined)) {
+      const room = step.targetRoomName
+        ? nearestRoomByName(world, npc, step.targetRoomName)
+        : nearestRoomOfType(world, npc, step.targetRoomType!);
       return {
         id, type: step.type,
         giverId: npc.id, giverName: npc.name ?? '???',
@@ -1564,12 +1520,12 @@ function generatePlotQuest(
       };
     }
 
-    if (step.type === QuestType.VISIT && (step as { visitFloorZ?: number }).visitFloorZ !== undefined) {
+    if (step.type === QuestType.VISIT && (step as { visitFloor?: number }).visitFloor !== undefined) {
       return {
         id, type: step.type,
         giverId: npc.id, giverName: npc.name ?? '???',
         desc,
-        visitFloorZ: (step as { visitFloorZ: number }).visitFloorZ,
+        visitFloor: (step as { visitFloor: number }).visitFloor,
         rewardItem: step.rewardItem, rewardCount: step.rewardCount,
         extraRewards: step.extraRewards,
         relationDelta: step.relationDelta, xpReward: step.xpReward,
@@ -1583,7 +1539,7 @@ function generatePlotQuest(
 
   // ── Side quests (no prerequisite chain) ──
   for (const sq of SIDE_QUESTS) {
-    if (sq.giverId !== plotId) continue;
+    if (sq.giverNpcId !== plotId) continue;
     if (state.quests.some(q => q.sideQuestId === sq.id)) continue;
     if (!sideQuestPrereqsMet(sq, state.quests)) continue;
 
@@ -1610,7 +1566,7 @@ function generatePlotQuest(
         giverId: npc.id, giverName: npc.name ?? '???',
         desc: sq.desc,
         targetMonsterKind: sq.targetMonsterKind,
-        targetNpcId: sq.targetNpcId,
+        targetPlotNpcId: sq.targetPlotNpcId,
         killCount: 0, killNeeded: sq.killNeeded ?? 1,
         rewardItem: sq.rewardItem, rewardCount: sq.rewardCount,
         extraRewards: sq.extraRewards,
@@ -1622,11 +1578,11 @@ function generatePlotQuest(
       };
     }
     if (sq.type === QuestType.TALK) {
-      const targetNpcId = sq.targetNpcId;
-      if (!targetNpcId) continue;
+      const targetPlotNpcId = sq.targetNpcId ?? sq.targetPlotNpcId;
+      if (!targetPlotNpcId) continue;
       const id = state.nextQuestId++;
-      const target = findByPlotLive(entities, targetNpcId);
-      const targetName = plotNpcDisplayName(targetNpcId) || '';
+      const target = findByPlotLive(entities, targetPlotNpcId);
+      const targetName = plotNpcDisplayName(targetPlotNpcId);
       let desc = sq.desc;
       if (desc.includes('{dir}')) {
         desc = desc.replace('{dir}', target
@@ -1638,8 +1594,8 @@ function generatePlotQuest(
         giverId: npc.id, giverName: npc.name ?? '???',
         desc,
         targetNpcId: target?.id,
-        targetNpcName: target?.name ?? targetName,
-//         targetNpcId,
+        targetNpcName: target?.name ?? targetName ?? targetPlotNpcId,
+        targetPlotNpcId,
         rewardItem: sq.rewardItem, rewardCount: sq.rewardCount,
         extraRewards: sq.extraRewards,
         relationDelta: sq.relationDelta, xpReward: sq.xpReward,
@@ -1649,13 +1605,13 @@ function generatePlotQuest(
         done: false,
       };
     }
-    if (sq.type === QuestType.VISIT && sq.visitFloorZ !== undefined) {
+    if (sq.type === QuestType.VISIT && sq.visitFloor !== undefined) {
       const id = state.nextQuestId++;
       return {
         id, type: sq.type,
         giverId: npc.id, giverName: npc.name ?? '???',
         desc: sq.desc,
-        visitFloorZ: sq.visitFloorZ,
+        visitFloor: sq.visitFloor,
         rewardItem: sq.rewardItem, rewardCount: sq.rewardCount,
         extraRewards: sq.extraRewards,
         relationDelta: sq.relationDelta, xpReward: sq.xpReward,
@@ -1665,10 +1621,10 @@ function generatePlotQuest(
         done: false,
       };
     }
-    if (sq.type === QuestType.VISIT && ((sq as any).targetRoomType !== undefined || (sq as any).targetRoom !== undefined)) {
-      const room = (sq as any).targetRoom
-        ? nearestRoomByName(world, npc, (sq as any).targetRoom)
-        : nearestRoomOfType(world, npc, (sq as any).targetRoomType!);
+    if (sq.type === QuestType.VISIT && (sq.targetRoomType !== undefined || sq.targetRoomName !== undefined)) {
+      const room = sq.targetRoomName
+        ? nearestRoomByName(world, npc, sq.targetRoomName)
+        : nearestRoomOfType(world, npc, sq.targetRoomType!);
       if (!room) continue;
       const id = state.nextQuestId++;
       let desc = sq.desc;
@@ -1695,7 +1651,7 @@ function generatePlotQuest(
 }
 
 interface QuestContext {
-  z: number;
+  floor: FloorLevel;
   roomName: string;
   roomType?: RoomType;
   zoneId: number;
@@ -1722,7 +1678,7 @@ function buildQuestContext(npc: Entity, world: World, entities: Entity[], state:
     if (d2 < bestD2) { bestD2 = d2; nearbyMonster = e; }
   }
   return {
-    z: state.currentZ,
+    floor: state.currentFloor,
     roomName: room?.name ?? 'коридоре',
     roomType: room?.type,
     zoneId,
@@ -1760,7 +1716,7 @@ function pickQuestChoice(npc: Entity, ctx: QuestContext): QuestChoice {
   if (npc.occupation === Occupation.CHILD) weights.kill = Math.max(3, weights.kill - 22);
 
   const total = weights.fetch + weights.visit + weights.kill + weights.talk;
-  let r = rng() * total;
+  let r = Math.random() * total;
   for (const choice of ['fetch', 'visit', 'kill', 'talk'] as QuestChoice[]) {
     r -= weights[choice];
     if (r <= 0) return choice;
@@ -1770,7 +1726,7 @@ function pickQuestChoice(npc: Entity, ctx: QuestContext): QuestChoice {
 
 function contractScore(def: ContractDef, npc: Entity, ctx: QuestContext): number {
   let score = 0;
-  if (def.target.z === ctx.z) score += 4;
+  if (def.target.floor === ctx.floor) score += 4;
   if (def.target.roomType !== undefined && def.target.roomType === ctx.roomType) score += 3;
   if (npc.faction === def.faction) score += 7;
   if (def.faction === Faction.CITIZEN && (npc.faction === Faction.CITIZEN || npc.faction === undefined)) score += 3;
@@ -1854,7 +1810,7 @@ function pickSystemQuest(
     return assignProceduralQuestDeadline(quest, state.clock.totalMinutes, {
       samosborDanger: ctx.samosborDanger,
       nearbyMonster: ctx.nearbyMonster !== undefined,
-      crossFloor: quest.targetFloorZ !== undefined && quest.targetFloorZ !== state.currentZ,
+      crossFloor: quest.targetFloor !== undefined && quest.targetFloor !== state.currentFloor,
     });
   }
 
@@ -1870,7 +1826,7 @@ function pickSystemQuest(
     if (isContractHiddenForAssignment(c)) continue;
     if (assignedContracts.has(c.id)) continue;
 
-    const score = contractScore(c, npc, ctx) + rng() * 0.01;
+    const score = contractScore(c, npc, ctx) + Math.random() * 0.01;
     if (score > 0) {
       scored.push({ def: c, score });
     }
@@ -1878,11 +1834,11 @@ function pickSystemQuest(
   scored.sort((a, b) => b.score - a.score);
   if (scored.length === 0) return null;
   const top = scored.slice(0, Math.min(3, scored.length));
-  const quest = questFromSystemContract(top[Math.floor(rng() * top.length)].def, npc, player, state);
+  const quest = questFromSystemContract(top[Math.floor(Math.random() * top.length)].def, npc, player, state);
   return assignProceduralQuestDeadline(quest, state.clock.totalMinutes, {
     samosborDanger: ctx.samosborDanger,
     nearbyMonster: ctx.nearbyMonster !== undefined,
-    crossFloor: quest.targetFloorZ !== undefined && quest.targetFloorZ !== state.currentZ,
+    crossFloor: quest.targetFloor !== undefined && quest.targetFloor !== state.currentFloor,
   });
 }
 
@@ -1891,7 +1847,7 @@ function shouldOfferSystemQuest(npc: Entity, ctx: QuestContext): boolean {
   if (npc.faction === Faction.LIQUIDATOR || occupationHasProfileTag(npc.occupation, 'combat')) chance += 0.18;
   if (ctx.samosborDanger || ctx.nearbyMonster) chance += 0.12;
   if (ctx.roomType === RoomType.OFFICE || ctx.roomType === RoomType.STORAGE || ctx.roomType === RoomType.PRODUCTION) chance += 0.08;
-  return rng() < Math.min(0.45, chance);
+  return Math.random() < Math.min(0.45, chance);
 }
 
 /* ── Generate quest based on NPC context ──────────────────────── */
@@ -1931,7 +1887,7 @@ function generateQuest(
             return assignProceduralQuestDeadline(quest, state.clock.totalMinutes, {
               samosborDanger: ctx.samosborDanger,
               nearbyMonster: ctx.nearbyMonster !== undefined,
-              crossFloor: quest.targetFloorZ !== undefined && quest.targetFloorZ !== state.currentZ,
+              crossFloor: quest.targetFloor !== undefined && quest.targetFloor !== state.currentFloor,
             });
           }
         }
@@ -2053,7 +2009,7 @@ function pickFetchItem(occ: Occupation | undefined, npc: Entity, ctx: QuestConte
   if (ctx.roomType === RoomType.MEDICAL) pushUnique(pool, ['bandage', 'pills', 'antidep', 'water']);
   if (ctx.roomType === RoomType.PRODUCTION) pushUnique(pool, ['pipe', 'wrench', 'rebar', 'door_kit']);
   if (ctx.roomType === RoomType.OFFICE) pushUnique(pool, ['note', 'book', 'ballot']);
-  if (ctx.roomType === RoomType.STORAGE) pushUnique(pool, ['canned', 'pipe', 'ammo_9mm', 'flashlight', 'lighter']);
+  if (ctx.roomType === RoomType.STORAGE) pushUnique(pool, ['canned', 'pipe', 'ammo_9mm', 'flashlight']);
   if (npc.faction === Faction.CULTIST || occupationHasProfileTag(occ, 'cult')) {
     pushUnique(pool, ['idol_chernobog', 'strange_clot', 'cigs', 'govnyak_bad_batch']);
   }
@@ -2062,7 +2018,7 @@ function pickFetchItem(occ: Occupation | undefined, npc: Entity, ctx: QuestConte
   pushUnique(pool, occupationQuestFetchItems(occ));
   pushUnique(pool, ['bread', 'water', 'bandage', 'cigs']);
   const available = pool.filter(item => !PROCEDURAL_FETCH_ITEM_BLOCKLIST.has(item));
-  return available.length > 0 ? available[Math.floor(rng() * available.length)] : null;
+  return available.length > 0 ? available[Math.floor(Math.random() * available.length)] : null;
 }
 
 function targetCountForItem(item: string, ctx: QuestContext): number {
@@ -2077,10 +2033,10 @@ function pickRewardItem(occ?: Occupation, ctx?: QuestContext): string {
   const pool: string[] = [];
   if (ctx?.samosborDanger) pushUnique(pool, ['bandage', 'ammo_9mm', 'water']);
   if (ctx?.roomType === RoomType.OFFICE) pushUnique(pool, ['note', 'book', 'tea']);
-  if (ctx?.roomType === RoomType.PRODUCTION) pushUnique(pool, ['wrench', 'pipe', 'flashlight', 'lighter']);
+  if (ctx?.roomType === RoomType.PRODUCTION) pushUnique(pool, ['wrench', 'pipe', 'flashlight']);
   pushUnique(pool, occupationQuestRewardItems(occ));
   pushUnique(pool, ['bread', 'water', 'bandage']);
-  return pool[Math.floor(rng() * pool.length)];
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function preferredVisitRooms(npc: Entity, ctx: QuestContext): RoomType[] {
@@ -2098,7 +2054,7 @@ function pickVisitRoom(world: World, npc: Entity, preferred: RoomType[] = []): {
   // Pick a room at some distance
   const candidates = rooms.filter(r => world.dist(npc.x, npc.y, r.x + r.w / 2, r.y + r.h / 2) > 15);
   const pool = candidates.length > 0 ? candidates : rooms;
-  const r = pool[Math.floor(rng() * pool.length)];
+  const r = pool[Math.floor(Math.random() * pool.length)];
   return { id: r.id, name: r.name, x: r.x + r.w / 2, y: r.y + r.h / 2 };
 }
 
@@ -2106,13 +2062,13 @@ function pickKillKind(npc: Entity, ctx: QuestContext): MonsterKind {
   if (ctx.nearbyMonster?.monsterKind !== undefined) return ctx.nearbyMonster.monsterKind;
   if (npc.faction === Faction.LIQUIDATOR || occupationHasProfileTag(npc.occupation, 'combat')) {
     const pool = [MonsterKind.SBORKA, MonsterKind.TVAR, MonsterKind.POLZUN, MonsterKind.SHADOW];
-    return pool[Math.floor(rng() * pool.length)];
+    return pool[Math.floor(Math.random() * pool.length)];
   }
   if (ctx.roomType === RoomType.OFFICE) return MonsterKind.PECHATEED;
   if (ctx.roomType === RoomType.PRODUCTION) return MonsterKind.REBAR;
   if (ctx.samosborDanger) return MonsterKind.SBORKA;
   const pool = [MonsterKind.SBORKA, MonsterKind.TVAR, MonsterKind.POLZUN];
-  return pool[Math.floor(rng() * pool.length)];
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function monsterQuestScale(kind: MonsterKind): number {
@@ -2136,10 +2092,10 @@ function pickTalkTarget(npc: Entity, world: World, entities: Entity[]): Entity |
     .filter(e => e.type === EntityType.NPC && e.alive && e.id !== npc.id)
     .map(e => {
       const f = e.faction === npc.faction ? -30 : 0;
-      return { e, score: world.dist2(npc.x, npc.y, e.x, e.y) + f + rng() * 0.99 };
+      return { e, score: world.dist2(npc.x, npc.y, e.x, e.y) + f + Math.random() * 0.99 };
     })
     .sort((a, b) => a.score - b.score);
   if (candidates.length === 0) return null;
   const top = candidates.slice(0, Math.min(12, candidates.length)).map(c => c.e);
-  return top[Math.floor(rng() * top.length)];
+  return top[Math.floor(Math.random() * top.length)];
 }

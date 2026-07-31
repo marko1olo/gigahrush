@@ -2,7 +2,7 @@
 
 import { type GameState } from '../core/types';
 import { GAME_MENU_ITEMS } from '../systems/game_menu';
-
+import { isPlatformAudioMuted } from '../systems/platform_bridge';
 import { controlBindingLabel, menuCloseHint } from '../systems/controls';
 import { drawNeuroPanel, textJitter, flicker } from './hud_fx';
 import { fitText } from './ui_text';
@@ -49,7 +49,10 @@ export function drawGameMenu(
     const yy = py + 52 * sy + i * itemStep;
     const mj = textJitter(time, 710 + i);
     const alpha = flicker(time, 720 + i);
-    const label: string = GAME_MENU_ITEMS[i].label;
+    let label: string = GAME_MENU_ITEMS[i].label;
+    if (GAME_MENU_ITEMS[i].id === 'sound') {
+      label = isPlatformAudioMuted() ? 'Звук: Выкл' : 'Звук: Вкл';
+    }
     ctx.fillStyle = selected ? `rgba(0,255,170,${alpha})` : `rgba(100,136,136,${alpha})`;
     ctx.fillText(`${selected ? '▶ ' : '  '}${label}`, w / 2 + mj.dx, yy + mj.dy);
   }
@@ -64,5 +67,3 @@ export function drawGameMenu(
 
   ctx.textAlign = 'left';
 }
-
-

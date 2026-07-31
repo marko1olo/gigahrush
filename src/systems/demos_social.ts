@@ -1,5 +1,4 @@
 import { Faction, Occupation, type GameState } from '../core/types';
-import { getPlotNpcNumericId } from '../data/npc_packages';
 import {
   DEMOS_AUTHORED_RELATIONS,
   DEMOS_EDGE_DEBT,
@@ -44,7 +43,6 @@ import {
 } from './alife';
 import { createEmptyDemosSocialSaveState, type DemosRelationOverride, type DemosSocialSaveState } from './demos_save';
 import { getFactionPlayerRelation } from './npc_relations';
-import { shuffleWith, xorshift32 } from '../core/rand';
 
 export interface DemosSocialEdgeView {
   slot: number;
@@ -312,12 +310,11 @@ function reverseAuthoredRole(role: DemosSocialRoleId): DemosSocialRoleId {
 function findPlotNpcAlifeId(
   state: GameState,
   graph: DemosSocialGraph,
-  plotNpcId: number | string,
+  plotNpcId: string,
 ): number | undefined {
-  const numericId = typeof plotNpcId === 'string' ? getPlotNpcNumericId(String(plotNpcId)) : plotNpcId;
   for (let id = 1; id <= graph.total; id++) {
     const snapshot = getAlifeNpcRecordSnapshot(state, id);
-    if (snapshot?.plotNpcId === numericId) return id;
+    if (snapshot?.plotNpcId === plotNpcId) return id;
   }
   return undefined;
 }
@@ -325,14 +322,15 @@ function findPlotNpcAlifeId(
 function plotIdMapFromSnapshots(
   snapshots: readonly (AlifeNpcSnapshot | undefined)[],
   total: number,
-): Map<number, number> {
-  const out = new Map<number, number>();
+): Map<string, number> {
+  const out = new Map<string, number>();
   for (let id = 1; id <= total; id++) {
     const plotNpcId = snapshots[id]?.plotNpcId;
-    if (plotNpcId !== undefined && !out.has(plotNpcId)) out.set(plotNpcId, id);
+    if (plotNpcId && !out.has(plotNpcId)) out.set(plotNpcId, id);
   }
   return out;
 }
+
 function packageIdForSnapshot(snapshot: AlifeNpcSnapshot): string | undefined {
   return packageIdFromReservedIdentityId(snapshot.reservedIdentityId);
 }
@@ -429,9 +427,7 @@ function applyPackageRelationsForSource(
 ): void {
   const links = pack?.social?.links;
   if (!links || links.length === 0) return;
-  const rand = xorshift32(source.id);
-  const shuffledLinks = shuffleWith(rand, [...links]);
-  for (const link of shuffledLinks.slice(0, DEMOS_SOCIAL_NPC_SLOTS)) {
+  for (const link of links.slice(0, DEMOS_SOCIAL_NPC_SLOTS)) {
     const targetId = resolveTarget(link.targetNpcId);
     if (link.bidirectional) applyPackageBidirectionalLink(graph, source.id, targetId, link);
     else applyPackageLink(graph, source.id, targetId, link);
@@ -488,9 +484,8 @@ function applyAllAuthoredRelations(
   if (DEMOS_AUTHORED_RELATIONS.length === 0) return;
   const byPlotId = plotIdMapFromSnapshots(snapshots, graph.total);
   for (const def of DEMOS_AUTHORED_RELATIONS) {
-    const fromId = byPlotId.get(getPlotNpcNumericId(def.fromPlotNpcId) ?? -1);
-    const toId = byPlotId.get(getPlotNpcNumericId(def.toPlotNpcId) ?? -1);
-
+    const fromId = byPlotId.get(def.fromPlotNpcId);
+    const toId = byPlotId.get(def.toPlotNpcId);
     applyAuthoredDirection(graph, fromId, toId, def);
     if (def.bidirectional) applyAuthoredDirection(graph, toId, fromId, def, true);
   }
@@ -501,11 +496,11 @@ function applyAuthoredRelationsForSource(
   graph: DemosSocialGraph,
   source: AlifeNpcSnapshot,
 ): void {
-  if (!source.id || DEMOS_AUTHORED_RELATIONS.length === 0) return;
+  if (!source.plotNpcId || DEMOS_AUTHORED_RELATIONS.length === 0) return;
   for (const def of DEMOS_AUTHORED_RELATIONS) {
-    if (getPlotNpcNumericId(def.fromPlotNpcId) === source.plotNpcId) {
+    if (def.fromPlotNpcId === source.plotNpcId) {
       applyAuthoredDirection(graph, source.id, findPlotNpcAlifeId(state, graph, def.toPlotNpcId), def);
-    } else if (def.bidirectional && getPlotNpcNumericId(def.toPlotNpcId) === source.plotNpcId) {
+    } else if (def.bidirectional && def.toPlotNpcId === source.plotNpcId) {
       applyAuthoredDirection(graph, source.id, findPlotNpcAlifeId(state, graph, def.fromPlotNpcId), def, true);
     }
   }

@@ -2,7 +2,6 @@
 /* One classroom, one shelter, five NPCs, and a repairable gap     */
 /* that becomes meaningful when samosbor fog reaches the school.   */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
   Cell, DoorState, Tex, Feature, RoomType,
@@ -158,7 +157,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
 registerSideQuest('ag16_nina_obzh', NPC_DEFS.ag16_nina_obzh, [
   {
     id: 'ag16_obzh_fetch_kit',
-    giverId: getPlotNpcNumericId('ag16_nina_obzh')!,
+    giverNpcId: 'ag16_nina_obzh',
     type: QuestType.FETCH,
     desc: 'Нина ОБЖ: «Нужны два бинта в учебную аптечку. Без аптечки эвакуация превращается в беготню.»',
     targetItem: 'bandage', targetCount: 2,
@@ -170,10 +169,10 @@ registerSideQuest('ag16_nina_obzh', NPC_DEFS.ag16_nina_obzh, [
   },
   {
     id: 'ag16_obzh_visit_shelter',
-    giverId: getPlotNpcNumericId('ag16_nina_obzh')!,
+    giverNpcId: 'ag16_nina_obzh',
     type: QuestType.VISIT,
     desc: `Нина ОБЖ: «Проверь ${SHELTER_NAME}. Маршрут должен быть в ногах до сирены, не в разговорах.»`,
-    targetRoomDefId: SHELTER_NAME,
+    targetRoomName: SHELTER_NAME,
     rewardItem: 'flashlight', rewardCount: 1,
     extraRewards: [{ defId: 'note', count: 1 }],
     relationDelta: 10, xpReward: 30, moneyReward: 10,
@@ -182,10 +181,10 @@ registerSideQuest('ag16_nina_obzh', NPC_DEFS.ag16_nina_obzh, [
   },
   {
     id: 'ag16_obzh_talk_monitor',
-    giverId: getPlotNpcNumericId('ag16_nina_obzh')!,
+    giverNpcId: 'ag16_nina_obzh',
     type: QuestType.TALK,
     desc: 'Нина ОБЖ: «Сверься с Вадимом Монитором. Он знает список лучше взрослых.»',
-    targetNpcId: getPlotNpcNumericId('ag16_vadim_monitor')!,
+    targetNpcId: 'ag16_vadim_monitor',
     rewardItem: 'kompot', rewardCount: 1,
     relationDelta: 8, xpReward: 20, moneyReward: 5,
     eventTags: [CONTENT_TAG, 'journal', 'children_counted'],
@@ -193,7 +192,7 @@ registerSideQuest('ag16_nina_obzh', NPC_DEFS.ag16_nina_obzh, [
   },
   {
     id: QUEST_REPAIR_GAP,
-    giverId: getPlotNpcNumericId('ag16_nina_obzh')!,
+    giverNpcId: 'ag16_nina_obzh',
     type: QuestType.FETCH,
     desc: 'Нина ОБЖ: «Принеси гаечный ключ к сорванной гермодвери. Комплект выдам тебе: поставишь дверь здесь или унесешь - это твое решение.»',
     targetItem: 'wrench', targetCount: 1,
@@ -209,14 +208,14 @@ registerSideQuest('ag16_pupil_mira', NPC_DEFS.ag16_pupil_mira, []);
 registerSideQuest('ag16_parent_lida', NPC_DEFS.ag16_parent_lida, [
   {
     id: QUEST_ESCORT_GROUP,
-    giverId: getPlotNpcNumericId('ag16_parent_lida')!,
+    giverNpcId: 'ag16_parent_lida',
     type: QuestType.VISIT,
     desc: `Лида из родкома: «Проведи нас до ${SHELTER_NAME}. Я не спорю, я иду последней и считаю головы.»`,
-    targetRoomDefId: SHELTER_NAME,
+    targetRoomName: SHELTER_NAME,
     rewardItem: 'water', rewardCount: 2,
     extraRewards: [{ defId: 'child_map', count: 1 }],
     relationDelta: 12, xpReward: 35, moneyReward: 15,
-    failOnNpcDeathId: getPlotNpcNumericId('ag16_pupil_mira')!,
+    failOnNpcDeathPlotId: 'ag16_pupil_mira',
     eventTags: [CONTENT_TAG, 'escort', 'shelter', 'children'],
     eventData: { outcome: 'group_escorted', rumorIds: ['player_obzh_escort_group', 'samosbor_obzh_shelter'] },
   },
@@ -224,7 +223,7 @@ registerSideQuest('ag16_parent_lida', NPC_DEFS.ag16_parent_lida, [
 registerSideQuest('ag16_guard_roman', NPC_DEFS.ag16_guard_roman, [
   {
     id: QUEST_PROTECT_DOOR,
-    giverId: getPlotNpcNumericId('ag16_guard_roman')!,
+    giverNpcId: 'ag16_guard_roman',
     type: QuestType.KILL,
     desc: 'Роман Дежурный: «Отвлеки тварь от сорванной двери. Не у проема дерись: уведи шум на себя, потом бей.»',
     targetMonsterKind: MonsterKind.TVAR,
@@ -233,7 +232,7 @@ registerSideQuest('ag16_guard_roman', NPC_DEFS.ag16_guard_roman, [
     extraRewards: [{ defId: 'bandage', count: 1 }],
     relationDelta: 10, xpReward: 45, moneyReward: 20,
     spawnMonstersOnAccept: 1,
-    failOnNpcDeathId: getPlotNpcNumericId('ag16_pupil_mira')!,
+    failOnNpcDeathPlotId: 'ag16_pupil_mira',
     eventTags: [CONTENT_TAG, 'protect', 'distract', 'shelter_gap'],
     eventData: { outcome: 'door_voice_distracted', rumorIds: ['player_obzh_protected_door', 'samosbor_obzh_shelter'] },
   },
@@ -361,7 +360,7 @@ function spawnNpc(
   classRoom: Room,
   shelter: Room,
 ): void {
-  if (entities.some(e => e.alive && e.id === getPlotNpcNumericId(spawn.id)!)) return;
+  if (entities.some(e => e.alive && e.plotNpcId === spawn.id)) return;
   const room = spawn.room === 'classroom' ? classRoom : shelter;
   requireSpawnedPlotNpcFromPackage(entities, nextId, spawn.id, room.x + spawn.dx + 0.5, room.y + spawn.dy + 0.5, {
     angle: spawn.angle,

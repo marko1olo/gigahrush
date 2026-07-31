@@ -3,6 +3,7 @@ import * as assert from 'node:assert/strict';
 
 import {
   Feature,
+  FloorLevel,
 } from '../src/core/types';
 import { World, auditReachability } from '../src/core/world';
 import {
@@ -31,7 +32,7 @@ import { testGenerationMatrix } from './generator_helpers';
 let cachedLivingCraftStations: ReturnType<typeof generateFloor> | undefined;
 
 function livingCraftStationsForRead(): ReturnType<typeof generateFloor> {
-  cachedLivingCraftStations ??= generateFloor(0, 0x5a7103);
+  cachedLivingCraftStations ??= generateFloor(FloorLevel.LIVING, 0x5a7103);
   return cachedLivingCraftStations;
 }
 
@@ -55,7 +56,7 @@ test('craft station interactive ids are registered', () => {
 });
 
 test('craft station placement profiles are data-owned per floor route', () => {
-  const maintenance = craftStationProfileForStoryFloor('maintenance');
+  const maintenance = craftStationProfileForStoryFloor(FloorLevel.MAINTENANCE);
   assert.equal(maintenance?.requiredById?.craft_lathe, 1);
   assert.equal(maintenance?.requiredById?.disassembly_workbench, 1);
 
@@ -215,7 +216,7 @@ testGenerationMatrix('Yakov lab exposes a guaranteed reachable lathe and disasse
 });
 
 testGenerationMatrix('ordinary story floor craft station placement stays reachable and capped', () => {
-  const gen = generateFloor(30, 0x51a7103);
+  const gen = generateFloor(FloorLevel.MINISTRY, 0x51a7103);
   const audit = auditReachability(gen.world, gen.world.idx(Math.floor(gen.spawnX), Math.floor(gen.spawnY)));
   const stations = craftStationCells(gen.world);
 
@@ -226,9 +227,9 @@ testGenerationMatrix('ordinary story floor craft station placement stays reachab
 });
 
 testGenerationMatrix('maintenance collectors use the story-floor craft station profile', () => {
-  const gen = generateFloor(-26, 0x51001);
+  const gen = generateFloor(FloorLevel.MAINTENANCE, 0x51001);
   const audit = auditReachability(gen.world, gen.world.idx(Math.floor(gen.spawnX), Math.floor(gen.spawnY)));
-  const profile = craftStationProfileForStoryFloor('maintenance');
+  const profile = craftStationProfileForStoryFloor(FloorLevel.MAINTENANCE);
   const stations = craftStationCells(gen.world);
 
   assert.ok(profile, 'maintenance craft station profile should exist');
@@ -261,7 +262,7 @@ testGenerationMatrix('procedural craft station placement respects cap and avoids
     depth: 34,
     danger: 4,
     geometryId: 'workshops',
-    baseFloor: 'maintenance',
+    baseFloor: FloorLevel.MAINTENANCE,
     majorityId: 'liquidators',
     anomalyId: 'none',
     title: 'Тестовый цеховой этаж со станциями',

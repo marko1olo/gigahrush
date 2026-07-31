@@ -1,18 +1,14 @@
 /* ── Universal AI Micro-Goal System ───────────────────────────── */
 
-import { AIGoal, Entity, EntityType, Msg, ItemType } from '../../core/types';
+import { AIGoal, Entity, EntityType, Msg } from '../../core/types';
 import { World } from '../../core/world';
 import { emitMarkovBark } from './barks';
 import { steerEntityTowardCell, clearEntitySteeringPath } from './pathfinding';
 import { aiPathMoveSpeed } from '../rpg';
 import { canActorOccupy, actorOccupyRadius, entityIgnoresFineBlockers } from '../movement_collision';
-
+import { findNoiseInvestigationTarget } from '../noise';
 import { pickupDrop } from '../inventory';
 import { getEntityIndex, ENTITY_MASK_NPC, ENTITY_MASK_ITEM_DROP } from '../entity_index';
-import { npcAutoEquipBestWeapon } from './combat';
-import { rng } from '../../core/rand';
-import { getFactionRel } from '../../data/relations';
-import { ITEMS } from '../../data/catalog';
 
 const _microQueryOut: Entity[] = new Array(32);
 
@@ -108,7 +104,7 @@ export function tickMicroGoal(world: World, entities: Entity[], e: Entity, dt: n
   
   // Execution logic based on the specific micro-goal
   switch (ai.microGoalId) {
-
+    case 'investigate_noise':
     case 'search_lkp':
     case 'reposition':
     case 'loot_nearby':
@@ -129,7 +125,6 @@ export function tickMicroGoal(world: World, entities: Entity[], e: Entity, dt: n
             const item = entities.find(x => x.id === ai.microSourceId);
             if (item && item.type === EntityType.ITEM_DROP && item.alive) {
               pickupDrop(world, item, e, _msgs, _time, undefined);
-              if (e.type === EntityType.NPC) npcAutoEquipBestWeapon(e);
             }
           }
           // Reached target early, clear goal
@@ -144,14 +139,14 @@ export function tickMicroGoal(world: World, entities: Entity[], e: Entity, dt: n
   return true;
 }
 
-export function evaluateMicroStimuli(_world: World, e: Entity, time: number, msgs: Msg[]): void {
+export function evaluateMicroStimuli(world: World, e: Entity, time: number, msgs: Msg[]): void {
   const ai = e.ai;
   if (!ai || hasMicroGoal(e) || ai.combatTargetId !== undefined || ai.goal === AIGoal.FLEE || ai.goal === AIGoal.HIDE) {
     return;
   }
   
   if ((ai.microScanCd ?? 0) > time) return;
-  ai.microScanCd = time + 0.3 + rng() * 0.3;
+  ai.microScanCd = time + 0.3 + Math.random() * 0.3;
   
   // Bounded scan for greet (can happen while walking)
   if (e.type === EntityType.NPC) {
@@ -170,33 +165,26 @@ export function evaluateMicroStimuli(_world: World, e: Entity, time: number, msg
           ai.microCooldowns = ai.microCooldowns || {};
           ai.microCooldowns['greet'] = 120; // 2 minutes before greeting anyone again
           emitMarkovBark(e, msgs, time, 'ambient', 'Привет.', 1.0, '#aac');
-
-          // Simple barter exchange between friendly NPCs
-          if (e.faction !== undefined && near.faction !== undefined && getFactionRel(e.faction, near.faction) >= 0 && rng() < 0.2) {
-            const eInv = e.inventory;
-            const nInv = near.inventory;
-            if (eInv && nInv && eInv.length > 0) {
-              const eItemIndex = Math.floor(rng() * eInv.length);
-              const eItem = eInv[eItemIndex];
-              const def = ITEMS[eItem.defId];
-              // only barter basic things to avoid giving away weapons they need
-              if (def && (def.type === ItemType.FOOD || def.type === ItemType.DRINK || def.type === ItemType.MEDICINE || def.type === ItemType.AMMO || def.type === ItemType.MISC)) {
-                const price = def.value || 5;
-                if ((near.money || 0) >= price) {
-                  near.money = (near.money || 0) - price;
-                  e.money = (e.money || 0) + price;
-                  eInv.splice(eItemIndex, 1);
-                  nInv.push(eItem);
-                }
-              }
-            }
-          }
         }
       }
     }
   }
 
-
+  // Suppress blocking micro-goals if NPC is traveling a long distance to avoid massive pathing churn
+  if (ai.path && (ai.path.length - (ai.pi ?? 0)) > 5) {
+    return;
+  }
+  
+  // 1. Investigate Noise
+  const noise = findNoiseInvestigationTarget(world, undefined, e, time);
+  if (noise && (ai.microCooldowns?.['investigate_noise'] ?? 0) <= 0) {
+    if (trySetMicroGoal(e, 'investigate_noise', { targetX: noise.x, targetY: noise.y, timer: 12 })) {
+      ai.microCooldowns = ai.microCooldowns || {};
+      ai.microCooldowns['investigate_noise'] = 30; // 30 sec cooldown
+      emitMarkovBark(e, msgs, time, 'alert', 'Что там?', 1.0, '#aac');
+      return;
+    }
+  }
 
   // 2. Loot items
   if (e.type === EntityType.NPC) {
@@ -212,9 +200,9 @@ export function evaluateMicroStimuli(_world: World, e: Entity, time: number, msg
       
       if (dist2 < 4) {
         if ((ai.microCooldowns?.['loot_nearby'] ?? 0) <= 0) {
-          if (trySetMicroGoal(e, 'loot_nearby', { targetX: near.x, targetY: near.y, timer: 10, sourceId: near.id })) {
+          if (trySetMicroGoal(e, 'loot_nearby', { targetX: near.x, targetY: near.y, timer: 5, sourceId: near.id })) {
             ai.microCooldowns = ai.microCooldowns || {};
-            ai.microCooldowns['loot_nearby'] = 1; // 1 sec cooldown
+            ai.microCooldowns['loot_nearby'] = 45; // 45 sec cooldown
             return;
           }
         }

@@ -1,4 +1,4 @@
-import { ZoneFaction, type TerritoryOwner } from '../core/types';
+import { FloorLevel, ZoneFaction, type TerritoryOwner } from '../core/types';
 import type { DesignFloorId } from './design_floors';
 import type { FloorMajorityId, ProceduralFloorSpec } from './procedural_floors';
 
@@ -34,28 +34,17 @@ const PROCEDURAL_MAJORITIES: Readonly<Record<FloorMajorityId, readonly FloorTerr
   wild: shares(17, 13, 12, 8, 50),
 };
 
-export function territorySharesForDesignFloor(id: DesignFloorId): readonly FloorTerritoryShare[] {
-  return DESIGN_TERRITORY[id];
-}
+const STORY_TERRITORY: Readonly<Record<FloorLevel, readonly FloorTerritoryShare[]>> = {
+  [FloorLevel.MINISTRY]: shares(48, 24, 8, 14, 6),
+  [FloorLevel.KVARTIRY]: shares(66, 12, 6, 7, 9),
+  [FloorLevel.LIVING]: shares(64, 14, 6, 7, 9),
+  [FloorLevel.MAINTENANCE]: shares(16, 58, 5, 7, 14),
+  [FloorLevel.HELL]: shares(6, 8, 40, 4, 28, 14),
+  [FloorLevel.VOID]: shares(4, 8, 24, 6, 34, 24),
+};
 
-export function territorySharesForProceduralSpec(spec: ProceduralFloorSpec): readonly FloorTerritoryShare[] {
-  if (spec.majorityId === 'citizens' && spec.anomalyId === 'false_safe_block') {
-    return shares(53, 16, 12, 8, 11);
-  }
-  if (spec.majorityId === 'liquidators' && spec.anomalyId === 'false_safe_block') {
-    return shares(16, 53, 12, 8, 11);
-  }
-  if (spec.anomalyId === 'samosbor_seed') {
-    if (spec.majorityId === 'cultists') return shares(15, 11, 36, 7, 22, 9);
-    if (spec.majorityId === 'citizens') return shares(51, 15, 6, 7, 11, 10);
-    return shares(15, 11, 26, 7, 31, 10);
-  }
-  if (spec.anomalyId === 'zombie_apocalypse') return shares(25, 12, 12, 9, 42);
-  return PROCEDURAL_MAJORITIES[spec.majorityId];
-}
 const DESIGN_TERRITORY: Readonly<Record<DesignFloorId, readonly FloorTerritoryShare[]>> = {
   roof: shares(28, 38, 8, 14, 12),
-  outer_district: shares(50, 10, 10, 10, 20),
   chthonic_attic: shares(18, 24, 14, 10, 34),
   radon_exchange: shares(16, 36, 10, 26, 12),
   antenna_court: shares(18, 36, 8, 24, 14),
@@ -65,7 +54,6 @@ const DESIGN_TERRITORY: Readonly<Record<DesignFloorId, readonly FloorTerritorySh
   upper_bureau: shares(42, 26, 8, 16, 8),
   number_registry: shares(30, 18, 10, 34, 8),
   istinniy_labirint: shares(24, 16, 16, 10, 34),
-  // @ts-ignore
   bank_floor: shares(42, 28, 8, 10, 12),
   critical_leak_archive: shares(28, 34, 8, 18, 12),
   raionsovet_archive: shares(44, 22, 8, 14, 12),
@@ -99,11 +87,28 @@ const DESIGN_TERRITORY: Readonly<Record<DesignFloorId, readonly FloorTerritorySh
   darkness: shares(6, 8, 24, 8, 36, 18),
   liquidatorbase: [{ owner: ZoneFaction.LIQUIDATOR, share: 1.0 }],
   horrorfloor: shares(6, 8, 24, 8, 36, 18),
-  living: shares(64, 14, 6, 7, 9),
-  kvartiry: shares(66, 12, 6, 7, 9),
-  ministry: shares(48, 24, 8, 14, 6),
-  maintenance: shares(16, 58, 5, 7, 14),
-  hell: shares(6, 8, 40, 4, 28, 14),
-  void: shares(4, 8, 24, 6, 34, 24),
 };
 
+export function territorySharesForStoryFloor(floor: FloorLevel): readonly FloorTerritoryShare[] {
+  return STORY_TERRITORY[floor];
+}
+
+export function territorySharesForDesignFloor(id: DesignFloorId): readonly FloorTerritoryShare[] {
+  return DESIGN_TERRITORY[id];
+}
+
+export function territorySharesForProceduralSpec(spec: ProceduralFloorSpec): readonly FloorTerritoryShare[] {
+  if (spec.majorityId === 'citizens' && spec.anomalyId === 'false_safe_block') {
+    return shares(53, 16, 12, 8, 11);
+  }
+  if (spec.majorityId === 'liquidators' && spec.anomalyId === 'false_safe_block') {
+    return shares(16, 53, 12, 8, 11);
+  }
+  if (spec.anomalyId === 'samosbor_seed') {
+    if (spec.majorityId === 'cultists') return shares(15, 11, 36, 7, 22, 9);
+    if (spec.majorityId === 'citizens') return shares(51, 15, 6, 7, 11, 10);
+    return shares(15, 11, 26, 7, 31, 10);
+  }
+  if (spec.anomalyId === 'zombie_apocalypse') return shares(25, 12, 12, 9, 42);
+  return PROCEDURAL_MAJORITIES[spec.majorityId];
+}

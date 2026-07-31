@@ -5,7 +5,7 @@ import { ItemType } from '../src/core/types';
 import { FACTORY_BY_ID } from '../src/data/factories';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCE_BY_ID, resourceForItem } from '../src/data/resources';
-import { BLACK_MARKET_88_STOCK } from '../src/gen/black_market_88';
+import { BLACK_MARKET_88_STOCK } from '../src/gen/design_floors/black_market_88';
 import { useItem } from '../src/systems/inventory';
 import { countInventoryItem, makeGameState, makeTestPlayer } from './helpers';
 

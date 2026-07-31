@@ -1,7 +1,7 @@
 import { visualModelDef, type VisualModelId } from '../../data/visual_models';
 import { buildMeshTemplate, type MeshTemplate } from './primitives';
 
-export const MAX_MESH_MODEL_CACHE_SIZE = 1024;
+export const MAX_MESH_MODEL_CACHE_SIZE = 96;
 
 const meshTemplateCache = new Map<string, MeshTemplate>();
 
@@ -10,13 +10,11 @@ function cacheKey(modelId: VisualModelId, variantSeed: number): string {
 }
 
 export function getMeshTemplate(modelId: VisualModelId, variantSeed = 0): MeshTemplate {
-  const def = visualModelDef(modelId);
-  const effectiveSeed = def.variantCount ? (Math.abs(variantSeed) % def.variantCount) : (variantSeed | 0);
-  const key = cacheKey(modelId, effectiveSeed);
+  const key = cacheKey(modelId, variantSeed);
   const cached = meshTemplateCache.get(key);
   if (cached) return cached;
 
-  const template = buildMeshTemplate(def, effectiveSeed);
+  const template = buildMeshTemplate(visualModelDef(modelId), variantSeed | 0);
   if (meshTemplateCache.size >= MAX_MESH_MODEL_CACHE_SIZE) {
     const firstKey = meshTemplateCache.keys().next().value;
     if (firstKey !== undefined) meshTemplateCache.delete(firstKey);

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { W } from '../src/core/types';
+import { FloorLevel, W } from '../src/core/types';
 import type { FloorGeneration } from '../src/gen/floor_manifest';
 import { generateFloor } from '../src/gen/floor_manifest';
 import { generateDesignFloor } from '../src/gen/design_floors/manifest';
@@ -70,9 +70,9 @@ function generationFingerprint(gen: FloorGeneration): number {
 }
 
 test('story floor generation is reproducible from run seed', () => {
-  const a = generationFingerprint(generateFloor(-50, 12_345));
-  const b = generationFingerprint(generateFloor(-50, 12_345));
-  const c = generationFingerprint(generateFloor(-50, 12_346));
+  const a = generationFingerprint(generateFloor(FloorLevel.VOID, 12_345));
+  const b = generationFingerprint(generateFloor(FloorLevel.VOID, 12_345));
+  const c = generationFingerprint(generateFloor(FloorLevel.VOID, 12_346));
 
   assert.equal(a, b);
   assert.notEqual(a, c);

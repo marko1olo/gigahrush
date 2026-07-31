@@ -2,7 +2,7 @@
 
 import {
   type Entity, type GameState, type Quest, EntityType, Cell, Feature, RoomType, W, QuestType,
-  LiftDirection, MonsterKind, DoorState,
+  LiftDirection, MonsterKind, FloorLevel, DoorState,
 } from '../core/types';
 import { SURFACE_FLAG_CHALK_MAP, World } from '../core/world';
 import {
@@ -41,7 +41,7 @@ type MapMarkerStyle = { stroke: string; fill: string };
 
 const activeKillKinds = new Set<MonsterKind>();
 const activeKillNpcIds = new Set<number>();
-
+const activeKillPlotNpcIds = new Set<string>();
 const activeTargetRoomTypes = new Map<RoomType, QuestKind>();
 const activeTargetRooms = new Map<number, QuestKind>();
 const activeFetchItems = new Map<string, QuestKind>();
@@ -49,9 +49,11 @@ const drawnTargetRooms = new Set<number>();
 let activeKillAnyMonster = false;
 const MAX_CONCRETE_QUEST_ROOM_MARKERS = 8;
 const mapEntityQuery: Entity[] = [];
+const activeQuestItemQuery: Entity[] = [];
 const MAP_MINIMAP_ENTITY_DOT_BUDGET = 220;
 const MAP_FULL_ENTITY_DOT_BUDGET = 900;
 const MAP_ENTITY_QUERY_BUDGET_MULT = 3;
+const MAP_ACTIVE_QUEST_ITEM_QUERY_CAP = 96;
 const MAP_CROWD_BIN_HASH_CAP = 2048;
 const MAP_CROWD_EMPTY_KEY = -1;
 const MAP_CROWD_GROUP_FRIENDLY_NPC = 0;
@@ -142,7 +144,7 @@ interface FloorOverviewCache {
 
 const floorOverviewCache = new WeakMap<World, FloorOverviewCache>();
 
-function routeFloor(q: Quest): number | undefined {
+function routeFloor(q: Quest): FloorLevel | undefined {
   return questRouteFloor(q);
 }
 
@@ -275,7 +277,7 @@ function setMarkerKind<K>(map: Map<K, QuestKind>, key: K, kind: QuestKind): void
 function clearActiveQuestMarkers(): void {
   activeKillKinds.clear();
   activeKillNpcIds.clear();
-  
+  activeKillPlotNpcIds.clear();
   activeTargetRoomTypes.clear();
   activeTargetRooms.clear();
   activeFetchItems.clear();
@@ -284,13 +286,13 @@ function clearActiveQuestMarkers(): void {
 
 function registerActiveKillTarget(q: Quest): void {
   if (q.targetMonsterKind !== undefined) activeKillKinds.add(q.targetMonsterKind);
-  else if (q.targetNpcId === undefined && q.targetNpcId === undefined) activeKillAnyMonster = true;
+  else if (q.targetNpcId === undefined && q.targetPlotNpcId === undefined) activeKillAnyMonster = true;
   if (q.targetNpcId !== undefined) activeKillNpcIds.add(q.targetNpcId);
-  
+  if (q.targetPlotNpcId !== undefined) activeKillPlotNpcIds.add(q.targetPlotNpcId);
 }
 
 function hasActiveKillTargets(): boolean {
-  return activeKillAnyMonster || activeKillKinds.size > 0 || activeKillNpcIds.size > 0;
+  return activeKillAnyMonster || activeKillKinds.size > 0 || activeKillNpcIds.size > 0 || activeKillPlotNpcIds.size > 0;
 }
 
 function isActiveKillQuestTarget(e: Entity): boolean {
@@ -298,23 +300,23 @@ function isActiveKillQuestTarget(e: Entity): boolean {
     return activeKillAnyMonster || (e.monsterKind !== undefined && activeKillKinds.has(e.monsterKind));
   }
   if (e.type === EntityType.NPC) {
-    return activeKillNpcIds.has(e.id!);
+    return activeKillNpcIds.has(e.id) || (e.plotNpcId !== undefined && activeKillPlotNpcIds.has(e.plotNpcId));
   }
   return false;
 }
 
-function questTargetVisibleOnMap(q: Quest, currentZ: number | undefined, state: GameState | undefined): boolean {
+function questTargetVisibleOnMap(q: Quest, currentFloor: FloorLevel | undefined, state: GameState | undefined): boolean {
   if (state) return isQuestTargetOnCurrentFloor(q, state);
   const floor = routeFloor(q);
-  return floor === undefined || floor === currentZ;
+  return floor === undefined || floor === currentFloor;
 }
 
 function activeVisitLiftDirection(
   quests: Quest[] | undefined,
-  currentZ: number | undefined,
+  currentFloor: FloorLevel | undefined,
   state: GameState | undefined,
 ): LiftDirection | undefined {
-  if (!quests || currentZ === undefined) return undefined;
+  if (!quests || currentFloor === undefined) return undefined;
   for (const q of quests) {
     const floor = routeFloor(q);
     if (q.done || floor === undefined) continue;
@@ -323,8 +325,8 @@ function activeVisitLiftDirection(
       if (dir !== undefined) return dir;
       continue;
     }
-    if (floor === currentZ) continue;
-    return floor > currentZ ? LiftDirection.DOWN : LiftDirection.UP;
+    if (floor === currentFloor) continue;
+    return floor > currentFloor ? LiftDirection.DOWN : LiftDirection.UP;
   }
   return undefined;
 }
@@ -397,8 +399,8 @@ function liveQuestNpcPoint(q: Quest, world: World, player: Entity): QuestMapTarg
     const byId = entityPoint(index.byId.get(q.targetNpcId));
     if (byId) return byId;
   }
-  if (!q.targetNpcId) return undefined;
-  return nearestActorPoint(world, player, e => e.type === EntityType.NPC && e.id === q.targetNpcId);
+  if (!q.targetPlotNpcId) return undefined;
+  return nearestActorPoint(world, player, e => e.type === EntityType.NPC && e.plotNpcId === q.targetPlotNpcId);
 }
 
 function liveQuestKillPoint(q: Quest, world: World, player: Entity): QuestMapTargetPoint | undefined {
@@ -412,14 +414,13 @@ function liveQuestKillPoint(q: Quest, world: World, player: Entity): QuestMapTar
 
 function liveQuestFetchItemPoint(q: Quest, world: World, player: Entity): QuestMapTargetPoint | undefined {
   if (!q.targetItem) return undefined;
-  const activeQuestItemQuery: Entity[] = [];
   getEntityIndex().queryRadiusCapped(
     player.x,
     player.y,
     W,
     activeQuestItemQuery,
     ENTITY_MASK_ITEM_DROP,
-    128,
+    MAP_ACTIVE_QUEST_ITEM_QUERY_CAP,
   );
   let best: Entity | undefined;
   let bestD2 = Infinity;
@@ -443,27 +444,15 @@ function activeQuestMapTargetPoint(world: World, player: Entity, state: GameStat
     const talkPoint = liveQuestNpcPoint(q, world, player);
     if (talkPoint) return talkPoint;
   }
+  if (q.type === QuestType.KILL) {
+    const killPoint = liveQuestKillPoint(q, world, player);
+    if (killPoint) return killPoint;
+  }
 
   const roomTarget = resolveQuestTargetRoom(world, q, player);
   if (roomTarget) return roomCenterPoint(roomTarget.room);
 
-  if (q.type === QuestType.FETCH || q.type === QuestType.KILL) {
-    // If it requires manual turn-in (no contractId), point to the giver
-    if (q.contractId === undefined) {
-      const index = getEntityIndex();
-      const giver = index.byId.get(q.giverId);
-      if (giver) return entityPoint(giver);
-      if (q.giverId) {
-        return nearestActorPoint(world, player, e => e.type === EntityType.NPC && e.id === q.giverId);
-      }
-      return undefined;
-    }
-    
-    // If it auto-completes, the item/enemy is what leads to completion
-    if (q.type === QuestType.KILL) return liveQuestKillPoint(q, world, player);
-    if (q.type === QuestType.FETCH) return liveQuestFetchItemPoint(q, world, player);
-  }
-
+  if (q.type === QuestType.FETCH) return liveQuestFetchItemPoint(q, world, player);
   return undefined;
 }
 
@@ -1081,7 +1070,7 @@ function drawMap(
   mapX: number, mapY: number, mapW: number, mapH: number,
   radius: number, bgAlpha: number,
   quests?: Quest[],
-  currentZ?: number,
+  currentFloor?: FloorLevel,
   state?: GameState,
   uiTime = state?.time ?? 0,
 ): void {
@@ -1100,7 +1089,7 @@ function drawMap(
   const showSurfaceMarks = mapLegendToggleEnabled('map_surface_marks');
 
   prepareMapExploredGrid(world, pxI, pyI, radius);
-  const questLiftDir = showQuests ? activeVisitLiftDirection(quests, currentZ, state) : undefined;
+  const questLiftDir = showQuests ? activeVisitLiftDirection(quests, currentFloor, state) : undefined;
   drawnTargetRooms.clear();
   if (quests && showQuests) {
     clearActiveQuestMarkers();
@@ -1111,9 +1100,9 @@ function drawMap(
       if (
         q.type === QuestType.FETCH &&
         q.targetItem &&
-        (q.targetFloorZ === undefined || q.targetFloorZ === currentZ)
+        (q.targetFloor === undefined || q.targetFloor === currentFloor)
       ) setMarkerKind(activeFetchItems, q.targetItem, kind);
-      if (!questTargetVisibleOnMap(q, currentZ, state)) continue;
+      if (!questTargetVisibleOnMap(q, currentFloor, state)) continue;
       if (q.type === QuestType.KILL) registerActiveKillTarget(q);
       const hasRoomTarget = q.targetRoom !== undefined || q.targetRoomType !== undefined || q.targetZoneTag !== undefined;
       if (hasRoomTarget && concreteRoomMarkers < MAX_CONCRETE_QUEST_ROOM_MARKERS) {
@@ -1541,21 +1530,21 @@ export function drawMapLegendMenu(
 export function drawMinimap(
   ctx: CanvasRenderingContext2D,
   world: World, entities: Entity[], player: Entity,
-  sx: number, sy: number, quests?: Quest[], _floorInstanceLabel?: string, currentZ?: number, state?: GameState, _uiTime = state?.time ?? 0,
+  sx: number, sy: number, quests?: Quest[], _floorInstanceLabel?: string, currentFloor?: FloorLevel, state?: GameState, _uiTime = state?.time ?? 0,
   rect?: UiRect,
 ): void {
   const mw = rect?.w ?? MAP_SIZE * sx;
   const mh = rect?.h ?? MAP_SIZE * sy;
   const mx = rect?.x ?? ctx.canvas.width - mw - 4 * sx;
   const my = rect?.y ?? 4 * sy;
-  drawMap(ctx, world, entities, player, sx, sy, mx, my, mw, mh, 40, 0.75, quests, currentZ, state, _uiTime);
+  drawMap(ctx, world, entities, player, sx, sy, mx, my, mw, mh, 40, 0.75, quests, currentFloor, state, _uiTime);
 }
 
 /* ── Full world map (fullscreen) ─────────────────────────────── */
 export function drawFullMap(
   ctx: CanvasRenderingContext2D,
   world: World, entities: Entity[], player: Entity,
-  sx: number, sy: number, quests?: Quest[], _floorInstanceLabel?: string, currentZ?: number, state?: GameState, _uiTime = state?.time ?? 0,
+  sx: number, sy: number, quests?: Quest[], _floorInstanceLabel?: string, currentFloor?: FloorLevel, state?: GameState, _uiTime = state?.time ?? 0,
 ): void {
   const cw = ctx.canvas.width;
   const ch = ctx.canvas.height;
@@ -1567,6 +1556,6 @@ export function drawFullMap(
     FULL_MAP_RADIUS_MIN,
     Math.min(FULL_MAP_RADIUS_MAX, Math.round(typeof rawRadius === 'number' && Number.isFinite(rawRadius) ? rawRadius : FULL_MAP_RADIUS_DEFAULT)),
   );
-  drawMap(ctx, world, entities, player, sx, sy, pad, pad, mapW, mapH, radius, 0.85, quests, currentZ, state, _uiTime);
+  drawMap(ctx, world, entities, player, sx, sy, pad, pad, mapW, mapH, radius, 0.85, quests, currentFloor, state, _uiTime);
 
 }

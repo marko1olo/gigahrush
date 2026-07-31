@@ -50,20 +50,17 @@ self.addEventListener('fetch', event => {
     event.respondWith(fetch(request));
     return;
   }
-  if (url.pathname.endsWith('/sw.js') || url.pathname.endsWith('/manifest.webmanifest')) {
-    event.respondWith(fetch(request, { cache: 'no-cache' }));
+  if (IS_DEV_HOST || url.pathname.startsWith('/src/') || url.pathname.startsWith('/@vite/')) {
+    event.respondWith(fetch(request));
     return;
   }
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request, { cache: 'no-cache' })
+      fetch(request)
         .then(response => {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put('./index.html', copy.clone()).catch(() => undefined);
-            cache.put('./', copy).catch(() => undefined);
-          }).catch(() => undefined);
+          caches.open(CACHE_NAME).then(cache => cache.put('./index.html', copy)).catch(() => undefined);
           return response;
         })
         .catch(() => caches.match('./index.html').then(response => response || caches.match('./'))),

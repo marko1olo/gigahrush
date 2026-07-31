@@ -1,6 +1,6 @@
 /* ── Tube eel: maintenance water ambusher ────────────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.35,
   sprite: 0,
   aiFlags: ['waterStrider'],
+  floors: [FloorLevel.MAINTENANCE],
   counterplay: 'Не стойте в лотке: сухая кромка и мост режут темп угря, гарпун достает через воду, а приманка уводит с маршрута.',
   lootHint: 'ржавая слизь, манометр, обломок трубы из затопленного лотка',
 };

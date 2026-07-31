@@ -36,7 +36,7 @@ test('karkarov pistol is reachable through the Ministry weapon permit bureau', (
   assert.equal(sidearmQuest?.rewardItem, 'karkarov_pistol');
   assert.equal(sidearmQuest?.requiresSideQuestDone, 'weapon_permit_legal_forms');
 
-  const stepan = entities.find(e => (e as any).npcPackageId === 'stepan_patronov');
+  const stepan = entities.find(e => e.plotNpcId === 'stepan_patronov');
   assert.equal(stepan?.weapon, 'karkarov_pistol');
   assert.ok(stepan?.inventory?.some(item => item.defId === 'karkarov_pistol'));
 

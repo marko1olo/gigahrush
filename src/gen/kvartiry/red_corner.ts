@@ -1,10 +1,9 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* ── Красный уголок — permanent room (kvartiry floor) ─────────── */
 /* Bolshie Stalin'ist common room with portraits, lamps, desk and  */
 /* a teacher NPC. Hand-crafted, protected with aptMask.            */
 
 import {
-  Cell, Tex, Feature, RoomType,
+  Cell, Tex, Feature, FloorLevel, RoomType,
   type Room, type Entity,
   EntityType, Faction, Occupation, QuestType,
 } from '../../core/types';
@@ -14,7 +13,6 @@ import { stampRoom, protectRoom, connectProtectedRoom, findClearArea } from '../
 import { Spr } from '../../render/sprite_index';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng } from '../../core/rand';
 
 const ZOYA_ID = 'uchitelnitsa_zoya';
 const STUDENT_PETYA_ID = 'red_corner_student_petya';
@@ -54,7 +52,7 @@ const NPC_DEF: PlotNpcDef = {
 registerSideQuest(ZOYA_ID, NPC_DEF, [
   {
     id: 'zoya_ballots',
-    giverId: getPlotNpcNumericId(ZOYA_ID)!,
+    giverNpcId: ZOYA_ID,
     type: QuestType.FETCH,
     desc: 'Зоя Аркадьевна: «Принесите 25 бюллетеней. Дети будут учиться считать людей, а не только талоны.»',
     targetItem: 'ballot', targetCount: 25,
@@ -107,7 +105,7 @@ for (const student of STUDENT_DEFS) {
   registerAuthoredNpc({
     id: student.id,
     npc: student.npc,
-    homeFloorKey: storyNpcFloorKey(60),
+    homeFloorKey: storyNpcFloorKey(FloorLevel.KVARTIRY),
     tags: ['kvartiry', 'red_corner', 'student'],
   });
 }
@@ -178,8 +176,8 @@ export function generateRedCorner(
   ];
   for (const defId of lootPool) {
     for (let attempt = 0; attempt < 30; attempt++) {
-      const lx = rx + 1 + Math.floor(rng() * (ROOM_W - 2));
-      const ly = ry + 1 + Math.floor(rng() * (ROOM_H - 2));
+      const lx = rx + 1 + Math.floor(Math.random() * (ROOM_W - 2));
+      const ly = ry + 1 + Math.floor(Math.random() * (ROOM_H - 2));
       const ci = world.idx(lx, ly);
       if (world.cells[ci] !== Cell.FLOOR || world.features[ci]) continue;
       entities.push({

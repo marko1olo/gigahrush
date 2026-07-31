@@ -1,7 +1,6 @@
 /* ── Сантехник Иваныч — side quest (maintenance floor) ────────── */
 /* Старый сантехник коллектора — собирает ключи и трубы.            */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   W, Cell,
   type Entity, Faction, Occupation, QuestType,
@@ -9,7 +8,6 @@ import {
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng } from '../../core/rand';
 
 const NPC_DEF: PlotNpcDef = {
   name: 'Сантехник Иваныч',
@@ -42,7 +40,7 @@ const NPC_DEF: PlotNpcDef = {
 registerSideQuest('sant_ivanych', NPC_DEF, [
   {
     id: 'ivanych_wrenches',
-    giverId: getPlotNpcNumericId('sant_ivanych')!,
+    giverNpcId: 'sant_ivanych',
     type: QuestType.FETCH,
     desc: 'Иваныч: «Принеси пять гаечных ключей. Без них я ни одну течь не заварю, а ты в луже не стой.»',
     targetItem: 'wrench', targetCount: 5,
@@ -60,11 +58,11 @@ export function spawnIvanych(
   world: World, entities: Entity[], nextId: { v: number },
 ): void {
   for (let i = 0; i < 3000; i++) {
-    const x = Math.floor(rng() * W);
-    const y = Math.floor(rng() * W);
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
     if (world.cells[world.idx(x, y)] !== Cell.FLOOR) continue;
     requireSpawnedPlotNpcFromPackage(entities, nextId, 'sant_ivanych', x + 0.5, y + 0.5, {
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       weapon: 'wrench',
       canGiveQuest: true,
       isTraveler: true,

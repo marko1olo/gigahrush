@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, ProjType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, ProjType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { DEF, generateSprite } from '../src/entities/spore_carpet';
 import { getMonsterEcology } from '../src/data/monster_ecology';
@@ -83,6 +83,7 @@ test('spore carpet definition, ecology, and sprite read as a domestic lurking ru
 
   assert.equal(DEF.kind, MonsterKind.SPORE_CARPET);
   assert.deepEqual(DEF.aiFlags, ['lurkingFurniture']);
+  assert.deepEqual(DEF.floors, [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE]);
   assert.equal(ecology?.rare, false);
   assert.match(DEF.counterplay ?? '', /углы|жилы|жгите|фильтр/i);
   assert.equal(sprite.length, S * S);

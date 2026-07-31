@@ -1,7 +1,8 @@
 /* ── Debug menu: commands + overlay rendering ────────────────── */
 
 import {
-  W, Cell, Feature, RoomType, Faction, ZoneFaction, LiftDirection, EntityType, MonsterKind, Occupation, AIGoal, ItemType,
+  W, Cell, Feature, RoomType, Faction, ZoneFaction, LiftDirection, FloorLevel,
+  EntityType, MonsterKind, Occupation, AIGoal, ItemType,
   type Entity, type GameState, type ItemDef, type WorldContainer,
   msg,
 } from '../core/types';
@@ -9,12 +10,10 @@ import { World } from '../core/world';
 import { freshNeeds, randomName, ITEMS } from '../data/catalog';
 import { getStack } from '../data/items';
 import { PSI_WEAPON_STATS } from '../data/psi';
-import { designFloorAtZ } from "../data/design_floors";
 import { getPermitDef, type PermitAccessTag } from '../data/permits';
 import { FACTION_NAMES } from '../data/relations';
 import { MONSTERS, monsterTypeName } from '../entities/monster';
 import { monsterSpr, Spr } from '../render/sprite_index';
-import { CRITTERS_POOL, MAX_CRITTERS } from '../render/critters';
 import { awardXP, randomRPG, getMaxHp } from './rpg';
 import { isDebugNoClipEnabled, toggleDebugNoClip } from './psi';
 import { cycleForcedSamosborVariant, forceNextSamosborVariant, getActiveSamosborVariant } from './samosbor_variants_runtime';
@@ -81,11 +80,10 @@ import { getAiStats } from './ai';
 import { canSpawnEntityType, entitySpawnSlots } from './entity_limits';
 import { CHALK_ITEM_ID } from './chalk';
 import { isPlayerEntity } from './player_actor';
-import { rng, mathRng } from '../core/rand';
 
 /* ── Command execution ───────────────────────────────────────── */
 
-const CATALOG_DEBUG_SEARCHES = [ 'numbered', '404', 'school', 'hospital', 'market'];
+const CATALOG_DEBUG_SEARCHES = ['', 'numbered', '404', 'school', 'hospital', 'market'];
 const DEBUG_SAMOSBOR_WARNING_SECONDS = 12;
 const DEBUG_MONSTER_SCAN_CAP = 192;
 const DEBUG_CONTAINER_ROUTE_RADIUS = 2;
@@ -111,8 +109,8 @@ const DEBUG_ECONOMY_PULSES = [
 ] as const;
 export const SMOKE_STRESS_HOOK_ID = 'stress_spawn' as const;
 export const SMOKE_DEBUG_COMMAND_IDS = {
-  teleportLiving: 'teleport_design_z: living',
-  teleportMaintenance: 'teleport_design_z: maintenance',
+  teleportLiving: 'teleport_living',
+  teleportMaintenance: 'teleport_maintenance',
   forceFactionEvent: 'force_faction_event',
   rareSamosbor: 'rare_samosbor',
   expeditionSetup: 'smoke_expedition_setup',
@@ -124,13 +122,13 @@ export const SMOKE_DEBUG_COMMAND_IDS = {
   expeditionProofSamosborWarning: 'expedition_proof_samosbor_warning',
   expeditionProofReturn: 'expedition_proof_return',
 } as const;
-const DEBUG_MONSTER_PACKS: Record<string, readonly MonsterKind[]> = {
-  ministry: [MonsterKind.PECHATEED, MonsterKind.KONTORSHCHIK, MonsterKind.PARAGRAPH, MonsterKind.PROTOKOLNIK, MonsterKind.SHOVNIK, MonsterKind.LAMPOGLAZ, MonsterKind.KANTSELYARSKIY_IDOL, MonsterKind.LOZHNYY_DUKH, MonsterKind.TONKAYA_TEN, MonsterKind.BLACK_LIQUIDATOR, MonsterKind.HEAD_SLUG, MonsterKind.CHERVIE_AVATAR, MonsterKind.MUKHOZHUK_HOST, MonsterKind.BEZEKHIY, MonsterKind.SPORE_CARPET],
-  kvartiry: [MonsterKind.REBAR, MonsterKind.NELYUD, MonsterKind.KRYSNOZHKA, MonsterKind.POMOYNY_ROY, MonsterKind.GREEN_DOG, MonsterKind.PANELNIK, MonsterKind.PAUPSINA, MonsterKind.BLACK_LIQUIDATOR, MonsterKind.OBZHIVALSHCHIK, MonsterKind.ZHORNAYA_TVAR, MonsterKind.DIKIY_MERTVYAK, MonsterKind.HEAD_SLUG, MonsterKind.BEZEKHIY, MonsterKind.TRESKOTNIK, MonsterKind.GNILUSHKA, MonsterKind.SPORE_CARPET],
-  living: [MonsterKind.SBORKA, MonsterKind.SHADOW, MonsterKind.NELYUD, MonsterKind.LAMPOGLAZ, MonsterKind.POMOYNY_ROY, MonsterKind.GREEN_DOG, MonsterKind.PANELNIK, MonsterKind.PAUPSINA, MonsterKind.BLACK_LIQUIDATOR, MonsterKind.OBZHIVALSHCHIK, MonsterKind.TUMANNIK, MonsterKind.FOG_SHARK, MonsterKind.ZHORNAYA_TVAR, MonsterKind.SOBRANNYY, MonsterKind.SLIME_WOMAN, MonsterKind.BORSHCHEVIK, MonsterKind.BLOOD_PLANT, MonsterKind.HEAD_SLUG, MonsterKind.LOZHNYY_DUKH, MonsterKind.DIKIY_MERTVYAK, MonsterKind.BEZEKHIY, MonsterKind.TRESKOTNIK, MonsterKind.TONKAYA_TEN, MonsterKind.GNILUSHKA, MonsterKind.SPORE_CARPET],
-  maintenance: [MonsterKind.TUBE_EEL, MonsterKind.POLZUN, MonsterKind.KOSTOREZ, MonsterKind.SAFEGUARD, MonsterKind.BETONOED, MonsterKind.POMOYNY_ROY, MonsterKind.SWARM, MonsterKind.GREEN_DOG, MonsterKind.PANELNIK, MonsterKind.PAUPSINA, MonsterKind.SOBRANNYY, MonsterKind.SLIME_WOMAN, MonsterKind.BORSHCHEVIK, MonsterKind.BLOOD_PLANT, MonsterKind.OLGOY, MonsterKind.VODYANOY_KOSHMAR, MonsterKind.ZAKALENNAYA_ARMATURA, MonsterKind.HEAD_SLUG, MonsterKind.CHERVIE_AVATAR, MonsterKind.MUKHOZHUK_HOST, MonsterKind.TRUBNYY_AVTOMAT, MonsterKind.FOG_SHARK, MonsterKind.SPORE_CARPET],
-  hell: [MonsterKind.HERALD, MonsterKind.KOSTOREZ, MonsterKind.KHOROVAYA_MATKA, MonsterKind.TVAR, MonsterKind.TUMANNIK, MonsterKind.FOG_SHARK, MonsterKind.ZHORNAYA_TVAR, MonsterKind.SOBRANNYY, MonsterKind.BLOOD_PLANT, MonsterKind.SWARM, MonsterKind.OLGOY, MonsterKind.ZAKALENNAYA_ARMATURA, MonsterKind.TRESKOTNIK, MonsterKind.GLUBINNAYA_TEN, MonsterKind.LISHENNYY],
-  void: [MonsterKind.PARAGRAPH, MonsterKind.EYE, MonsterKind.SPIRIT, MonsterKind.SAFEGUARD, MonsterKind.LOZHNYY_DUKH, MonsterKind.TONKAYA_TEN, MonsterKind.CHERVIE_AVATAR, MonsterKind.GLUBINNAYA_TEN, MonsterKind.LISHENNYY],
+const DEBUG_MONSTER_PACKS: Record<FloorLevel, readonly MonsterKind[]> = {
+  [FloorLevel.MINISTRY]: [MonsterKind.PECHATEED, MonsterKind.KONTORSHCHIK, MonsterKind.PARAGRAPH, MonsterKind.PROTOKOLNIK, MonsterKind.SHOVNIK, MonsterKind.LAMPOGLAZ, MonsterKind.KANTSELYARSKIY_IDOL, MonsterKind.LOZHNYY_DUKH, MonsterKind.TONKAYA_TEN, MonsterKind.BLACK_LIQUIDATOR, MonsterKind.HEAD_SLUG, MonsterKind.CHERVIE_AVATAR, MonsterKind.MUKHOZHUK_HOST, MonsterKind.BEZEKHIY, MonsterKind.SPORE_CARPET],
+  [FloorLevel.KVARTIRY]: [MonsterKind.REBAR, MonsterKind.NELYUD, MonsterKind.KRYSNOZHKA, MonsterKind.POMOYNY_ROY, MonsterKind.GREEN_DOG, MonsterKind.PANELNIK, MonsterKind.PAUPSINA, MonsterKind.BLACK_LIQUIDATOR, MonsterKind.OBZHIVALSHCHIK, MonsterKind.ZHORNAYA_TVAR, MonsterKind.DIKIY_MERTVYAK, MonsterKind.HEAD_SLUG, MonsterKind.BEZEKHIY, MonsterKind.TRESKOTNIK, MonsterKind.GNILUSHKA, MonsterKind.SPORE_CARPET],
+  [FloorLevel.LIVING]: [MonsterKind.SBORKA, MonsterKind.SHADOW, MonsterKind.NELYUD, MonsterKind.LAMPOGLAZ, MonsterKind.POMOYNY_ROY, MonsterKind.GREEN_DOG, MonsterKind.PANELNIK, MonsterKind.PAUPSINA, MonsterKind.BLACK_LIQUIDATOR, MonsterKind.OBZHIVALSHCHIK, MonsterKind.TUMANNIK, MonsterKind.FOG_SHARK, MonsterKind.ZHORNAYA_TVAR, MonsterKind.SOBRANNYY, MonsterKind.SLIME_WOMAN, MonsterKind.BORSHCHEVIK, MonsterKind.BLOOD_PLANT, MonsterKind.HEAD_SLUG, MonsterKind.LOZHNYY_DUKH, MonsterKind.DIKIY_MERTVYAK, MonsterKind.BEZEKHIY, MonsterKind.TRESKOTNIK, MonsterKind.TONKAYA_TEN, MonsterKind.GNILUSHKA, MonsterKind.SPORE_CARPET],
+  [FloorLevel.MAINTENANCE]: [MonsterKind.TUBE_EEL, MonsterKind.POLZUN, MonsterKind.KOSTOREZ, MonsterKind.SAFEGUARD, MonsterKind.BETONOED, MonsterKind.POMOYNY_ROY, MonsterKind.SWARM, MonsterKind.GREEN_DOG, MonsterKind.PANELNIK, MonsterKind.PAUPSINA, MonsterKind.SOBRANNYY, MonsterKind.SLIME_WOMAN, MonsterKind.BORSHCHEVIK, MonsterKind.BLOOD_PLANT, MonsterKind.OLGOY, MonsterKind.VODYANOY_KOSHMAR, MonsterKind.ZAKALENNAYA_ARMATURA, MonsterKind.HEAD_SLUG, MonsterKind.CHERVIE_AVATAR, MonsterKind.MUKHOZHUK_HOST, MonsterKind.TRUBNYY_AVTOMAT, MonsterKind.FOG_SHARK, MonsterKind.SPORE_CARPET],
+  [FloorLevel.HELL]: [MonsterKind.HERALD, MonsterKind.KOSTOREZ, MonsterKind.KHOROVAYA_MATKA, MonsterKind.TVAR, MonsterKind.TUMANNIK, MonsterKind.FOG_SHARK, MonsterKind.ZHORNAYA_TVAR, MonsterKind.SOBRANNYY, MonsterKind.BLOOD_PLANT, MonsterKind.SWARM, MonsterKind.OLGOY, MonsterKind.ZAKALENNAYA_ARMATURA, MonsterKind.TRESKOTNIK, MonsterKind.GLUBINNAYA_TEN, MonsterKind.LISHENNYY],
+  [FloorLevel.VOID]: [MonsterKind.PARAGRAPH, MonsterKind.EYE, MonsterKind.SPIRIT, MonsterKind.SAFEGUARD, MonsterKind.LOZHNYY_DUKH, MonsterKind.TONKAYA_TEN, MonsterKind.CHERVIE_AVATAR, MonsterKind.GLUBINNAYA_TEN, MonsterKind.LISHENNYY],
 };
 const DEBUG_PERMIT_PACK = [
   'official_permit_slip',
@@ -220,7 +218,6 @@ type BaseDebugCommandId =
   | 'teleport_rail_trains'
   | 'spawn_bad_apple_world'
   | 'spawn_sculpture'
-  | 'spawn_critters'
   | 'verification_contract_route'
   | 'publish_verification_event'
   | 'route_floor_summary'
@@ -243,7 +240,7 @@ type BaseDebugCommandId =
   | 'force_pseudolift'
   | 'debug_samosbor_small_wave';
 
-const DESIGN_FLOOR_COMMAND_ID_PREFIX = 'teleport_design_z: ';
+const DESIGN_FLOOR_COMMAND_ID_PREFIX = 'teleport_design_floor:';
 
 export type DebugCommandId = BaseDebugCommandId | `${typeof DESIGN_FLOOR_COMMAND_ID_PREFIX}${DesignFloorId}`;
 
@@ -253,10 +250,10 @@ interface DebugCommandDef {
 }
 
 export type DebugCommandAction =
-  
+  | { type: 'teleport_story_floor'; floor: FloorLevel }
   | { type: 'teleport_random_procedural_floor' }
   | { type: 'teleport_procedural_anomaly'; anomalyId: FloorAnomalyId }
-  | { type: 'teleport_design_floor'; id: DesignFloorId; themeTags: readonly string[]; z: number; label: string; color: string }
+  | { type: 'teleport_design_floor'; id: DesignFloorId; floor: FloorLevel; z: number; label: string; color: string }
   | { type: 'refresh_world_data' };
 
 function movePlayerToSmokeLift(world: World, player: Entity, entities: Entity[]): boolean {
@@ -339,7 +336,7 @@ function routeEntryLine(prefix: string, entry: ReturnType<typeof currentFloorRun
     ? `proc ${entry.spec.anomalyId} d${entry.spec.danger}`
     : entry.designFloorId
       ? `design ${entry.designFloorId}`
-      : `design ${entry.themeTags.join(",")}`;
+      : `story ${FloorLevel[entry.baseFloor]}`;
   return `${prefix}: Z${formatDebugZ(entry.z)} ${kind} ${entry.label}`;
 }
 
@@ -487,12 +484,12 @@ function debugRouteFloorSummaryLines(world: World, player: Entity, entities: Ent
   const entry = currentFloorRunEntry(state);
   const metrics = debugRouteFloorMetrics(world, player, entities);
   const badPlacements = metrics.playerBad + metrics.entityBad + metrics.containerBad;
-  const story = entry.themeTags.join(",") ?? 'none';
+  const story = entry.storyFloor !== undefined ? FloorLevel[entry.storyFloor] : 'none';
   const design = entry.designFloorId ?? 'none';
   const procedural = entry.spec?.key ?? 'none';
   const anomaly = entry.spec?.anomalyId ?? 'none';
   const out = [
-    `identity z=${formatDebugZ(entry.z)} route=${floorRunEntryRouteId(entry)} kind=${floorRunEntryKind(entry)} base=${entry.themeTags.join(",")} story=${story} design=${design} procedural=${procedural}`,
+    `identity z=${formatDebugZ(entry.z)} route=${floorRunEntryRouteId(entry)} kind=${floorRunEntryKind(entry)} base=${FloorLevel[entry.baseFloor]} story=${story} design=${design} procedural=${procedural}`,
     `label=${entry.label}`,
     floorInstanceIdentityLine(state),
     `reach cells=${metrics.reachableCells}/${metrics.passableCells} rooms=${metrics.reachableRooms}/${metrics.rooms} functional=${metrics.reachableFunctionalRooms}/${metrics.functionalRooms}`,
@@ -666,10 +663,7 @@ function spawnDebugMonsterPack(
   state: GameState,
   nextEntityId: { v: number },
 ): string[] {
-  const designFloor = designFloorAtZ(state.currentZ);
-  const tags = designFloor?.themeTags ? designFloor.themeTags : ['living'];
-  const themeClass = ['ministry', 'kvartiry', 'living', 'maintenance', 'hell', 'void'].find(t => tags.includes(t)) || 'living';
-  const kinds = DEBUG_MONSTER_PACKS[themeClass] || DEBUG_MONSTER_PACKS['living'];
+  const kinds = DEBUG_MONSTER_PACKS[state.currentFloor];
   const slots = entitySpawnSlots(entities, EntityType.MONSTER, kinds.length);
   let spawned = 0;
   const names: string[] = [];
@@ -819,7 +813,7 @@ function nearestDebugMukhozhukNpc(world: World, player: Entity, entities: Entity
   let best: Entity | null = null;
   let bestD2 = 9 * 9;
   for (const e of entities) {
-    if (!e.alive || e.type !== EntityType.NPC || !e.ai || e.id !== undefined) continue;
+    if (!e.alive || e.type !== EntityType.NPC || !e.ai || e.plotNpcId !== undefined) continue;
     const d2 = world.dist2(player.x, player.y, e.x, e.y);
     if (d2 >= bestD2) continue;
     best = e;
@@ -1014,11 +1008,11 @@ function adjacentContainerRouteSpot(world: World, container: WorldContainer): { 
 }
 
 function routePlayerToNearestContainer(world: World, player: Entity, state: GameState): string[] {
-  const created = ensureRoomContainers(world, state.currentZ);
+  const created = ensureRoomContainers(world, state.currentFloor);
   let best: WorldContainer | null = null;
   let bestScore = Infinity;
   for (const c of world.containers) {
-    if (c.z !== state.currentZ) continue;
+    if (c.floor !== state.currentFloor) continue;
     const route = adjacentContainerRouteSpot(world, c);
     if (!route) continue;
     const theftBias = c.access === 'faction' || c.access === 'owner' ? -500 : 0;
@@ -1039,26 +1033,24 @@ function routePlayerToNearestContainer(world: World, player: Entity, state: Game
 }
 
 function armLocalFloorInstance(world: World, player: Entity, state: GameState): string[] {
-  const tags = currentFloorRunEntry(state).themeTags;
-  const candidates = FLOOR_INSTANCES.filter(def => def.themeTags.some(t => tags.includes(t)));
-  if (candidates.length === 0) return [`no numbered loop uses ${tags.join(',')} as base; teleport to another story floor first`];
+  const candidates = FLOOR_INSTANCES.filter(def => def.baseFloor === state.currentFloor);
+  if (candidates.length === 0) return [`no numbered loop uses ${FloorLevel[state.currentFloor]} as base; teleport to another story floor first`];
   const def = candidates[debugFloorInstanceCursor++ % candidates.length];
-  const store = ensureFloorInstanceState(state, state.currentZ);
+  const store = ensureFloorInstanceState(state, state.currentFloor);
   const instance = {
     id: def.id,
     displayNumber: def.displayNumber,
     title: def.title,
-    
-    seed: Math.floor(rng() * 0x7fffffff),
+    baseFloor: def.baseFloor,
+    seed: Math.floor(Math.random() * 0x7fffffff),
     seedTag: def.seedTag,
     risk: def.risk,
     enteredAt: state.time,
-    fromFloor: state.currentZ,
-    intendedFloor: state.currentZ,
+    fromFloor: state.currentFloor,
+    intendedFloor: state.currentFloor,
     direction: LiftDirection.DOWN,
-    returnFloor: state.currentZ,
+    returnFloor: state.currentFloor,
   };
-  // @ts-ignore
   store.current = instance;
   store.discovered[def.id] = true;
   store.anomalyCount++;
@@ -1066,7 +1058,7 @@ function armLocalFloorInstance(world: World, player: Entity, state: GameState): 
   store.lastRoll = 0;
   publishEvent(state, {
     type: 'elevator_anomaly',
-    
+    floor: def.baseFloor,
     zoneId: currentPlayerZone(world, player),
     x: player.x,
     y: player.y,
@@ -1089,7 +1081,6 @@ function armLocalFloorInstance(world: World, player: Entity, state: GameState): 
     },
   });
   return [
-    // @ts-ignore
     `armed ${floorInstanceLabel(instance)}`,
     'use any lift once to publish loop exit and return to stable route',
   ];
@@ -1140,14 +1131,14 @@ function grantDebugPermitPack(player: Entity): string[] {
     : ['нет места под документы'];
 }
 
-function debugPermitTagForFloor(z: number): PermitAccessTag {
-  if (z === 30) return 'ministry_n3';
-  if (z === 60) return 'quarantine';
+function debugPermitTagForFloor(floor: FloorLevel): PermitAccessTag {
+  if (floor === FloorLevel.MINISTRY) return 'ministry_n3';
+  if (floor === FloorLevel.KVARTIRY) return 'quarantine';
   return 'general_admin';
 }
 
 function checkDebugPermitAccess(world: World, player: Entity, state: GameState): string[] {
-  const preferred = debugPermitTagForFloor(state.currentZ);
+  const preferred = debugPermitTagForFloor(state.currentFloor);
   const permit = findActorPermit(player, [preferred, 'general_admin', 'archive', 'bank_debt', 'bank_vault']);
   if (!permit) return ['нет пропуска с подходящим access tag'];
   const tag = permit.accessTags.includes(preferred) ? preferred : permit.accessTags[0];
@@ -1264,11 +1255,9 @@ export function execDebugCommand(
     const def = DESIGN_FLOOR_ROUTES[execIdx - DESIGN_FLOOR_COMMAND_START];
     if (def) {
       return {
-        type: "teleport_design_floor",
+        type: 'teleport_design_floor',
         id: def.id,
-        // @ts-ignore
-        themeTags: def.themeTags,
-        
+        floor: def.baseFloor,
         z: def.z,
         label: def.displayName,
         color: def.color,
@@ -1315,7 +1304,7 @@ export function execDebugCommand(
       const rpg = randomRPG(player.rpg?.level ?? 1);
       const maxHp = getMaxHp(rpg);
       const factions = [Faction.CITIZEN, Faction.LIQUIDATOR, Faction.CULTIST, Faction.WILD];
-      const faction = factions[Math.floor(rng() * factions.length)];
+      const faction = factions[Math.floor(Math.random() * factions.length)];
       entities.push({
         id: nextEntityId.v++, type: EntityType.NPC,
         x: player.x + Math.cos(player.angle) * 2,
@@ -1326,7 +1315,7 @@ export function execDebugCommand(
         needs: freshNeeds(), hp: maxHp, maxHp,
         ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
         inventory: [], faction, occupation: Occupation.TRAVELER, isTraveler: true,
-        rpg, money: 20 + Math.floor(rng() * 80),
+        rpg, money: 20 + Math.floor(Math.random() * 80),
       });
       state.msgs.push(msg(`NPC ${nm.name} заспавнен`, state.time, '#ff0'));
       break;
@@ -1375,7 +1364,7 @@ export function execDebugCommand(
       for (const row of summarizeImportantEventsByFloorZone(state, 8)) {
         const zone = row.zoneId >= 0 ? `z${row.zoneId + 1}` : 'z?';
         state.msgs.push(msg(
-          `[EVENTS] floor ${row.z} ${zone}: ${row.count} imp, max${row.maxSeverity}, last ${row.lastType}#${row.lastId}`,
+          `[EVENTS] floor ${row.floor} ${zone}: ${row.count} imp, max${row.maxSeverity}, last ${row.lastType}#${row.lastId}`,
           state.time,
           '#9cf',
         ));
@@ -1390,7 +1379,7 @@ export function execDebugCommand(
       break;
     }
     case 9: { // Containers near player
-      const made = ensureRoomContainers(world, state.currentZ);
+      const made = ensureRoomContainers(world, state.currentFloor);
       if (made > 0) state.msgs.push(msg(`[CONT] создано: ${made}`, state.time, '#ff0'));
       const list = nearbyContainers(world, player, 3);
       if (list.length === 0) {
@@ -1401,7 +1390,7 @@ export function execDebugCommand(
       break;
     }
     case 10: { // Take first item from nearest container
-      ensureRoomContainers(world, state.currentZ);
+      ensureRoomContainers(world, state.currentFloor);
       const c = firstNearbyContainer(world, player);
       if (!c) {
         state.msgs.push(msg('[CONT] рядом нет контейнера', state.time, '#888'));
@@ -1426,7 +1415,7 @@ export function execDebugCommand(
       const search = CATALOG_DEBUG_SEARCHES[catalogDebugSearchIndex++ % CATALOG_DEBUG_SEARCHES.length];
       const query = search
         ? { search, limit: 6 }
-        : { baseFloor: state.currentZ, limit: 6 };
+        : { baseFloor: state.currentFloor, limit: 6 };
       for (const line of floorCatalogDebugLines(query)) state.msgs.push(msg(`[CAT] ${line}`, state.time, '#ccf'));
       for (const line of summarizeHeatline(world)) state.msgs.push(msg(line, state.time, '#f84'));
       for (const line of summarizeCarnivorousFungus(world)) state.msgs.push(msg(line, state.time, '#bf8'));
@@ -1476,7 +1465,13 @@ export function execDebugCommand(
       state.msgs.push(msg('[DIR] cooldowns cleared', state.time, '#ff0'));
       break;
     }
-                            case 28: return { type: 'teleport_random_procedural_floor' };
+    case 22: return { type: 'teleport_story_floor', floor: FloorLevel.MINISTRY };
+    case 23: return { type: 'teleport_story_floor', floor: FloorLevel.KVARTIRY };
+    case 24: return { type: 'teleport_story_floor', floor: FloorLevel.LIVING };
+    case 25: return { type: 'teleport_story_floor', floor: FloorLevel.MAINTENANCE };
+    case 26: return { type: 'teleport_story_floor', floor: FloorLevel.HELL };
+    case 27: return { type: 'teleport_story_floor', floor: FloorLevel.VOID };
+    case 28: return { type: 'teleport_random_procedural_floor' };
     case 29: { // Smoke expedition setup
       addItem(player, 'makarov', 1);
       addItem(player, 'ammo_9mm', 30);
@@ -1674,7 +1669,8 @@ export function execDebugCommand(
       state.msgs.push(msg(`[EXPEDITION] lift=${moved ? 'ready' : 'missing'}`, state.time, moved ? '#4f4' : '#f84'));
       break;
     }
-        case 73: {
+    case 72: return { type: 'teleport_story_floor', floor: FloorLevel.MAINTENANCE };
+    case 73: {
       state.msgs.push(msg(forceFactionEvent(state, world, player, entities, nextEntityId), state.time, '#ff0'));
       break;
     }
@@ -1686,7 +1682,8 @@ export function execDebugCommand(
       state.msgs.push(msg(`[EXPEDITION] ${setSamosborWarningWindow(state)}`, state.time, '#fa4'));
       break;
     }
-        case 77: {
+    case 76: return { type: 'teleport_story_floor', floor: FloorLevel.LIVING };
+    case 77: {
       for (const line of debugStartSamosborWaveAtPlayer(world, player, entities, state, 'small')) {
         state.msgs.push(msg(`[SAMOSBOR-WAVE] ${line}`, state.time, '#c8f'));
       }
@@ -1777,31 +1774,6 @@ export function execDebugCommand(
         phasing: false,
       });
       state.msgs.push(msg('[DEBUG] Скульптура заспавнена перед игроком', state.time, '#ff0'));
-      break;
-    }
-    case 90: {
-      let spawned = 0;
-      for (let i = 0; i < MAX_CRITTERS && spawned < 10; i++) {
-        const c = CRITTERS_POOL[i];
-        if (!c.active) {
-          const angle = mathRng() * Math.PI * 2;
-          const dist = 1 + mathRng() * 3;
-          const sx = Math.round(player.x + Math.cos(angle) * dist);
-          const sy = Math.round(player.y + Math.sin(angle) * dist);
-          if (world.get(sx, sy) === Cell.FLOOR) {
-            c.active = true;
-            const r = mathRng();
-            c.defId = r < 0.4 ? 'roach' : (r < 0.8 ? 'rat' : 'fly');
-            c.x = sx;
-            c.y = sy;
-            c.z = 0;
-            c.targetX = sx;
-            c.targetY = sy;
-            spawned++;
-          }
-        }
-      }
-      state.msgs.push(msg(`[DEBUG] Заспавнено криттеров: ${spawned}`, state.time, '#ff0'));
       break;
     }
   }
@@ -1910,7 +1882,6 @@ const BASE_CMD_DEFS = [
   { id: 'spawn_all_psi', label: 'Все ПСИ-сгустки' },
   { id: 'spawn_all_tools', label: 'Все инструменты' },
   { id: 'spawn_sculpture', label: 'Спавн Скульптуры' },
-  { id: 'spawn_critters', label: 'DEBUG: спавн криттеров' },
 ] as const satisfies readonly DebugCommandDef[];
 
 const BASE_CMD_VISUAL_BEFORE_DESIGN = [
@@ -1941,7 +1912,12 @@ const BASE_CMD_VISUAL_BEFORE_DESIGN = [
   'debug_false_cleanup_patrol',
   'debug_mukhozhuk_host',
   'debug_chervie_site',
-
+  'teleport_living',
+  'teleport_ministry',
+  'teleport_kvartiry',
+  'teleport_maintenance',
+  'teleport_hell',
+  'teleport_void',
   'teleport_random_procedural',
   'teleport_smog',
   'teleport_false_safe_block',
@@ -2002,7 +1978,6 @@ const BASE_CMD_VISUAL_AFTER_DESIGN = [
   'force_pneumomail_capsule',
   'force_hermodoor_borer',
   'spawn_sculpture',
-  'spawn_critters',
 ] as const satisfies readonly BaseDebugCommandId[];
 
 function designFloorCommandId(id: DesignFloorId): DebugCommandId {
@@ -2180,7 +2155,7 @@ export function drawDebugOverlay(
   row(`AI факт: plot ${ai.plot} boss ${ai.bosses} atk ${ai.activeAttackers} proj ${ai.projectileOwners}/${ai.projectiles}`, '#9cf');
   for (const line of summarizeFloorRun(state).slice(0, 2)) row(`Этажи: ${line}`, '#8cf');
   const playerEntity = entities.find(e => isPlayerEntity(e));
-  for (const line of summarizeRoomMemoryForRoom(state.currentZ, playerEntity ? currentPlayerRoom(world, playerEntity) : undefined)) row(line, '#dc9');
+  for (const line of summarizeRoomMemoryForRoom(state.currentFloor, playerEntity ? currentPlayerRoom(world, playerEntity) : undefined)) row(line, '#dc9');
   for (const line of summarizeProceduralSmog(world, state).slice(0, 2)) row(`Смог: ${line}`, '#b98');
   for (const line of summarizeBadAppleWorld(world).slice(0, 2)) row(`BadApple: ${line}`, '#eee');
   for (const line of summarizeFloorInstances(state).slice(0, 2)) row(`Лифт: ${line}`, '#f4a');

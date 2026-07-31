@@ -1,12 +1,12 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Feature, Faction, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Feature, FloorLevel, Faction, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
 import { DEF, generateSprite } from '../src/entities/chervie_avatar';
+import { MONSTERS, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { S } from '../src/render/pixutil';
 import {
   CHERVIE_MIND_PULSE_CAP,
@@ -16,7 +16,7 @@ import {
 import { rebuildEntityIndex } from '../src/systems/entity_index';
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
 import { CHERVIE_NET_SOURCE_RADIUS, chervieNetPowered, findChervieNetSource } from '../src/systems/monster_traits';
-import { generateSiliconNetWellDesignFloor } from '../src/gen/silicon_net_well';
+import { generateSiliconNetWellDesignFloor } from '../src/gen/design_floors/silicon_net_well';
 import { addTestRoom, makeGameState } from './helpers';
 
 function openWorld(): World {
@@ -111,7 +111,11 @@ test('Chervie avatar keeps the existing standalone monster package', () => {
   assert.equal(DEF.kind, MonsterKind.CHERVIE_AVATAR);
   assert.equal(DEF.name, 'Червие');
   assert.deepEqual(DEF.aiFlags, ['netPossessor']);
+  assert.deepEqual(DEF.floors, [FloorLevel.MINISTRY, FloorLevel.MAINTENANCE, FloorLevel.VOID]);
   assert.equal(MONSTERS[MonsterKind.CHERVIE_AVATAR], DEF);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.MINISTRY].includes(MonsterKind.CHERVIE_AVATAR), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.MAINTENANCE].includes(MonsterKind.CHERVIE_AVATAR), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.VOID].includes(MonsterKind.CHERVIE_AVATAR), true);
   assert.deepEqual(getMonsterEcology(MonsterKind.CHERVIE_AVATAR)?.rumorIds, ['monster_chervie_avatar_screen', 'ecology_chervie_avatar_disconnect']);
   assert.equal(RUMORS.some(rumor => rumor.id === 'monster_chervie_avatar_screen'), true);
   assert.equal(sprite.length, S * S);
@@ -154,7 +158,7 @@ test('Chervie mind pulse is capped and cooldown-gated', () => {
     npc(8, 16.5, 11.5),
   ];
   const msgs: Msg[] = [];
-  const state = makeGameState({ currentZ: -14, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, worldEvents: createWorldEventState() });
   rebuildEntityIndex(entities);
 
   updateChervieNetPossessor(world, entities, threat, 1, 1, msgs, target.id, state);
@@ -175,7 +179,7 @@ test('cutting the local server publishes a Chervie cut event', () => {
   const target = player(30.5, 10.5);
   const entities = [target, threat];
   const msgs: Msg[] = [];
-  const state = makeGameState({ currentZ: -14, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, worldEvents: createWorldEventState() });
   world.features[world.idx(11, 10)] = Feature.APPARATUS;
   rebuildEntityIndex(entities);
 

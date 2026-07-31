@@ -14,12 +14,12 @@ function resultText(snapshot: CheckersSnapshot): string {
 function drawPiece(ctx: CanvasRenderingContext2D, piece: CheckersPiece, cx: number, cy: number, radius: number, isSelected: boolean) {
   const fill = piece.side === 'player' ? '#d6b15d' : '#8d9690';
   const stroke = isSelected ? '#ffffff' : (piece.side === 'player' ? '#8b826d' : '#59615d');
-
+  
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.fillStyle = fill;
   ctx.fill();
-
+  
   ctx.lineWidth = isSelected ? 3 : 2;
   ctx.strokeStyle = stroke;
   ctx.stroke();
@@ -52,7 +52,7 @@ export function drawCheckersInterface(
   const pad = 8 * s;
   const headerY = py + 36 * sy;
   const controlsY = py + ph - 17 * sy;
-
+  
   ctx.save();
   rect(ctx, px + 4 * sx, py + 32 * sy, pw - 8 * sx, ph - 43 * sy, 'rgba(2,5,5,0.74)', '#27312f');
 
@@ -80,7 +80,7 @@ export function drawCheckersInterface(
       const isDark = (x + y) % 2 === 1;
       const cellFill = isDark ? '#27312f' : '#3a4441';
       rect(ctx, boardX + x * cellSize, boardY + y * cellSize, cellSize, cellSize, cellFill);
-
+      
       // Cursor
       if (snapshot.phase === 'player_turn' && snapshot.cursorX === x && snapshot.cursorY === y) {
         rect(ctx, boardX + x * cellSize, boardY + y * cellSize, cellSize, cellSize, 'rgba(214, 177, 93, 0.3)', '#d6b15d');

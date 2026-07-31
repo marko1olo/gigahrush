@@ -1,8 +1,8 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* -- Istotit communal supply cache: share, steal, guard, report, barter -- */
 
 import {
-  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, MonsterKind, Occupation, QuestType, RoomType, Tex,
+  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, FloorLevel,
+  MonsterKind, Occupation, QuestType, RoomType, Tex,
   type Entity, type Room, type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -109,7 +109,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
 
 registerSideQuest(AGAFA_ID, NPC_DEFS[AGAFA_ID], [{
   id: 'ag89_share_water_with_neighbors',
-  giverId: getPlotNpcNumericId(AGAFA_ID)!,
+  giverNpcId: AGAFA_ID,
   type: QuestType.FETCH,
   desc: 'Агафья Свечная: «Принеси две бутылки воды в общий свечной запас. Раздадим у двери тем, кого сирена застала без фляги.»',
   targetItem: 'water', targetCount: 2,
@@ -120,7 +120,7 @@ registerSideQuest(AGAFA_ID, NPC_DEFS[AGAFA_ID], [{
 
 registerSideQuest(SAVVA_ID, NPC_DEFS[SAVVA_ID], [{
   id: 'ag89_guard_supply_door',
-  giverId: getPlotNpcNumericId(SAVVA_ID)!,
+  giverNpcId: SAVVA_ID,
   type: QuestType.KILL,
   desc: 'Савва Дверной: «Сборка трется у запасной двери. Убей одну, пока свечи не стали приманкой.»',
   targetMonsterKind: MonsterKind.SBORKA,
@@ -131,7 +131,7 @@ registerSideQuest(SAVVA_ID, NPC_DEFS[SAVVA_ID], [{
 
 registerSideQuest(MARKEL_ID, NPC_DEFS[MARKEL_ID], [{
   id: 'ag89_report_supply_hoarding',
-  giverId: getPlotNpcNumericId(MARKEL_ID)!,
+  giverNpcId: MARKEL_ID,
   type: QuestType.FETCH,
   desc: 'Маркел Обходной: «Неси список укрытия. Если запас прячут за свечами, будет акт о сокрытии припасов.»',
   targetItem: 'emergency_roster', targetCount: 1,
@@ -142,7 +142,7 @@ registerSideQuest(MARKEL_ID, NPC_DEFS[MARKEL_ID], [{
 
 registerSideQuest(LIDA_ID, NPC_DEFS[LIDA_ID], [{
   id: 'ag89_barter_wax_for_candle',
-  giverId: getPlotNpcNumericId(LIDA_ID)!,
+  giverNpcId: LIDA_ID,
   type: QuestType.FETCH,
   desc: 'Лида Восковая: «Один сургуч - одна истотитная свеча и кружка чая. Без обряда, по обмену.»',
   targetItem: 'seal_wax', targetCount: 1,
@@ -183,7 +183,7 @@ registerWorldEventObserver((state, event) => {
     if (!outcome) return;
     publishEvent(state, {
       type: 'faction_relation_changed',
-      z: 100,
+      floor: FloorLevel.LIVING,
       zoneId: event.zoneId,
       roomId: event.roomId,
       actorId: event.actorId,
@@ -205,7 +205,7 @@ registerWorldEventObserver((state, event) => {
   if (event.type !== 'item_stolen' || !event.tags.includes(CONTENT_TAG)) return;
   publishEvent(state, {
     type: 'faction_relation_changed',
-    z: 100,
+    floor: FloorLevel.LIVING,
     zoneId: event.zoneId,
     roomId: event.roomId,
     actorId: event.actorId,
@@ -255,7 +255,7 @@ function addSupplyContainer(
     id: nextContainerId(world),
     x,
     y,
-    z: 100,
+    floor: FloorLevel.LIVING,
     roomId: room.id,
     zoneId: world.zoneMap[ci],
     kind,

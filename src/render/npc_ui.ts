@@ -309,8 +309,8 @@ export function drawNpcMenu(
               ctx.textAlign = 'left';
             }
             drawItemGridIcon(ctx, item.defId, def?.name ?? item.defId, cx, cy, cellSz, sx, sy, selected, selected ? 1 : 0.84, {
-              nameYUnits: 11,
-              iconTopUnits: 12.5,
+              nameYUnits: 9.7,
+              iconTopUnits: 10.6,
               bottomReserveUnits: 7.6,
             });
             const countText = staged > 0 ? `→${staged}` : item.count > 1 ? `×${item.count}` : '';

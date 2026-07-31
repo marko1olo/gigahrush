@@ -7,7 +7,6 @@ import { ITEM_TAGS, ITEMS, getStack } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { addItem, getInventorySlotActionInfo, inventoryItemCategory } from '../src/systems/inventory';
 import { makeTestNpc, makeTestPlayer } from './helpers';
-import { _overrideRng, _restoreRng } from '../src/core/rand';
 
 const ITEM_ID = 'empty_sample_jar';
 
@@ -51,13 +50,14 @@ test('empty sample jar stays trade goods rather than a usable sample', () => {
 });
 
 test('scientist trade can expose empty sample jars', () => {
+  const savedRandom = Math.random;
   const rolls = [0, (6 + 0.01) / 13, 0];
-  _overrideRng(() => rolls.shift() ?? 0);
+  Math.random = () => rolls.shift() ?? 0;
   try {
     const npc = makeTestNpc({ occupation: Occupation.SCIENTIST });
     const trade = generateNpcTradeItems(npc);
     assert.ok(trade.some(item => item.defId === ITEM_ID), 'scientists should sell cheap unofficial sampleware');
   } finally {
-    _restoreRng();
+    Math.random = savedRandom;
   }
 });

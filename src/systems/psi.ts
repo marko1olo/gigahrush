@@ -5,7 +5,6 @@ import {
   msg,
 } from '../core/types';
 import { World } from '../core/world';
-import { getPlotNpcStringId } from '../data/npc_packages';
 import { randSeed } from '../core/rand';
 import { stampMark, MarkType } from './surface_marks';
 import { WEAPON_STATS } from '../data/catalog';
@@ -44,7 +43,6 @@ export function resetPsiState(): void {
   shieldTimer = 0;
   markPos = null;
   possession = null;
-  controlTimers.clear();
 }
 
 // ── Cast an instant (non-projectile) PSI spell ───────────────────
@@ -327,7 +325,7 @@ function actorIntelligence(e: Entity): number {
 function canPossessTarget(target: Entity): boolean {
   if (!target.alive) return false;
   if (target.type !== EntityType.NPC && target.type !== EntityType.MONSTER) return false;
-  if (target.id !== undefined && getPlotNpcStringId(target.id) !== undefined) return false;
+  if (target.plotNpcId) return false;
   if (target.monsterKind !== undefined && MONSTERS[target.monsterKind]?.boss) return false;
   return true;
 }

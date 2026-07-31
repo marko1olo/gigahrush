@@ -3,7 +3,11 @@ import { INVENTORY_GRID_COLS, INVENTORY_GRID_ROWS } from '../data/inventory_limi
 const GRID_COLS = INVENTORY_GRID_COLS;
 const GRID_ROWS = INVENTORY_GRID_ROWS;
 const GRID_CELL_UNITS = 22;
-
+const GRID_GAP_UNITS = 16;
+const GRID_SCREEN_W = 0.88;
+const GRID_SCREEN_H = 0.82;
+const GRID_SCALE_MAX = 4;
+const GRID_SCALE_TARGET_MIN = 2.2;
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
@@ -87,6 +91,7 @@ export interface FullscreenInventoryLayout {
   use: UiRect;
   drop: UiRect;
   attr: UiRect;
+  armor: UiRect;
 }
 
 export interface ContainerMenuGridLayout {
@@ -99,8 +104,6 @@ export interface ContainerMenuGridLayout {
   startY: number;
   containerX: number;
   gridTotal: number;
-  infoX: number;
-  infoW: number;
   close: UiRect;
 }
 
@@ -311,6 +314,9 @@ export function fullscreenInventoryLayout(canvasW: number, canvasH: number, sx: 
   const actionW = Math.min(82 * textScale, rightW);
   const actionY = detailsY + 37 * textScale;
   const grid = { x: gridX, y: gridY, w: gridW, h: gridH, cell, cols: GRID_COLS, rows: GRID_ROWS };
+  const armorCell = cell * 2;
+  const armorX = gridX + gridW - armorCell;
+  const armorY = gridY + gridH + 8 * scale;
   return {
     scale,
     textScale,
@@ -320,30 +326,35 @@ export function fullscreenInventoryLayout(canvasW: number, canvasH: number, sx: 
     use: { x: stX, y: actionY, w: actionW, h: 12 * textScale },
     drop: { x: stX + actionW + 6 * textScale, y: actionY, w: actionW, h: 12 * textScale },
     attr: { x: stX, y: detailsY + detailsH + 4 * textScale, w: rightW, h: 14 * textScale },
+    armor: { x: armorX, y: armorY, w: armorCell, h: armorCell },
   };
 }
 
+function inventoryGridScale(canvasW: number, canvasH: number, verticalUnits: number, horizontalUnits?: number): number {
+  const raw = Math.min(canvasW / 320, canvasH / 200);
+  const twoGridUnits = GRID_CELL_UNITS * GRID_COLS * 2 + GRID_GAP_UNITS;
+  const byW = (canvasW * GRID_SCREEN_W) / (horizontalUnits ?? twoGridUnits);
+  const byH = (canvasH * GRID_SCREEN_H) / verticalUnits;
+  const fit = Math.min(raw, byW, byH);
+  const minScale = Math.max(1, Math.min(GRID_SCALE_TARGET_MIN, byW, byH));
+  return clamp(fit, Math.min(minScale, fit), GRID_SCALE_MAX);
+}
 
+export function tradeGridScale(canvasW: number, canvasH: number): number {
+  const fourGridUnits = GRID_CELL_UNITS * GRID_COLS * 4 + GRID_GAP_UNITS * 1.9;
+  return inventoryGridScale(canvasW, canvasH, 24 + GRID_CELL_UNITS * GRID_ROWS + 58, fourGridUnits);
+}
+
+export function containerGridScale(canvasW: number, canvasH: number): number {
+  return inventoryGridScale(canvasW, canvasH, 30 + GRID_CELL_UNITS * GRID_ROWS + 66);
+}
 
 export function containerMenuGridLayout(canvasW: number, canvasH: number): ContainerMenuGridLayout {
-  const cellUnits = 28;
-  const gapUnits = 16;
-  const infoUnits = 86;
-  const verticalUnits = 30 + cellUnits * GRID_ROWS + 66;
-  const horizontalUnits = cellUnits * GRID_COLS * 2 + gapUnits + infoUnits;
-  
-  const raw = Math.min(canvasW / 320, canvasH / 200);
-  const byW = (canvasW * 0.94) / horizontalUnits;
-  const byH = (canvasH * 0.92) / verticalUnits;
-  const fit = Math.min(raw, byW, byH);
-  const minScale = Math.max(1, Math.min(2.8, byW, byH));
-  const scale = clamp(fit, Math.min(minScale, fit), 5.5);
-
-  const cell = cellUnits * scale;
-  const gap = gapUnits * scale;
-  const infoW = infoUnits * scale;
+  const scale = containerGridScale(canvasW, canvasH);
+  const cell = GRID_CELL_UNITS * scale;
+  const gap = GRID_GAP_UNITS * scale;
   const gridTotal = GRID_COLS * cell;
-  const totalW = gridTotal * 2 + gap + infoW;
+  const totalW = gridTotal * 2 + gap;
   const startX = (canvasW - totalW) / 2;
   const startY = 30 * scale;
   return {
@@ -356,33 +367,19 @@ export function containerMenuGridLayout(canvasW: number, canvasH: number): Conta
     startY,
     containerX: startX + gridTotal + gap,
     gridTotal,
-    infoX: startX + gridTotal * 2 + gap + 10 * scale,
-    infoW: infoW - 10 * scale,
     close: { x: 0, y: canvasH - 30 * scale, w: canvasW, h: 30 * scale },
   };
 }
 
 export function tradeMenuGridLayout(canvasW: number, canvasH: number): TradeMenuGridLayout {
-  const cellUnits = 26;
-  const sideGapUnits = 16 * 0.35;
-  const centerGapUnits = 16 * 0.6;
-  const horizontalUnits = cellUnits * GRID_COLS * 4 + sideGapUnits * 2 + centerGapUnits;
-  const verticalUnits = 24 + cellUnits * GRID_ROWS + 58;
-
-  const raw = Math.min(canvasW / 320, canvasH / 200);
-  const byW = (canvasW * 0.98) / horizontalUnits;
-  const byH = (canvasH * 0.95) / verticalUnits;
-  const fit = Math.min(raw, byW, byH);
-  const minScale = Math.max(1, Math.min(2.8, byW, byH));
-  const scale = clamp(fit, Math.min(minScale, fit), 5.5);
-
-  const cell = cellUnits * scale;
-  const sideGap = Math.max(4 * scale, sideGapUnits * scale);
-  const centerGap = Math.max(6 * scale, centerGapUnits * scale);
+  const scale = tradeGridScale(canvasW, canvasH);
+  const cell = GRID_CELL_UNITS * scale;
+  const sideGap = Math.max(4 * scale, GRID_GAP_UNITS * 0.35 * scale);
+  const centerGap = Math.max(6 * scale, GRID_GAP_UNITS * 0.6 * scale);
   const gridTotal = GRID_COLS * cell;
   const totalW = gridTotal * 4 + sideGap * 2 + centerGap;
   const startX = (canvasW - totalW) / 2;
-  const startY = 24 * scale;
+  const startY = 30 * scale;
   const playerOfferX = startX + gridTotal + sideGap;
   const npcOfferX = playerOfferX + gridTotal + centerGap;
   const npcX = npcOfferX + gridTotal + sideGap;

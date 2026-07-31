@@ -2,7 +2,8 @@
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
-  W, Cell, DoorState, EntityType, AIGoal, Faction, Feature, MonsterKind, Occupation, RoomType, Tex,
+  W, Cell, DoorState, EntityType, AIGoal, Faction, Feature, FloorLevel,
+  MonsterKind, Occupation, RoomType, Tex,
   type Entity, type GameState, type Room, type WorldEvent,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -16,7 +17,6 @@ import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { registerRouteCue } from '../../systems/route_cues';
 import { findClearArea, protectRoom, stampRoom } from '../shared';
 import { isPlayerEntity } from '../../systems/player_actor';
-import { rng } from '../../core/rand';
 
 const ROOM_W = 23;
 const ROOM_H = 19;
@@ -60,7 +60,7 @@ interface Route {
 }
 
 interface AltarArenaSite {
-  z: number;
+  floor: FloorLevel;
   roomId: number;
   roomX: number;
   roomY: number;
@@ -142,7 +142,7 @@ export function spawnHellAltarArena(world: World, entities: Entity[], nextId: { 
   const cy = room.y + (room.h >> 1);
   const ci = world.idx(cx, cy);
   activeSite = {
-    z: 180,
+    floor: FloorLevel.HELL,
     roomId: room.id,
     roomX: room.x,
     roomY: room.y,
@@ -167,6 +167,15 @@ export function spawnHellAltarArena(world: World, entities: Entity[], nextId: { 
   };
 }
 
+export function getHellAltarArenaDebugSite(): AltarArenaSite | null {
+  return activeSite ? {
+    ...activeSite,
+    killedIds: [...activeSite.killedIds],
+    hostileIds: [...activeSite.hostileIds],
+    monsterIds: [...activeSite.monsterIds],
+    cultistIds: [...activeSite.cultistIds],
+  } : null;
+}
 
 export function resetHellAltarArenaForTests(): void {
   activeWorld = null;
@@ -181,16 +190,16 @@ function findArenaSite(world: World): Site | null {
   if (direct && canStampArena(world, direct.x, direct.y)) return direct;
 
   for (let attempt = 0; attempt < 1600; attempt++) {
-    const angle = rng() * Math.PI * 2;
-    const dist = 130 + rng() * 280;
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 130 + Math.random() * 280;
     const x = world.wrap(cx + Math.round(Math.cos(angle) * dist) - (ROOM_W >> 1));
     const y = world.wrap(cy + Math.round(Math.sin(angle) * dist) - (ROOM_H >> 1));
     if (canStampArena(world, x, y)) return { x, y };
   }
 
   for (let attempt = 0; attempt < 1200; attempt++) {
-    const x = Math.floor(rng() * W);
-    const y = Math.floor(rng() * W);
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
     if (canStampArena(world, x, y)) return { x, y };
   }
   return null;
@@ -442,7 +451,7 @@ function createArenaMonster(
     type: EntityType.MONSTER,
     x,
     y,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, level),
@@ -459,7 +468,7 @@ function createArenaMonster(
       path: [],
       pi: 0,
       stuck: 0,
-      timer: target ? 0 : 2 + rng() * 2,
+      timer: target ? 0 : 2 + Math.random() * 2,
     },
     rpg,
   };
@@ -493,16 +502,16 @@ function createArenaCultist(world: World, room: ArenaRoomRef, nextId: { v: numbe
   const rpg = randomRPG(gaussianLevel(zoneLevel + 2, 1.5));
   const maxHp = Math.max(1, Math.round(getMaxHp(rpg) * 1.35));
   const nm = randomName(Faction.CULTIST);
-  const weapon = rng() < 0.65 ? 'psi_meat_hook' : 'rebar';
+  const weapon = Math.random() < 0.65 ? 'psi_meat_hook' : 'rebar';
   return {
     id: nextId.v++,
     type: EntityType.NPC,
     x,
     y,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
-    speed: 1.25 + rng() * 0.25,
+    speed: 1.25 + Math.random() * 0.25,
     sprite: Occupation.PILGRIM,
     name: nm.name,
     firstName: nm.firstName,
@@ -566,7 +575,7 @@ function registerAltarRouteCue(world: World, room: Room, entry: Route, escape: R
     y: cueY,
     targetX: cx,
     targetY: cy,
-    z: 180,
+    floor: FloorLevel.HELL,
     roomId: room.id,
     targetRoomId: room.id,
     zoneId: world.zoneMap[world.idx(Math.floor(cx), Math.floor(cy))],
@@ -591,7 +600,7 @@ function handleAltarArenaEvent(state: GameState, event: WorldEvent): void {
   const site = activeSite;
   const world = activeWorld;
   const entities = activeEntities;
-  if (!site || !world || !entities || state.currentZ !== site.z || event.z !== site.z) return;
+  if (!site || !world || !entities || state.currentFloor !== site.floor || event.floor !== site.floor) return;
 
   if (event.type === 'rumor_observed' && event.data?.cueId === site.cueId) {
     handleCueEvent(state, site, event);
@@ -739,7 +748,7 @@ function publishArenaEvent(
   playArenaTone(site, severity);
   publishEvent(state, {
     type: 'samosbor_warning',
-    z: site.z,
+    floor: site.floor,
     zoneId: site.zoneId,
     roomId: site.roomId,
     x: site.x,

@@ -1,9 +1,9 @@
-import { RoomType, ZoneFaction } from '../core/types';
-import { activeActorCountAtDefaultSoftLimit, activeActorSoftLimit, DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT, fitActiveActorCounts } from './entity_limits';
+import { FloorLevel, RoomType, ZoneFaction } from '../core/types';
+import { activeActorCountAtDefaultSoftLimit, DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT, fitActiveActorCounts } from './entity_limits';
 
 export interface NpcPopulationProfile {
-  /** Relative share inside this floor's universal population budget. */
-  share?: number;
+  /** Authored count at DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT; resolve through activeActorCountAtDefaultSoftLimit(). */
+  initial: number;
   noiseScale: number;
   noiseStrength: number;
   openWeight: number;
@@ -14,8 +14,8 @@ export interface NpcPopulationProfile {
 }
 
 export interface MonsterPopulationProfile {
-  /** Relative share inside this floor's universal population budget. */
-  share?: number;
+  /** Authored count at DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT; resolve through activeActorCountAtDefaultSoftLimit(). */
+  initial: number;
   noiseScale: number;
   noiseStrength: number;
   openWeight: number;
@@ -25,10 +25,9 @@ export interface MonsterPopulationProfile {
 
 export const KVARTIRY_POPULATION_PROFILE = {
   id: 'kvartiry_lively',
-  z: 60,
-  densityMult: 2.2,
+  floor: FloorLevel.KVARTIRY,
   citizens: {
-    share: 0.6,
+    initial: 2381,
     noiseScale: 96,
     noiseStrength: 0.2,
     openWeight: 0.95,
@@ -54,7 +53,7 @@ export const KVARTIRY_POPULATION_PROFILE = {
     preferredTerritoryShare: 0.72,
   },
   wild: {
-    share: 0.34,
+    initial: 1349,
     noiseScale: 72,
     noiseStrength: 0.26,
     openWeight: 1.15,
@@ -80,7 +79,7 @@ export const KVARTIRY_POPULATION_PROFILE = {
     preferredTerritoryShare: 0.38,
   },
   liquidators: {
-    share: 0.06,
+    initial: 238,
     noiseScale: 128,
     noiseStrength: 0.18,
     openWeight: 1.1,
@@ -118,10 +117,9 @@ export const KVARTIRY_POPULATION_PROFILE = {
 
 export const HELL_POPULATION_PROFILE = {
   id: 'hell_lively',
-  z: 180,
-  densityMult: 0.98,
+  floor: FloorLevel.HELL,
   monsters: {
-    share: 0.84,
+    initial: 3387,
     noiseScale: 160,
     noiseStrength: 0.05,
     openWeight: 1.0,
@@ -137,7 +135,7 @@ export const HELL_POPULATION_PROFILE = {
     },
   },
   cultists: {
-    share: 0.14,
+    initial: 565,
     noiseScale: 128,
     noiseStrength: 0.08,
     openWeight: 1.0,
@@ -153,7 +151,7 @@ export const HELL_POPULATION_PROFILE = {
     },
   },
   liquidators: {
-    share: 0.02,
+    initial: 80,
     noiseScale: 144,
     noiseStrength: 0.06,
     openWeight: 1.0,
@@ -172,7 +170,7 @@ export const HELL_POPULATION_PROFILE = {
 
 export const VOID_POPULATION_PROFILE = {
   id: 'void_lively',
-  z: 200,
+  floor: FloorLevel.VOID,
   guardians: 1600,
   lootDrops: 160,
 } as const;
@@ -181,15 +179,16 @@ export type ProceduralPopulationProfileId = 'normal' | 'highDensity';
 export type ProceduralPopulationBand = 'shallow' | 'middle' | 'deep' | 'voidRoute';
 
 export interface ProceduralPopulationScale {
-  /** Multipliers tune the universal smooth Z curve; raw counts still resolve through the active actor soft cap. */
-  baseMult: number;
-  dangerMult: number;
-  anomalyMult: number;
+  /** All counts are authored at DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT and scaled at generation time. */
+  base: number;
+  perDanger: number;
+  perAnomalyPressure: number;
+  bandBonus: Readonly<Record<ProceduralPopulationBand, number>>;
   cap: number;
 }
 
 export interface ProceduralMonsterPopulationScale extends ProceduralPopulationScale {
-  industrialMult: number;
+  industrialBonus: number;
 }
 
 export interface ProceduralPopulationProfile {
@@ -222,33 +221,57 @@ export const PROCEDURAL_POPULATION_PROFILES = {
   normal: {
     id: 'normal',
     npcs: {
-      baseMult: 0.45,
-      dangerMult: 0.04,
-      anomalyMult: 0.03,
-      cap: DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT,
+      base: 260,
+      perDanger: 150,
+      perAnomalyPressure: 80,
+      bandBonus: {
+        shallow: 0,
+        middle: 120,
+        deep: 220,
+        voidRoute: 0,
+      },
+      cap: 1250,
     },
     monsters: {
-      baseMult: 1,
-      dangerMult: 0.06,
-      anomalyMult: 0.08,
-      industrialMult: 0.08,
-      cap: DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT,
+      base: 120,
+      perDanger: 110,
+      perAnomalyPressure: 70,
+      bandBonus: {
+        shallow: 0,
+        middle: 80,
+        deep: 140,
+        voidRoute: 220,
+      },
+      industrialBonus: 70,
+      cap: 1100,
     },
   },
   highDensity: {
     id: 'highDensity',
     npcs: {
-      baseMult: 1.18,
-      dangerMult: 0.10,
-      anomalyMult: 0.04,
+      base: 3400,
+      perDanger: 180,
+      perAnomalyPressure: 140,
+      bandBonus: {
+        shallow: 0,
+        middle: 160,
+        deep: 300,
+        voidRoute: 0,
+      },
       cap: DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT,
     },
     monsters: {
-      baseMult: 1.2,
-      dangerMult: 0.08,
-      anomalyMult: 0.12,
-      industrialMult: 0.06,
-      cap: DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT,
+      base: 260,
+      perDanger: 130,
+      perAnomalyPressure: 90,
+      bandBonus: {
+        shallow: 0,
+        middle: 80,
+        deep: 160,
+        voidRoute: 240,
+      },
+      industrialBonus: 80,
+      cap: 1500,
     },
   },
 } as const satisfies Readonly<Record<ProceduralPopulationProfileId, ProceduralPopulationProfile>>;
@@ -282,61 +305,31 @@ export function proceduralPopulationBand(z: number): ProceduralPopulationBand {
   return 'shallow';
 }
 
-export function populationDepth01(z: number): number {
-  return Math.max(0, Math.min(1, Math.abs(z) / 50));
-}
-
-export function basePopulationTotalAtDefaultSoftLimit(_z: number): number {
-  return DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT;
-}
-
-export function baseMonsterPopulationAtDefaultSoftLimit(z: number): number {
-  const depth = populationDepth01(z);
-  const eased = 1 - Math.exp(-3.1 * Math.pow(depth, 2.35));
-  return Math.max(100, Math.round(100 + (DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT - 100) * eased));
-}
-
-export function monsterShareForRouteZ(z: number): number {
-  return Math.max(0, Math.min(0.96, baseMonsterPopulationAtDefaultSoftLimit(z) / DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT));
-}
-
-export function populationLevelForRouteZ(z: number, danger = 1): number {
-  const depth = populationDepth01(z);
-  return Math.max(1, Math.min(12, Math.round(1 + depth * 8 + (Math.max(1, Math.min(5, danger)) - 1) * 0.55)));
-}
-
 function scaledPopulationCount(
   scale: ProceduralPopulationScale,
-  baseCount: number,
+  band: ProceduralPopulationBand,
   danger: number,
   anomalyPressure: number,
-  extraMult = 0,
 ): number {
   const boundedDanger = Math.max(1, Math.min(5, Math.round(danger)));
   const boundedPressure = Math.max(0, Math.min(4, Math.round(anomalyPressure)));
-  const mult = Math.max(0, scale.baseMult + (boundedDanger - 1) * scale.dangerMult + boundedPressure * scale.anomalyMult + extraMult);
-  return Math.min(effectivePopulationCap(scale), Math.max(0, Math.round(activeActorCountAtDefaultSoftLimit(baseCount * mult))));
+  const raw = activeActorCountAtDefaultSoftLimit(scale.base) +
+    boundedDanger * activeActorCountAtDefaultSoftLimit(scale.perDanger) +
+    boundedPressure * activeActorCountAtDefaultSoftLimit(scale.perAnomalyPressure) +
+    activeActorCountAtDefaultSoftLimit(scale.bandBonus[band]);
+  return Math.min(effectivePopulationCap(scale), Math.max(0, Math.round(raw)));
 }
 
 function effectivePopulationCap(scale: ProceduralPopulationScale): number {
-  return Math.min(activeActorSoftLimit(), activeActorCountAtDefaultSoftLimit(scale.cap));
+  return activeActorCountAtDefaultSoftLimit(scale.cap);
 }
 
 export function proceduralPopulationBudget(input: ProceduralPopulationBudgetInput): ProceduralPopulationBudget {
   const profile = PROCEDURAL_POPULATION_PROFILES[input.profileId];
   const band = proceduralPopulationBand(input.z);
-  const baseTotal = basePopulationTotalAtDefaultSoftLimit(input.z);
-  const monsterShare = input.npcAllowed ? monsterShareForRouteZ(input.z) : 1;
-  const npcBase = input.npcAllowed ? baseTotal * (1 - monsterShare) : 0;
-  const monsterBase = baseTotal * monsterShare;
-  const rawNpcs = input.npcAllowed ? scaledPopulationCount(profile.npcs, npcBase, input.danger, input.anomalyPressure) : 0;
-  const rawMonsters = scaledPopulationCount(
-    profile.monsters,
-    monsterBase,
-    input.danger,
-    input.anomalyPressure,
-    input.industrial ? profile.monsters.industrialMult : 0,
-  );
+  const monsterRaw = scaledPopulationCount(profile.monsters, band, input.danger, input.anomalyPressure);
+  const rawNpcs = input.npcAllowed ? scaledPopulationCount(profile.npcs, band, input.danger, input.anomalyPressure) : 0;
+  const rawMonsters = Math.min(effectivePopulationCap(profile.monsters), monsterRaw + (input.industrial ? activeActorCountAtDefaultSoftLimit(profile.monsters.industrialBonus) : 0));
   const fitted = fitActiveActorCounts(rawNpcs, rawMonsters);
   return {
     profileId: profile.id,

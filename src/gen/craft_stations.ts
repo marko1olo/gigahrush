@@ -1,4 +1,4 @@
-import { Cell, Feature, RoomType, W, type Room } from '../core/types';
+import { Cell, Feature, FloorLevel, RoomType, W, type Room } from '../core/types';
 import { World } from '../core/world';
 import type { DesignFloorRouteDef } from '../data/design_floors';
 import {
@@ -174,6 +174,15 @@ function stationCellValid(
   return true;
 }
 
+export function canPlaceCraftStationAt(
+  world: World,
+  x: number,
+  y: number,
+  defId: CraftStationDefId,
+  options: CraftStationPlacementOptions = {},
+): boolean {
+  return stationCellValid(world, world.idx(x, y), defId, options);
+}
 
 function attachStationInteractive(
   world: World,
@@ -473,12 +482,12 @@ export function placeCraftStationsForStoryFloor(
   world: World,
   spawnX: number,
   spawnY: number,
-  biome: string,
+  floor: FloorLevel,
   options: { seed?: number } = {},
 ): CraftStationPlacementSummary {
-  const profile = craftStationProfileForStoryFloor(biome);
+  const profile = craftStationProfileForStoryFloor(floor);
   return placeCraftStationsWithProfile(world, world.rooms, spawnX, spawnY, profile, {
-    seed: options.seed ?? hash32(world.rooms.length, Math.floor(spawnX), Math.floor(spawnY)),
+    seed: options.seed ?? hash32(floor, world.rooms.length, 0),
   });
 }
 
@@ -488,9 +497,9 @@ export function placeMaintenanceCraftStations(
   spawnX: number,
   spawnY: number,
 ): CraftStationPlacementSummary {
-  const profile = craftStationProfileForStoryFloor('maintenance');
+  const profile = craftStationProfileForStoryFloor(FloorLevel.MAINTENANCE);
   return placeCraftStationsWithProfile(world, rooms, spawnX, spawnY, profile, {
-    seed: hash32(rooms.length, Math.floor(spawnX), Math.floor(spawnY)),
+    seed: hash32(FloorLevel.MAINTENANCE, rooms.length, Math.floor(spawnX), Math.floor(spawnY)),
   });
 }
 

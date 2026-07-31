@@ -1,6 +1,6 @@
 /* ── Swarm: vent/void body mass from a local source ─────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 0.24,
   sprite: 0,
   aiFlags: ['sourceSwarm', 'foodBait'],
+  floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL],
   counterplay: 'Не тратьте весь боезапас на тела: заклейте щель изолентой или герметиком, выжгите источник огнем, уводите тела приманкой либо бегите через рой коротким рывком.',
   lootHint: 'черная хитиновая крошка, ржавые лапки, желтые глазки, редкая изолента из гнезда',
 };

@@ -487,7 +487,7 @@ export function stampMark(
 
       const ncx = ((cx + cellDx) % W + W) % W;
       const ncy = ((cy + cellDy) % W + W) % W;
-      const ci = world.idx(ncx, ncy);
+      const ci = ncy * W + ncx;
 
       if (!wallOk && world.cells[ci] === Cell.WALL) continue;
 

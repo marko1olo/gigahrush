@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, ContainerKind, DoorState, EntityType, MonsterKind, ProjType, RoomType, Tex, ZoneFaction, type Entity } from '../src/core/types';
+import { AIGoal, Cell, ContainerKind, DoorState, EntityType, FloorLevel, MonsterKind, ProjType, RoomType, Tex, ZoneFaction, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { DEF, generateSprite } from '../src/entities/blood_plant';
@@ -87,6 +87,7 @@ test('blood plant definition, ecology, and sprite describe a rooted red-mold hiv
 
   assert.equal(DEF.kind, MonsterKind.BLOOD_PLANT);
   assert.deepEqual(DEF.aiFlags, ['rootHive']);
+  assert.deepEqual(DEF.floors, [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL]);
   assert.match(DEF.counterplay ?? '', /соли|огня|режущего/);
   assert.equal(ecology?.rare, true);
   assert.match(ecology?.counterplay ?? '', /плес|огн|соль|реж/);
@@ -99,7 +100,7 @@ test('rootHive stays rooted and tendril strikes through a capped short floor lin
   const player = makeTestPlayer({ id: 1, x: 18.5, y: 10.5, hp: 100, maxHp: 100 });
   const plant = bloodPlant(2, 10.5, 10.5);
   const entities = [player, plant];
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
 
   const cells = traceBloodPlantTendrilCells(world, plant.x, plant.y, player.x, player.y);
   assert.ok(cells.length <= BLOOD_PLANT_TENDRIL_MAX_CELLS);
@@ -119,12 +120,12 @@ test('red mold containers heal the source until salt removes the nearby source',
   const world = openWorld();
   const plant = bloodPlant(2, 10.5, 10.5, 40);
   const actor = makeTestPlayer({ id: 1, x: 12.5, y: 10.5, inventory: [{ defId: 'rock_salt', count: 1 }] });
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
   world.addContainer(makeTestContainer({
     id: 77,
     x: 12,
     y: 10,
-    z: -6,
+    floor: FloorLevel.LIVING,
     roomId: 0,
     zoneId: 0,
     kind: ContainerKind.SECRET_STASH,
@@ -149,7 +150,7 @@ test('red mold containers heal the source until salt removes the nearby source',
 
 test('fire and cutting counterplay publish blood plant route events and open root cells', () => {
   const world = openWorld();
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
   const player = makeTestPlayer({ id: 1, x: 9.5, y: 10.5, weapon: 'knife' });
   const plant = bloodPlant(2, 10.5, 10.5);
   const rootCell = world.idx(11, 10);
@@ -180,7 +181,7 @@ test('fire and cutting counterplay publish blood plant route events and open roo
   assert.ok(getRecentEvents(state, { type: 'blood_plant_root_cut', tags: ['tool'], limit: 1 })[0]);
 
   const fireWorld = openWorld();
-  const fireState = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const fireState = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
   const firePlant = bloodPlant(3, 10.5, 10.5);
   const fireRoot = fireWorld.idx(12, 10);
   fireWorld.cells[fireRoot] = Cell.WALL;
@@ -214,7 +215,7 @@ test('fire and cutting counterplay publish blood plant route events and open roo
 test('living blood plant den spawns a reachable source, red mold choice, witnesses, and root path', () => {
   const world = openWorld();
   const entities: Entity[] = [];
-  const nextId = { v: getPlotNpcCount() + 1 }
+  const nextId = { v: 1 };
 
   const result = generateBloodPlantDen(world, 1, entities, nextId, 80, 80);
   const room = world.rooms.find(candidate => candidate?.name === 'Красный притон плесени');
@@ -229,7 +230,7 @@ test('living blood plant den spawns a reachable source, red mold choice, witness
 
   const rootCell = world.idx(room!.x + 12, room!.y + 6);
   assert.equal(world.cells[rootCell], Cell.WALL);
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
   const player = makeTestPlayer({ id: 99, x: plants[0].x - 1, y: plants[0].y, weapon: 'axe' });
   recordMonsterMeleeDeath(world, state, plants[0], 'axe', player);
   assert.equal(world.cells[rootCell], Cell.FLOOR);

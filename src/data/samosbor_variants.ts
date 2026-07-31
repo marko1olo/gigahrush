@@ -1,4 +1,4 @@
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 
 export type SamosborVariantId = 'classic' | 'wet' | 'electric' | 'meat' | 'maronary' | 'istotit' | 'veretar';
 export type SamosborAudioCueId = 'siren' | 'bell' | 'beep' | 'distant_alarm';
@@ -71,8 +71,7 @@ export type SamosborModifierId =
 export interface SamosborVariantDef {
   id: SamosborVariantId;
   displayName: string;
-  tags: readonly string[];
-  floors?: readonly string[];
+  floors: FloorLevel[];
   weight: number;
   subsystems: readonly SamosborSubsystemId[];
   visual: SamosborVisualProfile;
@@ -128,7 +127,7 @@ export interface SamosborAftermathBeatDef {
   id: string;
   title: string;
   variants: readonly SamosborVariantId[];
-  floors?: readonly string[];
+  floors: readonly FloorLevel[];
   weight: number;
   cooldownSec: number;
   maxRuns: number;
@@ -145,10 +144,23 @@ export interface SamosborAftermathBeatDef {
   fogStrength?: number;
 }
 
-const ALL_FLOORS = ['ministry', 'kvartiry', 'living', 'maintenance', 'hell', 'void'];
-const CIVIL_FLOORS = ['ministry', 'kvartiry', 'living'];
-const CIVIL_AND_SERVICE_FLOORS = ['ministry', 'kvartiry', 'living', 'maintenance'];
-const VOID_AND_CIVIL_SERVICE_FLOORS = ['ministry', 'kvartiry', 'living', 'maintenance', 'void'];
+const ALL_FLOORS = [
+  FloorLevel.MINISTRY,
+  FloorLevel.KVARTIRY,
+  FloorLevel.LIVING,
+  FloorLevel.MAINTENANCE,
+  FloorLevel.HELL,
+  FloorLevel.VOID,
+];
+const CIVIL_FLOORS = [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING];
+const CIVIL_AND_SERVICE_FLOORS = [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE];
+const VOID_AND_CIVIL_SERVICE_FLOORS = [
+  FloorLevel.MINISTRY,
+  FloorLevel.KVARTIRY,
+  FloorLevel.LIVING,
+  FloorLevel.MAINTENANCE,
+  FloorLevel.VOID,
+];
 
 export const SAMOSBOR_BASE_SUBSYSTEMS: readonly SamosborSubsystemId[] = [
   'warning',
@@ -270,7 +282,6 @@ export const SAMOSBOR_VARIANTS: readonly SamosborVariantDef[] = [
   {
     id: 'classic',
     displayName: 'Типовой (ГОСТ-С)',
-    tags: ['classic'],
     floors: ALL_FLOORS,
     weight: 60,
     subsystems: [],
@@ -289,7 +300,7 @@ export const SAMOSBOR_VARIANTS: readonly SamosborVariantDef[] = [
   {
     id: 'wet',
     displayName: 'Тяжелый влажный',
-    tags: ['kvartiry', 'living', 'maintenance', 'hell'],
+    floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
     weight: 20,
     subsystems: ['wet_spawn_shark'],
     visual: { screenFx: 'wet_noise', fogDensityBonus: 0.024, glitchIntensity: 0.055, postIntensity: 0.52 },
@@ -307,7 +318,7 @@ export const SAMOSBOR_VARIANTS: readonly SamosborVariantDef[] = [
   {
     id: 'electric',
     displayName: 'Озоновый пробой',
-    tags: ['ministry', 'kvartiry', 'living', 'maintenance'],
+    floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
     weight: 16,
     subsystems: [],
     visual: { screenFx: 'electric_static', fogDensityBonus: 0.018, glitchIntensity: 0.095, postIntensity: 0.58 },
@@ -325,7 +336,7 @@ export const SAMOSBOR_VARIANTS: readonly SamosborVariantDef[] = [
   {
     id: 'meat',
     displayName: 'Красный биологический',
-    tags: ['kvartiry', 'living', 'maintenance', 'hell'],
+    floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
     weight: 14,
     subsystems: ['hell_meat_walls'],
     visual: { screenFx: 'meat_pulse', fogDensityBonus: 0.026, glitchIntensity: 0.06, postIntensity: 0.5 },
@@ -347,7 +358,6 @@ export const SAMOSBOR_VARIANTS: readonly SamosborVariantDef[] = [
   {
     id: 'maronary',
     displayName: 'Маронарий',
-    tags: ['maronary'],
     floors: ALL_FLOORS,
     weight: 4,
     subsystems: ['maronary_sources', 'wrong_door', 'source_glow', 'fog_rewrite'],
@@ -378,7 +388,6 @@ export const SAMOSBOR_VARIANTS: readonly SamosborVariantDef[] = [
   {
     id: 'istotit',
     displayName: 'Истотит',
-    tags: ['istotit'],
     floors: CIVIL_FLOORS,
     weight: 3,
     subsystems: ['istotit_shelters', 'bell_compulsion', 'fog_create'],
@@ -402,7 +411,6 @@ export const SAMOSBOR_VARIANTS: readonly SamosborVariantDef[] = [
   {
     id: 'veretar',
     displayName: 'Веретар',
-    tags: ['veretar'],
     floors: ALL_FLOORS,
     weight: 4,
     subsystems: ['veretar_area_leak', 'fog_delete'],
@@ -509,7 +517,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_electric_eye',
     title: 'Глаз после озона',
     variants: ['electric'],
-    floors: ['ministry', 'kvartiry', 'living', 'maintenance'],
+    floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
     weight: 14,
     cooldownSec: 300,
     maxRuns: 8,
@@ -538,7 +546,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_supply_shortage',
     title: 'Срыв снабжения',
     variants: ['wet', 'electric', 'meat'],
-    floors: ['ministry', 'kvartiry', 'living', 'maintenance'],
+    floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
     weight: 8,
     cooldownSec: 600,
     maxRuns: 5,
@@ -553,7 +561,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_faction_panic',
     title: 'Фракционная паника',
     variants: ['electric', 'meat'],
-    floors: ['ministry', 'kvartiry', 'living', 'maintenance'],
+    floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
     weight: 9,
     cooldownSec: 360,
     maxRuns: 7,
@@ -612,7 +620,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_ministry_forms_eaten',
     title: 'Съеденные бланки',
     variants: ['electric', 'meat'],
-    floors: ['ministry', 'kvartiry'],
+    floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY],
     weight: 14,
     cooldownSec: 780,
     maxRuns: 3,
@@ -627,7 +635,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_open_fridge_line',
     title: 'Открытый общий холодильник',
     variants: ['wet', 'meat'],
-    floors: ['kvartiry', 'living'],
+    floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING],
     weight: 15,
     cooldownSec: 660,
     maxRuns: 4,
@@ -687,7 +695,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_pressure_station_drop',
     title: 'Провал давления',
     variants: ['wet', 'electric'],
-    floors: ['maintenance'],
+    floors: [FloorLevel.MAINTENANCE],
     weight: 20,
     cooldownSec: 720,
     maxRuns: 4,
@@ -702,7 +710,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_burnt_tool_locker',
     title: 'Сгоревший инструментальный шкаф',
     variants: ['electric', 'wet'],
-    floors: ['maintenance'],
+    floors: [FloorLevel.MAINTENANCE],
     weight: 16,
     cooldownSec: 780,
     maxRuns: 3,
@@ -717,7 +725,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_service_airlock_fault',
     title: 'Сервисный шлюз не держит',
     variants: ['wet', 'electric', 'classic'],
-    floors: ['maintenance'],
+    floors: [FloorLevel.MAINTENANCE],
     weight: 16,
     cooldownSec: 540,
     maxRuns: 4,
@@ -731,7 +739,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_zinc_slime_bucket',
     title: 'Ведро зачистки забыто',
     variants: ['wet', 'classic'],
-    floors: ['maintenance'],
+    floors: [FloorLevel.MAINTENANCE],
     weight: 9,
     cooldownSec: 840,
     maxRuns: 3,
@@ -746,7 +754,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_slime_sense_node',
     title: 'Узел слышит после отбоя',
     variants: ['wet', 'classic'],
-    floors: ['maintenance'],
+    floors: [FloorLevel.MAINTENANCE],
     weight: 5,
     cooldownSec: 1260,
     maxRuns: 2,
@@ -761,7 +769,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_late_tube_eel',
     title: 'Поздний угорь',
     variants: ['wet'],
-    floors: ['maintenance', 'hell'],
+    floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL],
     weight: 13,
     cooldownSec: 900,
     maxRuns: 3,
@@ -776,7 +784,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_cult_cache_unsealed',
     title: 'Культовый схрон раскрылся',
     variants: ['meat'],
-    floors: ['hell'],
+    floors: [FloorLevel.HELL],
     weight: 15,
     cooldownSec: 900,
     maxRuns: 3,
@@ -791,7 +799,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_herald_afterimage',
     title: 'Послеслед вестника',
     variants: ['meat', 'classic'],
-    floors: ['hell'],
+    floors: [FloorLevel.HELL],
     weight: 14,
     cooldownSec: 1080,
     maxRuns: 2,
@@ -806,7 +814,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_hell_meat_supply_rot',
     title: 'Гнилая мясная выдача',
     variants: ['meat', 'wet'],
-    floors: ['hell'],
+    floors: [FloorLevel.HELL],
     weight: 16,
     cooldownSec: 840,
     maxRuns: 3,
@@ -821,7 +829,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_fibrous_capsule_cut',
     title: 'Фиброзная капсула',
     variants: ['meat'],
-    floors: ['hell'],
+    floors: [FloorLevel.HELL],
     weight: 6,
     cooldownSec: 1260,
     maxRuns: 2,
@@ -836,7 +844,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_void_psi_cache',
     title: 'ПСИ-схрон без владельца',
     variants: ['classic', 'maronary', 'veretar'],
-    floors: ['void'],
+    floors: [FloorLevel.VOID],
     weight: 16,
     cooldownSec: 960,
     maxRuns: 3,
@@ -851,7 +859,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_void_spirit_echo',
     title: 'Эхо без жильца',
     variants: ['classic', 'maronary', 'veretar'],
-    floors: ['void'],
+    floors: [FloorLevel.VOID],
     weight: 15,
     cooldownSec: 1080,
     maxRuns: 2,
@@ -866,7 +874,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_void_false_map',
     title: 'Ложная белая карта',
     variants: ['classic', 'maronary', 'veretar'],
-    floors: ['void'],
+    floors: [FloorLevel.VOID],
     weight: 14,
     cooldownSec: 900,
     maxRuns: 3,
@@ -1083,32 +1091,32 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
   },
 ];
 
-function floorWeight(def: SamosborVariantDef, floorTags: readonly string[]): number {
-  if (!def.tags.some(t => floorTags.includes(t))) return 0;
-  if (floorTags.includes('ministry')) {
+function floorWeight(def: SamosborVariantDef, floor: FloorLevel): number {
+  if (!def.floors.includes(floor)) return 0;
+  if (floor === FloorLevel.MINISTRY) {
     if (def.id === 'electric') return def.weight * 1.8;
     if (def.id === 'istotit' || def.id === 'veretar') return def.weight * 2.2;
     if (def.id === 'classic') return def.weight * 0.75;
   }
-  if (floorTags.includes('kvartiry') || floorTags.includes('living')) {
+  if (floor === FloorLevel.KVARTIRY || floor === FloorLevel.LIVING) {
     if (def.id === 'electric') return def.weight * 1.45;
     if (def.id === 'istotit' || def.id === 'veretar') return def.weight * 3;
     if (def.id === 'wet' || def.id === 'meat') return def.weight * 1.2;
     if (def.id === 'classic') return def.weight * 0.9;
   }
-  if (floorTags.includes('maintenance')) {
+  if (floor === FloorLevel.MAINTENANCE) {
     if (def.id === 'wet' || def.id === 'electric') return def.weight * 4;
     if (def.id === 'veretar') return def.weight * 1.6;
     if (def.id === 'classic') return def.weight * 0.65;
     if (def.id === 'meat') return def.weight * 0.6;
   }
-  if (floorTags.includes('hell')) {
+  if (floor === FloorLevel.HELL) {
     if (def.id === 'meat') return def.weight * 5;
     if (def.id === 'wet') return def.weight * 1.4;
     if (def.id === 'maronary' || def.id === 'veretar') return def.weight * 1.6;
     if (def.id === 'classic') return def.weight * 0.6;
   }
-  if (floorTags.includes('void')) {
+  if (floor === FloorLevel.VOID) {
     if (def.id === 'veretar') return def.weight * 7;
     if (def.id === 'maronary') return def.weight * 3;
     if (def.id === 'classic') return def.weight * 0.4;
@@ -1116,9 +1124,9 @@ function floorWeight(def: SamosborVariantDef, floorTags: readonly string[]): num
   return def.weight;
 }
 
-export function getSamosborVariantWeight(id: SamosborVariantId, floorTags: readonly string[]): number {
+export function getSamosborVariantWeight(id: SamosborVariantId, floor: FloorLevel): number {
   const def = SAMOSBOR_VARIANTS.find(v => v.id === id);
-  return def ? floorWeight(def, floorTags) : 0;
+  return def ? floorWeight(def, floor) : 0;
 }
 
 export function buildActiveSamosborVariant(def: SamosborVariantDef): ActiveSamosborVariant {
@@ -1176,7 +1184,7 @@ export function getSamosborVariantName(id: SamosborVariantId | null | undefined)
 
 export function getSamosborAftermathBeats(
   variant: SamosborVariantId,
-  floorTags: readonly string[],
+  floor: FloorLevel,
 ): readonly SamosborAftermathBeatDef[] {
-  return SAMOSBOR_AFTERMATH_BEATS.filter(def => def.variants.includes(variant) && def.tags.some(t => floorTags.includes(t)));
+  return SAMOSBOR_AFTERMATH_BEATS.filter(def => def.variants.includes(variant) && def.floors.includes(floor));
 }

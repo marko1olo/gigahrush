@@ -1,10 +1,8 @@
 /* ── Bounded social pressure hooks for Kvartiry POIs ─────────── */
 
-import { type Entity, EntityType, Faction, AIGoal, type GameState, msg } from '../../core/types';
+import { type Entity, EntityType, Faction, AIGoal, FloorLevel, type GameState, msg } from '../../core/types';
 import { World } from '../../core/world';
 import { publishEvent } from '../../systems/events';
-import { rng } from '../../core/rand';
-import { registerGenerationRuntimeGuard } from '../../systems/generation_runtime_guard';
 
 export type KvSocialPressurePoiId =
   | 'generic'
@@ -168,29 +166,6 @@ export function resetKvSocialPressurePois(): void {
   nextGlobalUprisingAt = 0;
 }
 
-// `generateKvartiry` resets+repopulates these live singletons on every build. That
-// is correct for a real floor load, but the save-time delta base regen must not wipe
-// the live floor's accumulated uprising state (POI cooldowns/trigger-counts + pacing
-// timers). Preserve the POI object references and timers across a throwaway regen.
-interface KvSocialPressureRuntimeSnapshot {
-  pois: PressurePoi[];
-  time: number;
-  nextGlobal: number;
-}
-registerGenerationRuntimeGuard({
-  snapshot(): KvSocialPressureRuntimeSnapshot {
-    return { pois: [...KV_SOCIAL_PRESSURE_POIS], time: kvSocialPressureTime, nextGlobal: nextGlobalUprisingAt };
-  },
-  restore(snapshot: unknown): void {
-    const snap = snapshot as KvSocialPressureRuntimeSnapshot;
-    if (!snap || !Array.isArray(snap.pois)) return;
-    KV_SOCIAL_PRESSURE_POIS.length = 0;
-    KV_SOCIAL_PRESSURE_POIS.push(...snap.pois);
-    kvSocialPressureTime = snap.time;
-    nextGlobalUprisingAt = snap.nextGlobal;
-  },
-});
-
 export function registerKvSocialPressurePoi(x: number, y: number, radius: number, pressure: number): void {
   KV_SOCIAL_PRESSURE_POIS.push(createPressurePoi(DEFAULT_POI_META, x, y, radius, pressure));
 }
@@ -218,7 +193,7 @@ export function tryKvSocialPressureUprising(
   if (kvSocialPressureTime < nextGlobalUprisingAt) return null;
 
   const len = KV_SOCIAL_PRESSURE_POIS.length;
-  const start = (rng() * len) | 0;
+  const start = (Math.random() * len) | 0;
   const checks = Math.min(len, MAX_POI_CHECKS_PER_TICK);
   for (let i = 0; i < checks; i++) {
     const poi = KV_SOCIAL_PRESSURE_POIS[(start + i) % len];
@@ -226,7 +201,7 @@ export function tryKvSocialPressureUprising(
     const localCitizens = countConvertibleCitizens(world, entities, poi);
     if (localCitizens < poi.minCitizens) continue;
     const chance = Math.min(0.38, poi.chanceBase + poi.pressure * poi.chancePerPressure + localCitizens * 0.004);
-    if (rng() > chance) continue;
+    if (Math.random() > chance) continue;
     const result = triggerPoiUprising(world, entities, poi, localCitizens);
     if (result) {
       poi.cooldownUntil = kvSocialPressureTime + poi.cooldownSeconds;
@@ -241,7 +216,7 @@ export function tryKvSocialPressureUprising(
 export function publishKvSocialPressureUprising(state: GameState, result: KvSocialPressureUprisingResult): void {
   publishEvent(state, {
     type: 'faction_patrol_clash',
-    z: 60,
+    floor: FloorLevel.KVARTIRY,
     zoneId: result.zoneId,
     roomId: result.roomId >= 0 ? result.roomId : undefined,
     x: result.x,
@@ -332,8 +307,8 @@ function triggerPoiUprising(
     e.faction = Faction.WILD;
     if (e.ai) {
       e.ai.goal = AIGoal.GOTO;
-      e.ai.tx = world.wrap(poi.x + (rng() - 0.5) * Math.min(8, poi.radius));
-      e.ai.ty = world.wrap(poi.y + (rng() - 0.5) * Math.min(8, poi.radius));
+      e.ai.tx = world.wrap(poi.x + (Math.random() - 0.5) * Math.min(8, poi.radius));
+      e.ai.ty = world.wrap(poi.y + (Math.random() - 0.5) * Math.min(8, poi.radius));
     }
     converted++;
   }
@@ -348,8 +323,8 @@ function triggerPoiUprising(
     if (world.dist2(e.x, e.y, poi.x, poi.y) > responseR2) continue;
     if (e.ai) {
       e.ai.goal = AIGoal.GOTO;
-      e.ai.tx = world.wrap(poi.x + (rng() - 0.5) * 10);
-      e.ai.ty = world.wrap(poi.y + (rng() - 0.5) * 10);
+      e.ai.tx = world.wrap(poi.x + (Math.random() - 0.5) * 10);
+      e.ai.ty = world.wrap(poi.y + (Math.random() - 0.5) * 10);
     }
     responders++;
   }
@@ -373,5 +348,5 @@ function triggerPoiUprising(
 }
 
 function isConvertibleCitizen(e: Entity): boolean {
-  return e.type === EntityType.NPC && e.alive && e.faction === Faction.CITIZEN && !e.id;
+  return e.type === EntityType.NPC && e.alive && e.faction === Faction.CITIZEN && !e.plotNpcId;
 }

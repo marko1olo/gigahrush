@@ -68,13 +68,12 @@ test('visual model registry has unique bounded data-only ids', () => {
     assert.equal(allIds.has(def.id), true, `${def.id} missing from id list`);
     assert.equal(maybeVisualModelDef(def.id), def);
     assert.equal(def.tags.length > 0, true, `${def.id} needs tags`);
-    const parts = typeof def.parts === 'function' ? def.parts(0) : def.parts;
-    assert.equal(parts.length > 0, true, `${def.id} needs parts`);
+    assert.equal(def.parts.length > 0, true, `${def.id} needs parts`);
     assert.equal(Number.isFinite(def.bounds.x) && def.bounds.x > 0, true, `${def.id} bounds.x`);
     assert.equal(Number.isFinite(def.bounds.y) && def.bounds.y > 0, true, `${def.id} bounds.y`);
     assert.equal(Number.isFinite(def.bounds.z) && def.bounds.z > 0, true, `${def.id} bounds.z`);
     if (def.spriteFallback) assert.match(def.spriteFallback, /^[a-z]+:[a-z0-9_]+$/);
-    for (const part of parts) {
+    for (const part of def.parts) {
       assert.equal(MESH_MATERIALS[part.material] !== undefined, true, `${def.id} uses unknown material ${part.material}`);
     }
   }
@@ -99,10 +98,9 @@ test('visual cell slot model references resolve when that registry exists', asyn
 
 test('every visual model part builds non-empty finite geometry', () => {
   for (const def of VISUAL_MODELS) {
-    const parts = typeof def.parts === 'function' ? def.parts(1234) : def.parts;
-    for (let i = 0; i < parts.length; i++) {
-      const template = buildVisualModelPart(def.id, parts[i], i, 1234);
-      assertTemplate(template, `${def.id}.part${i}.${parts[i].kind}`);
+    for (let i = 0; i < def.parts.length; i++) {
+      const template = buildVisualModelPart(def.id, def.parts[i], i, 1234);
+      assertTemplate(template, `${def.id}.part${i}.${def.parts[i].kind}`);
     }
   }
 });

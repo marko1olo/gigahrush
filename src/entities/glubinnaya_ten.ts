@@ -1,6 +1,6 @@
 /* -- Glubinnaya Ten: delayed second-beat deep shadow ------------- */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.7,
   sprite: 0,
   aiFlags: ['secondBeat'],
+  floors: [FloorLevel.HELL, FloorLevel.VOID],
   counterplay: 'Не догоняйте первый силуэт в темноту: стойте на месте, держите светлый выход за спиной или вскройте настоящее тело фонарем до второго удара.',
   lootHint: 'холодная пыль, темный след, редкий странный сгусток из второго силуэта',
 };

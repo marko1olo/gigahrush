@@ -9,7 +9,6 @@ import { ITEM_TAGS, ITEMS, getStack } from '../src/data/items';
 import { resourceForItem } from '../src/data/resources';
 import { addItem, inventoryItemCategory, useItem } from '../src/systems/inventory';
 import { countInventoryItem, makeGameState, makeTestNpc, makeTestPlayer } from './helpers';
-import { _overrideRng, _restoreRng } from '../src/core/rand';
 
 const ITEM_ID = 'sugar_pack';
 
@@ -51,12 +50,14 @@ test('sugar pack can be eaten or saved for kitchen brewing', () => {
 test('sugar pack is reachable through fridge loot and cook trade', () => {
   const fridge = CONTAINER_DEFS[ContainerKind.FRIDGE];
   assert.ok(fridge.itemPool.some(item => item.defId === ITEM_ID), 'fridges must expose kitchen theft path');
+
+  const savedRandom = Math.random;
   const rolls = [0, (10 + 0.01) / 12, 0];
-  _overrideRng(() => rolls.shift() ?? 0);
+  Math.random = () => rolls.shift() ?? 0;
   try {
     const offers = generateNpcTradeItems(makeTestNpc({ occupation: Occupation.COOK }));
     assert.ok(offers.some(offer => offer.defId === ITEM_ID), 'cook trade must expose sugar as kitchen barter');
   } finally {
-    _restoreRng();
+    Math.random = savedRandom;
   }
 });

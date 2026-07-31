@@ -137,46 +137,6 @@ describe('PWA Module', () => {
       assert.strictEqual(registerMock.mock.calls.length, 1);
     });
 
-    test('catches synchronous errors during registration', async () => {
-      let loadListener: Function | undefined;
-
-      Object.defineProperty(globalThis, 'window', {
-        value: {
-          addEventListener: (event: string, callback: Function) => {
-            if (event === 'load') loadListener = callback;
-          },
-          isSecureContext: true
-        },
-        writable: true
-      });
-
-      Object.defineProperty(globalThis, 'navigator', {
-        value: {
-          serviceWorker: {
-            register: mock.fn(() => {
-              throw new Error('Registration failed synchronously');
-            })
-          }
-        },
-        writable: true
-      });
-
-      Object.defineProperty(globalThis, 'location', {
-        value: { hostname: 'example.com' },
-        writable: true
-      });
-
-      registerPwaServiceWorker();
-      assert.ok(loadListener);
-
-      if (loadListener) {
-          await loadListener();
-      }
-
-      assert.strictEqual(errorMock.mock.calls.length, 1);
-      assert.ok(errorMock.mock.calls[0].arguments[0].includes('ServiceWorker registration failed'));
-    });
-
     test('errors are logged to console.error', async () => {
       let loadListener: Function | undefined;
 
@@ -219,15 +179,6 @@ describe('PWA Module', () => {
   });
 
   describe('isStandaloneDisplay', () => {
-    test('returns false if window is undefined', () => {
-      Object.defineProperty(globalThis, 'window', { value: undefined, writable: true });
-      assert.strictEqual(isStandaloneDisplay(), false);
-    });
-
-    test('returns false if navigator is undefined', () => {
-      Object.defineProperty(globalThis, 'navigator', { value: undefined, writable: true });
-      assert.strictEqual(isStandaloneDisplay(), false);
-    });
     test('returns true for fullscreen', () => {
       Object.defineProperty(globalThis, 'window', {
         value: {

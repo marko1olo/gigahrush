@@ -5,10 +5,9 @@ import { ItemType, Occupation, RoomType } from '../src/core/types';
 import { generateNpcTradeItems } from '../src/data/occupation_profiles';
 import { ITEM_TAGS, ITEMS, getStack } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
-import { generateSlimeNiiDesignFloor } from '../src/gen/slime_nii';
+import { generateSlimeNiiDesignFloor } from '../src/gen/design_floors/slime_nii';
 import { addItem, getInventorySlotActionInfo, inventoryItemCategory } from '../src/systems/inventory';
 import { makeTestNpc, makeTestPlayer } from './helpers';
-import { _overrideRng, _restoreRng } from '../src/core/rand';
 
 const ITEM_ID = 'syringe_empty';
 
@@ -60,13 +59,15 @@ test('slime NII and scientist trade expose empty syringes', () => {
 
   assert.ok(cabinet, 'slime_nii director storage should expose syringe_empty as stealable medical component');
   assert.equal(cabinet.access, 'owner');
+
+  const savedRandom = Math.random;
   const rolls = [0, (13 + 0.01) / 14, 0];
-  _overrideRng(() => rolls.shift() ?? 0);
+  Math.random = () => rolls.shift() ?? 0;
   try {
     const npc = makeTestNpc({ occupation: Occupation.SCIENTIST });
     const trade = generateNpcTradeItems(npc);
     assert.ok(trade.some(item => item.defId === ITEM_ID), 'scientists should sell empty syringes');
   } finally {
-    _restoreRng();
+    Math.random = savedRandom;
   }
 });

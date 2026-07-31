@@ -20,8 +20,7 @@ import {
 import type { TexData } from './textures';
 import type { SpriteData } from './sprites';
 import type { BloodParticle } from './blood';
-import { getCritterRenderEnabled, CRITTERS_POOL } from './critters';
-import { CRITTER_DEFS } from '../data/critters';
+import { getCritterRenderEnabled } from './critters';
 import { containerSpr, featureSpr } from './sprite_index';
 import { generateItemSprite, itemDropDefId, itemSpriteKey } from './item_sprites';
 import {
@@ -34,7 +33,6 @@ import {
 } from './animations/textures';
 import { ENTITY_MASK_VISIBLE, getEntityIndex } from '../systems/entity_index';
 import type { CameraView } from '../systems/camera';
-import { uiElementEnabled } from '../systems/ui_orchestrator';
 import { isPlayerEntity } from '../systems/player_actor';
 import {
   EMPTY_RESOLVED_VISUAL_DETAIL_PROFILE,
@@ -55,7 +53,7 @@ import {
   type ResolvedVisualSurfaceProfile,
 } from '../data/visual_surface_profiles';
 import {
-  createMeshPass as _realCreateMeshPass,
+  createMeshPass,
   createMeshPassStats,
   type MeshPassContext,
   type MeshPassHandle,
@@ -473,21 +471,18 @@ vec3 materialResponse(uint texId, vec3 base, int tx, int ty, ivec2 cell, float l
 }
 
 /* --- NORMAL MAP INJECTION --- */
-vec2 perturbNormal(uint texId, int tx, int ty, vec2 baseNormal, float strength) {
+vec2 perturbNormal(vec2 baseNormal, vec3 texColor, float strength) {
     if (uLightQuality < 3) return baseNormal;
     
-    // Сэмплируем текстуру для вычисления локального градиента (в пространстве текстуры)
-    vec3 c0 = sampleAtlas(texId, tx, ty).rgb;
-    vec3 cX = sampleAtlas(texId, (tx + 1) & (TEX_I - 1), ty).rgb;
-    vec3 cY = sampleAtlas(texId, tx, (ty + 1) & (TEX_I - 1)).rgb;
-    
     // Вычисляем "высоту" на основе яркости текстуры
-    float h0 = dot(c0, vec3(0.299, 0.587, 0.114));
-    float hX = dot(cX, vec3(0.299, 0.587, 0.114));
-    float hY = dot(cY, vec3(0.299, 0.587, 0.114));
+    float height = dot(texColor, vec3(0.299, 0.587, 0.114));
+    
+    // Используем аппаратные производные (стандартно для WebGL2 / ES 3.0)
+    float dHx = dFdx(height);
+    float dHy = dFdy(height);
     
     // Формируем сдвиг нормали
-    vec2 bump = vec2(-(hX - h0), -(hY - h0)) * strength;
+    vec2 bump = vec2(-dHx, -dHy) * strength;
     
     // Смешиваем с базовой нормалью (считая, что она в пространстве экрана/мира)
     return normalize(baseNormal + bump);
@@ -1086,7 +1081,22 @@ vec3 applyWallMicroDetail(vec3 base, uint texId, ivec2 cell, int tx, int ty) {
   return color;
 }
 
-
+/* --- VOLUMETRIC INJECTION --- */
+vec3 computeVolumetricGodRays(float rayDist, vec3 baseColor, vec2 rayDir) {
+    if (uLightQuality < 3) return baseColor;
+    
+    // Фонарик светит вперед. Наш текущий луч: rayDir.
+    // Чем ближе луч к центру экрана и чем больше дистанция, тем больше "пыли" он просвечивает.
+    float centerDot = dot(normalize(rayDir), normalize(vec2(cos(uAngle), sin(uAngle))));
+    float shaft = max(0.0, centerDot);
+    shaft = pow(shaft, 12.0); // Узкий луч фонарика
+    
+    // Интегрируем по длине (чем дальше стена, тем больше пыли просвечено)
+    float volIntensity = shaft * rayDist * 0.05 * uFlashlight;
+    vec3 dustColor = vec3(0.9, 0.95, 1.0);
+    return baseColor + dustColor * volIntensity;
+}
+/* ---------------------------- */
 
 vec3 applyLightDust(vec3 base, vec2 fragCoord, float dist, float rayDX, float rayDY, float fogF) {
   float density = clamp(uDetailLightDust.y, 0.0, 1.0);
@@ -1231,8 +1241,7 @@ void main() {
   float lineH = uResolution.y / dist;
   // Render-only per-cell ceiling height: tier t → wall top reaches (1 + t*0.5).
   // Floor contact (drawEnd) and the walk level never move; only the top rises.
-  float rawTier = float(texelFetch(uCeil, ivec2(wrapI(mapX), wrapI(mapY)), 0).r);
-  float ceilH = 1.0 + rawTier * 0.5;
+  float ceilH = 1.0 + float(texelFetch(uCeil, ivec2(wrapI(mapX), wrapI(mapY)), 0).r) * 0.5;
   float rawDrawStart = HALF_H - lineH * (ceilH - uCamHeight);
   float drawStart = max(0.0, rawDrawStart);
   float drawEnd   = min(uResolution.y - 1.0, HALF_H + lineH * uCamHeight);
@@ -1266,7 +1275,6 @@ void main() {
       float cellLit = min(1.0, uAmbient + baseLitWall * (1.0 - uAmbient) + fbWall + toolBeam * 0.82);
       float d = row - rawDrawStart;
       int texYi = int(floor(d / lineH * TEX_F)) & (TEX_I - 1);
-
       vec3 c = sampleAtlas(wallTexId, texXi, texYi).rgb;
 
       uint hitCellType = texelFetch(uCells, hitCell, 0).r;
@@ -1300,7 +1308,7 @@ void main() {
                wallTexId == ${Tex.F_TILE}u || wallTexId == ${Tex.F_MARBLE_TILE}u || wallTexId == ${Tex.MARBLE}u) { bumpStrength = 3.0; }
       else if (wallTexId == ${Tex.CONCRETE}u || wallTexId == ${Tex.BRICK}u) { bumpStrength = 25.0; }
       bumpStrength *= max(0.0, 1.0 - dist / 15.0);
-      wN = perturbNormal(wallTexId, texXi, texYi, wN, bumpStrength);
+      wN = perturbNormal(wN, c, bumpStrength);
       /* ---------------------------- */
 
       float ndlWall = max(dot(wN, normalize(-vec2(rayDX, rayDY))), 0.0);
@@ -1348,7 +1356,6 @@ void main() {
               ? ${Tex.F_WATER}u
               : texelFetch(uFloorTex, fCell, 0).r;
             if (floorTexId == 0u) floorTexId = ${Tex.F_CONCRETE}u;
-
             vec3 fc = sampleAtlas(floorTexId, ftx, fty).rgb;
             fc = shadePlane(floorTexId, fc, fCell, ftx, fty, currentDist, fLit, toolBeam, false, true);
             float driveFloor = clamp(fbFloor + toolBeam + eyeLight(currentDist), 0.0, 1.0);
@@ -1409,12 +1416,10 @@ void main() {
         bool isRiser = false;
         int cside = 0;
         float marchHc = 1.0;
-        float rawPrevTier = float(texelFetch(uCeil, ivec2(wrapI(int(floor(uPos.x))), wrapI(int(floor(uPos.y)))), 0).r);
-        float prevHc = 1.0 + rawPrevTier * 0.5;
+        float prevHc = 1.0 + float(texelFetch(uCeil, ivec2(wrapI(int(floor(uPos.x))), wrapI(int(floor(uPos.y)))), 0).r) * 0.5;
         for (int cs = 0; cs < 16; cs++) {
           ivec2 mc = ivec2(wrapI(cmx), wrapI(cmy));
-          float rawMarchTier = float(texelFetch(uCeil, mc, 0).r);
-          marchHc = 1.0 + rawMarchTier * 0.5;
+          marchHc = 1.0 + float(texelFetch(uCeil, mc, 0).r) * 0.5;
           if (uCamHeight + slope * dEnter >= marchHc) { currentDist = dEnter + 0.001; isRiser = true; break; }
           float dExit = min(csdx, csdy);
           if (uCamHeight + slope * dExit >= marchHc) { currentDist = (marchHc - uCamHeight) / slope; break; }
@@ -1463,16 +1468,41 @@ void main() {
             pixelDepth = min(1.0, currentDist / MAX_DIST);
           } else {
             uint feat = texelFetch(uFeatures, cCell, 0).r;
-            vec3 cc;
-            bool organicLamp = (feat == ${Feature.LAMP}u) && organicLightCell(cCell);
-
-            if (feat == ${Feature.CANDLE}u) {
+            if (feat == ${Feature.LAMP}u) {
+              vec3 cc;
+              if (organicLightCell(cCell)) {
+                cc = sampleAtlas(${Tex.CEIL}u, ftx, fty).rgb * (0.25 + cLit * 0.35);
+                cc = applyHellLamp(cc, ftx, fty, cCell.x, cCell.y, currentDist);
+                cc = applyToolBeamTint(cc, toolBeam);
+              } else {
+                if (uUseDynamicSky == 1) {
+                  vec2 skyUv = wrapF(vec2(floorX, floorY)) / float(W_SIZE);
+                  cc = texture(uDynamicSky, skyUv).rgb * uDynamicSkyTint;
+                  cc *= 0.45 + cLit * 0.55;
+                } else {
+                  cc = sampleAtlas(${Tex.CEIL}u, ftx, fty).rgb;
+                  cc = shadePlane(${Tex.CEIL}u, cc, cCell, ftx, fty, currentDist, cLit, toolBeam, true, false);
+                  vec3 cPos = vec3(floorX, floorY, uCamHeight + slope * currentDist);
+                  vec3 dynCeil = calculateDynamicLighting(cPos, vec3(0.0, 0.0, -1.0));
+                  cc = min(vec3(1.0), cc + cc * dynCeil);
+                }
+                vec2 lampUv = (vec2(float(ftx), float(fty)) + 0.5) / TEX_F - vec2(0.5);
+                float lampR = length(lampUv);
+                float spot = 1.0 - smoothstep(0.045, 0.16, lampR);
+                float halo = 1.0 - smoothstep(0.10, 0.34, lampR);
+                float distGlow = max(0.0, 1.0 - currentDist * 0.16);
+                vec3 lampTint = uSamosborAlert == 1 ? vec3(1.0, 0.1, 0.1) : vec3(1.0, 190.0/255.0, 74.0/255.0);
+                cc = min(cc + lampTint * distGlow * (spot * 0.34 + halo * 0.075), vec3(1.0));
+                if (uUseDynamicSky == 1) cc = applyToolBeamTint(cc, toolBeam);
+              }
+              pixel = applyLocalFog(cc, cCell, ff);
+              pixelDepth = min(1.0, currentDist / MAX_DIST);
+            } else if (feat == ${Feature.CANDLE}u) {
               float glow = max(0.0, 1.0 - currentDist * 0.18);
-              cc = vec3(240.0/255.0 * glow, 180.0/255.0 * glow, 50.0/255.0 * glow);
-            } else if (organicLamp) {
-              cc = sampleAtlas(${Tex.CEIL}u, ftx, fty).rgb * (0.25 + cLit * 0.35);
-              cc = applyHellLamp(cc, ftx, fty, cCell.x, cCell.y, currentDist);
+              pixel = applyLocalFog(vec3(240.0/255.0 * glow, 180.0/255.0 * glow, 50.0/255.0 * glow), cCell, ff);
+              pixelDepth = min(1.0, currentDist / MAX_DIST);
             } else {
+              vec3 cc;
               if (uUseDynamicSky == 1) {
                 vec2 skyUv = wrapF(vec2(floorX, floorY)) / float(W_SIZE);
                 cc = texture(uDynamicSky, skyUv).rgb * uDynamicSkyTint;
@@ -1484,22 +1514,10 @@ void main() {
                 vec3 dynCeil = calculateDynamicLighting(cPos, vec3(0.0, 0.0, -1.0));
                 cc = min(vec3(1.0), cc + cc * dynCeil);
               }
-
-              if (feat == ${Feature.LAMP}u) {
-                vec2 lampUv = (vec2(float(ftx), float(fty)) + 0.5) / TEX_F - vec2(0.5);
-                float lampR = length(lampUv);
-                float spot = 1.0 - smoothstep(0.045, 0.16, lampR);
-                float halo = 1.0 - smoothstep(0.10, 0.34, lampR);
-                float distGlow = max(0.0, 1.0 - currentDist * 0.16);
-                vec3 lampTint = uSamosborAlert == 1 ? vec3(1.0, 0.1, 0.1) : vec3(1.0, 190.0/255.0, 74.0/255.0);
-                cc = min(cc + lampTint * distGlow * (spot * 0.34 + halo * 0.075), vec3(1.0));
-              }
+              if (uUseDynamicSky == 1) cc = applyToolBeamTint(cc, toolBeam);
+              pixel = applyLocalFog(cc, cCell, ff);
+              pixelDepth = min(1.0, currentDist / MAX_DIST);
             }
-
-            if (uUseDynamicSky == 1 || organicLamp) cc = applyToolBeamTint(cc, toolBeam);
-
-            pixel = applyLocalFog(cc, cCell, ff);
-            pixelDepth = min(1.0, currentDist / MAX_DIST);
           }
           }
         }
@@ -1507,7 +1525,7 @@ void main() {
   }
 
   // Точечное внедрение Volumetric God Rays
-
+  pixel = computeVolumetricGodRays(pixelDepth * MAX_DIST, pixel, vec2(rayDX, rayDY));
   pixel = applyLightDust(pixel, fragCoord, pixelDepth * MAX_DIST, rayDX, rayDY, distanceFog(pixelDepth * MAX_DIST));
 
   // ТОЧКА ВНЕДРЕНИЯ
@@ -1855,8 +1873,6 @@ uniform vec3 uSamosborTint;
 uniform float uScreenInterference;
 uniform sampler2D uBloomTex;   // blurred bright-pass glow (additive)
 uniform float uBloomStrength;  // 0 disables bloom entirely
-uniform float u_istotitLevel;
-uniform float u_veretarLevel;
 out vec4 fragColor;
 
 /* ── Noise helpers ────────────────────────────────────────────── */
@@ -1955,18 +1971,6 @@ void main() {
     color += uSamosborTint * (gridNoise * 0.08 + scanPulse * 0.045 * stylePulse) * post;
   }
 
-  if (u_istotitLevel > 0.0) {
-    float dist = distance(vUV, vec2(0.5));
-    vec3 istotitColor = vec3(0.8, 0.8, 0.4);
-    color.rgb = mix(color.rgb, istotitColor, dist * u_istotitLevel * 0.3);
-  }
-
-  if (u_veretarLevel > 0.0) {
-    float dist = distance(vUV, vec2(0.5));
-    vec3 veretarColor = vec3(0.4, 0.2, 0.6);
-    color.rgb = mix(color.rgb, veretarColor, dist * u_veretarLevel * 0.4);
-  }
-
   color += texture(uBloomTex, vUV).rgb * uBloomStrength;
   fragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
 }
@@ -2051,15 +2055,9 @@ out vec4 fragColor;
 void main() {
   float d = length(vLocal);
   if (d > 0.5) discard;
-  
-  // Softer spherical edge to hide hard wall intersections
-  float edge = 1.0 - smoothstep(0.1, 0.5, d);
-  
-  // Fade out the bottom half to blend smoothly with the floor (fake AO / soft intersection)
-  float bottomFade = smoothstep(0.5, 0.0, vLocal.y);
-  
+  float edge = 1.0 - smoothstep(0.18, 0.5, d);
   gl_FragDepth = vDepth;
-  fragColor = vec4(vColor.rgb, vColor.a * edge * bottomFade);
+  fragColor = vec4(vColor.rgb, vColor.a * edge);
 }
 `;
 
@@ -2159,11 +2157,6 @@ interface ProceduralSpriteCacheEntry {
 }
 
 let glState: GLState | null = null;
-/** True while WebGL context is lost (iOS Safari memory pressure, tab backgrounding, etc.) */
-export let webglContextLost = false;
-/** Set when context is restored and main.ts should reinitialize WebGL */
-export let webglNeedsReinit = false;
-export function clearWebGLReinitFlag(): void { webglNeedsReinit = false; }
 let activeDynamicSky: DynamicSkyTexture | null = null;
 const visibleEntities: (Entity | null)[] = [];
 const visibleDx: number[] = [];
@@ -2304,7 +2297,6 @@ function meshPassContext(
   ambient: number,
   state: GLState,
   samosborActive: boolean,
-  entities: readonly Entity[],
 ): MeshPassContext {
   return {
     world,
@@ -2326,7 +2318,6 @@ function meshPassContext(
     dynamicLightsRadius: state.dynamicLightsRadius,
     mode: profile.mode,
     profile,
-    entities,
   };
 }
 
@@ -2340,10 +2331,9 @@ function updateAndRenderMeshPass(
   profile: ResolvedVisualGeometryProfile,
   ambient: number,
   samosborActive: boolean,
-  entities: readonly Entity[],
 ): void {
   if (!state.meshPass) return;
-  const context = meshPassContext(world, camera, time, fogDensity, fogColor, profile, ambient, state, samosborActive, entities);
+  const context = meshPassContext(world, camera, time, fogDensity, fogColor, profile, ambient, state, samosborActive);
   const stats = state.meshPass.update(context);
   lastRenderSceneDebugStats.meshEnabled = stats.enabled;
   lastRenderSceneDebugStats.meshInstances = stats.visibleInstances;
@@ -2352,15 +2342,9 @@ function updateAndRenderMeshPass(
   if (stats.enabled) state.meshPass.render(state.gl, context);
 }
 
-export const _test_deps = { createMeshPass: _realCreateMeshPass };
-
-export const _test_createOptionalMeshPass = (gl: WebGL2RenderingContext) => {
-  return createOptionalMeshPass(gl);
-};
-
 function createOptionalMeshPass(gl: WebGL2RenderingContext): MeshPassHandle | undefined {
   try {
-    return _test_deps.createMeshPass(gl);
+    return createMeshPass(gl);
   } catch (error) {
     console.warn('Mesh pass disabled:', error);
     return undefined;
@@ -2802,125 +2786,6 @@ function uploadSurfaceIndexCell(gl: WebGL2RenderingContext, glState: GLState, ci
   );
 }
 
-function uploadDynamicLights(
-  gl: WebGL2RenderingContext,
-  ru: Record<string, WebGLUniformLocation | null>,
-  glState: GLState,
-  world: World,
-  px: number,
-  py: number,
-  camHeight: number,
-  flashlight: number
-): void {
-  let dynLightCount = 0;
-  if (flashlight > 0.0) {
-    gl.uniform3f(ru[`uDynamicLights[0].pos`]!, px, py, camHeight);
-    gl.uniform3f(ru[`uDynamicLights[0].color`]!, 1.5, 1.4, 1.2); // Warm bright light
-    gl.uniform1f(ru[`uDynamicLights[0].radius`]!, 10.0);
-
-    glState.dynamicLightsPos[0] = px;
-    glState.dynamicLightsPos[1] = py;
-    glState.dynamicLightsPos[2] = camHeight;
-    glState.dynamicLightsColor[0] = 1.5;
-    glState.dynamicLightsColor[1] = 1.4;
-    glState.dynamicLightsColor[2] = 1.2;
-    glState.dynamicLightsRadius[0] = 10.0;
-
-    dynLightCount++;
-  }
-
-  const maxDrawGrid = Math.ceil(MAX_DRAW);
-  const cx = Math.floor(px);
-  const cy = Math.floor(py);
-  const lightCandidates: { lx: number, ly: number, lz: number, r: number, g: number, b: number, radius: number, dist2: number }[] = [];
-
-  for (let dy = -maxDrawGrid; dy <= maxDrawGrid; dy++) {
-    for (let dx = -maxDrawGrid; dx <= maxDrawGrid; dx++) {
-      const dist2 = dx * dx + dy * dy;
-      if (dist2 > MAX_DRAW * MAX_DRAW) continue;
-
-      const wx = world.wrap(cx + dx);
-      const wy = world.wrap(cy + dy);
-      const idx = world.idx(wx, wy);
-      const feat = world.features[idx];
-
-      let lr = 0, lg = 0, lb = 0, lrad = 0;
-      if (feat === Feature.LAMP) {
-        lr = 1.0; lg = 0.9; lb = 0.8; lrad = 8.0;
-      } else if (feat === Feature.CANDLE) {
-        lr = 0.8; lg = 0.5; lb = 0.2; lrad = 5.0;
-      }
-
-      if (lrad > 0) {
-        const lx = cx + dx + 0.5;
-        const ly = cy + dy + 0.5;
-        const lz = (feat === Feature.LAMP) ? (1.0 + Math.max(0, world.ceilHeight[idx]) * 0.5) - 0.1 : 0.4;
-        lightCandidates.push({ lx, ly, lz, r: lr, g: lg, b: lb, radius: lrad, dist2 });
-      }
-    }
-  }
-
-  lightCandidates.sort((A, B) => A.dist2 - B.dist2);
-
-  for (const c of lightCandidates) {
-    if (dynLightCount >= 8) break;
-    gl.uniform3f(ru[`uDynamicLights[${dynLightCount}].pos`]!, c.lx, c.ly, c.lz);
-    gl.uniform3f(ru[`uDynamicLights[${dynLightCount}].color`]!, c.r, c.g, c.b);
-    gl.uniform1f(ru[`uDynamicLights[${dynLightCount}].radius`]!, c.radius);
-
-    glState.dynamicLightsPos[dynLightCount * 3 + 0] = c.lx;
-    glState.dynamicLightsPos[dynLightCount * 3 + 1] = c.ly;
-    glState.dynamicLightsPos[dynLightCount * 3 + 2] = c.lz;
-    glState.dynamicLightsColor[dynLightCount * 3 + 0] = c.r;
-    glState.dynamicLightsColor[dynLightCount * 3 + 1] = c.g;
-    glState.dynamicLightsColor[dynLightCount * 3 + 2] = c.b;
-    glState.dynamicLightsRadius[dynLightCount] = c.radius;
-
-    dynLightCount++;
-  }
-
-  gl.uniform1i(ru['uDynamicLightCount']!, dynLightCount);
-  glState.dynamicLightCount = dynLightCount; // Save for mesh and sprites
-}
-
-function uploadShadowCasters(
-  gl: WebGL2RenderingContext,
-  ru: Record<string, WebGLUniformLocation | null>,
-  glState: GLState,
-  entities: Entity[],
-  px: number,
-  py: number
-): void {
-  let shadowCasterCount = 0;
-  for (const e of entities) {
-    if (shadowCasterCount >= 32) break;
-    if (e.type === EntityType.PROJECTILE || e.type === EntityType.EFFECT || e.type === EntityType.BILLBOARD || e.type === EntityType.LIGHT) continue;
-
-    let radius = 0.25;
-    let height = 0.8;
-    if (e.type === EntityType.ITEM_DROP) {
-      radius = 0.15;
-      height = 0.15;
-    }
-
-    const dx = e.x - px;
-    const dy = e.y - py;
-    if (dx * dx + dy * dy > MAX_DRAW * MAX_DRAW) continue;
-
-    glState.shadowCasters[shadowCasterCount * 4 + 0] = e.x;
-    glState.shadowCasters[shadowCasterCount * 4 + 1] = e.y;
-    glState.shadowCasters[shadowCasterCount * 4 + 2] = height;
-    glState.shadowCasters[shadowCasterCount * 4 + 3] = radius;
-    shadowCasterCount++;
-  }
-  glState.shadowCasterCount = shadowCasterCount;
-  gl.uniform1i(ru['uShadowCasterCount']!, shadowCasterCount);
-  if (shadowCasterCount > 0) {
-    const loc = ru['uShadowCasters[0]'];
-    if (loc) gl.uniform4fv(loc, glState.shadowCasters.subarray(0, shadowCasterCount * 4));
-  }
-}
-
 function uploadSurfaceDirtyCells(world: World, glState: GLState, dirtyCells: readonly number[]): boolean {
   if (dirtyCells.length <= 0) return false;
   const { gl } = glState;
@@ -3027,22 +2892,6 @@ export function initWebGL(
   }
   if (!gl) throw new Error('WebGL2 not supported');
 
-  // Handle WebGL context loss (iOS Safari memory pressure, GPU reclaim)
-  canvas.addEventListener('webglcontextlost', (e) => {
-    e.preventDefault(); // Allow context restoration
-    console.warn('[WebGL] Context lost — pausing render');
-    webglContextLost = true;
-    glState = null;
-  });
-  canvas.addEventListener('webglcontextrestored', () => {
-    console.warn('[WebGL] Context restored — will reinitialize');
-    webglContextLost = false;
-    webglNeedsReinit = true;
-  });
-
-  webglContextLost = false;
-  webglNeedsReinit = false;
-
   // Enable float textures
   const floatExt = gl.getExtension('EXT_color_buffer_float');
   if (!floatExt) {
@@ -3079,7 +2928,7 @@ export function initWebGL(
   // ── Blit program ──
   const blitProgram = createProgram(gl, BLIT_VERT_SRC, BLIT_FRAG_SRC);
   const blitVAO = createQuadVAO(gl, blitProgram);
-  const blitUniforms = getUniforms(gl, blitProgram, ['uTex', 'uGlitch', 'uTime', 'uSamosborActive', 'uSamosborStyle', 'uSamosborPost', 'uSamosborTint', 'uScreenInterference', 'uBloomTex', 'uBloomStrength', 'u_istotitLevel', 'u_veretarLevel']);
+  const blitUniforms = getUniforms(gl, blitProgram, ['uTex', 'uGlitch', 'uTime', 'uSamosborActive', 'uSamosborStyle', 'uSamosborPost', 'uSamosborTint', 'uScreenInterference', 'uBloomTex', 'uBloomStrength']);
 
   // ── Bloom programs (bright-pass prefilter + separable blur) ──
   const bloomPrefilterProgram = createProgram(gl, BLIT_VERT_SRC, BLOOM_PREFILTER_FRAG_SRC);
@@ -3531,8 +3380,106 @@ export function renderSceneGL(
   uploadVisualDetailUniforms(gl, ru, visualDetailProfile);
   uploadVisualSurfaceUniforms(gl, ru, visualSurfaceProfile);
 
-  uploadDynamicLights(gl, ru, glState, world, px, py, camHeight, flashlight);
-  uploadShadowCasters(gl, ru, glState, entities, px, py);
+  // Dynamic Lights (Framework)
+  let dynLightCount = 0;
+  if (flashlight > 0.0) {
+    gl.uniform3f(ru[`uDynamicLights[0].pos`]!, px, py, camHeight);
+    gl.uniform3f(ru[`uDynamicLights[0].color`]!, 1.5, 1.4, 1.2); // Warm bright light
+    gl.uniform1f(ru[`uDynamicLights[0].radius`]!, 10.0);
+    
+    glState.dynamicLightsPos[0] = px;
+    glState.dynamicLightsPos[1] = py;
+    glState.dynamicLightsPos[2] = camHeight;
+    glState.dynamicLightsColor[0] = 1.5;
+    glState.dynamicLightsColor[1] = 1.4;
+    glState.dynamicLightsColor[2] = 1.2;
+    glState.dynamicLightsRadius[0] = 10.0;
+    
+    dynLightCount++;
+  }
+
+  const maxDrawGrid = Math.ceil(MAX_DRAW);
+  const cx = Math.floor(px);
+  const cy = Math.floor(py);
+  const lightCandidates: { lx: number, ly: number, lz: number, r: number, g: number, b: number, radius: number, dist2: number }[] = [];
+
+  for (let dy = -maxDrawGrid; dy <= maxDrawGrid; dy++) {
+    for (let dx = -maxDrawGrid; dx <= maxDrawGrid; dx++) {
+      const dist2 = dx * dx + dy * dy;
+      if (dist2 > MAX_DRAW * MAX_DRAW) continue;
+
+      const wx = world.wrap(cx + dx);
+      const wy = world.wrap(cy + dy);
+      const idx = world.idx(wx, wy);
+      const feat = world.features[idx];
+      
+      let lr = 0, lg = 0, lb = 0, lrad = 0;
+      if (feat === Feature.LAMP) {
+        lr = 1.0; lg = 0.9; lb = 0.8; lrad = 8.0;
+      } else if (feat === Feature.CANDLE) {
+        lr = 0.8; lg = 0.5; lb = 0.2; lrad = 5.0;
+      }
+      
+      if (lrad > 0) {
+        const lx = cx + dx + 0.5;
+        const ly = cy + dy + 0.5;
+        const lz = (feat === Feature.LAMP) ? (1.0 + Math.max(0, world.ceilHeight[idx]) * 0.5) - 0.1 : 0.4;
+        lightCandidates.push({ lx, ly, lz, r: lr, g: lg, b: lb, radius: lrad, dist2 });
+      }
+    }
+  }
+
+  lightCandidates.sort((A, B) => A.dist2 - B.dist2);
+
+  for (const c of lightCandidates) {
+    if (dynLightCount >= 8) break;
+    gl.uniform3f(ru[`uDynamicLights[${dynLightCount}].pos`]!, c.lx, c.ly, c.lz);
+    gl.uniform3f(ru[`uDynamicLights[${dynLightCount}].color`]!, c.r, c.g, c.b);
+    gl.uniform1f(ru[`uDynamicLights[${dynLightCount}].radius`]!, c.radius);
+    
+    glState.dynamicLightsPos[dynLightCount * 3 + 0] = c.lx;
+    glState.dynamicLightsPos[dynLightCount * 3 + 1] = c.ly;
+    glState.dynamicLightsPos[dynLightCount * 3 + 2] = c.lz;
+    glState.dynamicLightsColor[dynLightCount * 3 + 0] = c.r;
+    glState.dynamicLightsColor[dynLightCount * 3 + 1] = c.g;
+    glState.dynamicLightsColor[dynLightCount * 3 + 2] = c.b;
+    glState.dynamicLightsRadius[dynLightCount] = c.radius;
+    
+    dynLightCount++;
+  }
+
+  gl.uniform1i(ru['uDynamicLightCount']!, dynLightCount);
+  glState.dynamicLightCount = dynLightCount; // Save for mesh and sprites
+
+  // Shadow Casters
+  let shadowCasterCount = 0;
+  for (const e of entities) {
+    if (shadowCasterCount >= 32) break;
+    if (e.type === EntityType.PROJECTILE || e.type === EntityType.EFFECT || e.type === EntityType.BILLBOARD || e.type === EntityType.LIGHT) continue;
+    
+    let radius = 0.25;
+    let height = 0.8;
+    if (e.type === EntityType.ITEM_DROP) {
+      radius = 0.15;
+      height = 0.15;
+    }
+    
+    const dx = e.x - px;
+    const dy = e.y - py;
+    if (dx * dx + dy * dy > MAX_DRAW * MAX_DRAW) continue;
+
+    glState.shadowCasters[shadowCasterCount * 4 + 0] = e.x;
+    glState.shadowCasters[shadowCasterCount * 4 + 1] = e.y;
+    glState.shadowCasters[shadowCasterCount * 4 + 2] = height;
+    glState.shadowCasters[shadowCasterCount * 4 + 3] = radius;
+    shadowCasterCount++;
+  }
+  glState.shadowCasterCount = shadowCasterCount;
+  gl.uniform1i(ru['uShadowCasterCount']!, shadowCasterCount);
+  if (shadowCasterCount > 0) {
+    const loc = ru['uShadowCasters[0]'];
+    if (loc) gl.uniform4fv(loc, glState.shadowCasters.subarray(0, shadowCasterCount * 4));
+  }
 
   // Bind data textures to texture units.
   bindTextureUnit(gl, glState.cellsTex, ru['uCells']!, 0);
@@ -3563,7 +3510,7 @@ export function renderSceneGL(
 
   // ── Render sprites into FBO (with depth test against raycaster) ──
   gl.depthFunc(gl.LESS);
-  updateAndRenderMeshPass(glState, world, camera, time, fogDensity, meshFogRgb, visualGeometryProfile, ambientLight, samosborActive, entities);
+  updateAndRenderMeshPass(glState, world, camera, time, fogDensity, meshFogRgb, visualGeometryProfile, ambientLight, samosborActive);
   renderSpritesGL(
     world,
     sprites,
@@ -3594,12 +3541,12 @@ export function renderSceneGL(
     renderParticlesGL(bloodParticles, px, py, pAngle, pPitch, camHeight, fogDensity, purpleFog, fogRgb, planeLen);
   }
 
-  // ── Render critters pass ──
-  if (getCritterRenderEnabled(currentFps)) {
-    drawCritters(px, py, pAngle, pPitch, fogDensity, purpleFog, fogRgb, planeLen);
-  }
-
   gl.disable(gl.DEPTH_TEST);
+
+  // ── Render critters pass (stub for marx_74) ──
+  if (getCritterRenderEnabled(currentFps)) {
+    // Critters will be rendered here
+  }
 
   // ── Pass 1.5: Bloom (bright-pass prefilter + separable Gaussian blur) ──
   // Render-only glow; gated to high/experimental lighting quality. Result lands in bloomTexA.
@@ -3658,13 +3605,6 @@ export function renderSceneGL(
   gl.uniform1f(glState.blitUniforms['uSamosborPost']!, samosborPost);
   gl.uniform3f(glState.blitUniforms['uSamosborTint']!, fogRgb[0] / 255, fogRgb[1] / 255, fogRgb[2] / 255);
   gl.uniform1f(glState.blitUniforms['uScreenInterference']!, Math.max(0, Math.min(1, screenInterference)));
-
-  const thePlayer = entities.find(isPlayerEntity);
-  const showStatusFx = uiElementEnabled('status_fx');
-  const istotitLevel = showStatusFx ? Math.min((thePlayer?.statusEffects?.istotit || 0) / 100, 1.0) : 0.0;
-  const veretarLevel = showStatusFx ? Math.min((thePlayer?.statusEffects?.veretar || 0) / 100, 1.0) : 0.0;
-  gl.uniform1f(glState.blitUniforms['u_istotitLevel']!, istotitLevel);
-  gl.uniform1f(glState.blitUniforms['u_veretarLevel']!, veretarLevel);
 
   gl.bindVertexArray(glState.blitVAO);
   gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -3799,7 +3739,6 @@ function collectStaticObjectSprites(world: World, px: number, py: number, count:
   const maxDist2 = MAX_DRAW * MAX_DRAW;
   for (const container of world.containers) {
     if (container.access === 'secret' && !container.discovered) continue;
-    if (container.tags.includes('feature_loot') || container.tags.includes('mesh_hidden')) continue;
     const ox = container.x + 0.55;
     const oy = container.y + 0.5;
     const dx = toroidalDelta(ox, px);
@@ -4215,104 +4154,6 @@ function renderSpritesGL(
 }
 
 /* ── Transient particle rendering ─────────────────────────────── */
-
-function drawCritters(px: number, py: number, pAngle: number, pPitch: number, fogDensity: number, purpleFog: number, activeFogRgb: readonly [number, number, number], planeLen: number): void {
-  if (!glState || CRITTERS_POOL.length === 0) return;
-  const { gl } = glState;
-
-  const dirX = Math.cos(pAngle);
-  const dirY = Math.sin(pAngle);
-  const planeX = -dirY * planeLen;
-  const planeY = dirX * planeLen;
-  const horizonShift = Math.floor(pPitch * SCR_H);
-  const halfH = Math.floor(SCR_H / 2) + horizonShift;
-  const invDet = 1.0 / (planeX * dirY - dirX * planeY);
-  const skyFog = activeDynamicSky?.fogTint;
-  const fogR = purpleFog ? activeFogRgb[0] / 255 : skyFog ? skyFog.r / 255 : 5 / 255;
-  const fogG = purpleFog ? activeFogRgb[1] / 255 : skyFog ? skyFog.g / 255 : 5 / 255;
-  const fogB = purpleFog ? activeFogRgb[2] / 255 : skyFog ? skyFog.b / 255 : 8 / 255;
-
-  let visibleCount = 0;
-  const instanceData = glState.particleInstanceData;
-  const colorData = glState.particleColorData;
-  for (const c of CRITTERS_POOL) {
-    if (!c.active) continue;
-    if (visibleCount >= PARTICLE_INSTANCE_CAP) break;
-
-    let dx = c.x - px;
-    let dy = c.y - py;
-    if (dx > W / 2) dx -= W;
-    if (dx < -W / 2) dx += W;
-    if (dy > W / 2) dy -= W;
-    if (dy < -W / 2) dy += W;
-
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist >= 15) continue; // max draw dist for critters
-
-    const txf = invDet * (dirY * dx - dirX * dy);
-    const tyf = invDet * (-planeY * dx + planeX * dy);
-    if (tyf <= 0.1) continue;
-
-    const sx = Math.floor((SCR_W / 2) * (1 + txf / tyf));
-    const def = CRITTER_DEFS[c.defId];
-    if (!def) continue;
-
-    const size = def.size;
-    const screenSize = Math.min(
-      PARTICLE_MAX_SCREEN_SIZE * 2.0,
-      (SCR_H / tyf) * PARTICLE_WORLD_SCREEN_SCALE * size
-    );
-    if (screenSize < PARTICLE_MIN_SCREEN_SIZE) continue;
-    const pad = Math.ceil(screenSize + 1);
-    if (sx < -pad || sx >= SCR_W + pad) continue;
-
-    const sy = Math.floor(halfH + SCR_H / (tyf * 2) - c.z * SCR_H / tyf);
-    if (sy < -pad || sy >= SCR_H + pad) continue;
-
-    const fogF = distanceFogFactor(dist, fogDensity);
-    const alpha = 1.0 * (1 - fogF * 0.75);
-    if (alpha <= 0.03) continue;
-
-    const [r, g, b] = def.color;
-    const rNorm = r / 255;
-    const gNorm = g / 255;
-    const bNorm = b / 255;
-
-    const invFogF = 1 - fogF;
-    const normDepth = Math.max(0.0, Math.min(0.999, 1.0 - 0.1 / Math.max(0.1, tyf)));
-    const di = visibleCount << 2;
-    instanceData[di] = sx;
-    instanceData[di + 1] = sy;
-    instanceData[di + 2] = screenSize;
-    instanceData[di + 3] = normDepth;
-    colorData[di] = rNorm * invFogF + fogR * fogF;
-    colorData[di + 1] = gNorm * invFogF + fogG * fogF;
-    colorData[di + 2] = bNorm * invFogF + fogB * fogF;
-    colorData[di + 3] = alpha;
-    visibleCount++;
-  }
-
-  if (visibleCount > 0) {
-    gl.useProgram(glState.particleProgram);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    gl.depthMask(false);
-
-    const pu = glState.particleUniforms;
-    gl.uniform2f(pu['uResolution']!, SCR_W, SCR_H);
-    gl.bindVertexArray(glState.particleVAO);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, glState.particleInstanceBuffer);
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, instanceData, 0, visibleCount * 4);
-    gl.bindBuffer(gl.ARRAY_BUFFER, glState.particleColorBuffer);
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, colorData, 0, visibleCount * 4);
-    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, visibleCount);
-
-    gl.depthMask(true);
-    gl.disable(gl.BLEND);
-  }
-}
-
 function renderParticlesGL(
   particles: BloodParticle[],
   px: number, py: number, pAngle: number, pPitch: number,

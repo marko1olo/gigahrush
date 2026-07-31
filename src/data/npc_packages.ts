@@ -277,7 +277,7 @@ function normalizeNpcPackageInput(input: NpcPackageDef | NpcPackageRegistryInput
     visual: input.visual ?? {},
     placement: {
       ...placementInput,
-      homeFloorKey: placementInput.homeFloorKey ?? 'design:living',
+      homeFloorKey: placementInput.homeFloorKey ?? 'story:living',
       presence: placementInput.presence ?? 'anchor',
     },
     speech: input.speech ?? {},
@@ -313,34 +313,6 @@ export function registerNpcPackage(input: NpcPackageDef | NpcPackageRegistryInpu
   NPC_PACKAGES_BY_ID.set(pack.id, pack);
 }
 
-let nextPlotNpcId = 1;
-const PLOT_NPC_PACKAGES_BY_NUMERIC_ID: NpcPackageDef[] = [];
-
-export function registerPlotNpc(input: NpcPackageDef | NpcPackageRegistryInput): number {
-  const id = nextPlotNpcId++;
-  const pack = normalizeNpcPackageInput(input);
-  registerNpcPackage(pack);
-  PLOT_NPC_PACKAGES_BY_NUMERIC_ID[id] = pack;
-  return id;
-}
-
-export function getPlotNpcCount(): number {
-  return nextPlotNpcId - 1;
-}
-
-export function getPlotNpcPackageByNumericId(id: number): NpcPackageDef | undefined {
-  return PLOT_NPC_PACKAGES_BY_NUMERIC_ID[id];
-}
-
-export function getPlotNpcNumericId(stringId: string): number | undefined {
-  const idx = PLOT_NPC_PACKAGES_BY_NUMERIC_ID.findIndex(pack => pack?.id === stringId);
-  return idx >= 1 ? idx : undefined;
-}
-
-export function getPlotNpcStringId(id: number): string | undefined {
-  return PLOT_NPC_PACKAGES_BY_NUMERIC_ID[id]?.id;
-}
-
 export function registerNpcPackages(inputs: readonly (NpcPackageDef | NpcPackageRegistryInput)[]): void {
   const packs = inputs.map(normalizeNpcPackageInput);
   const batchIds = new Set<string>();
@@ -362,12 +334,10 @@ export function getNpcPackage(id: string): NpcPackageDef | undefined {
   return NPC_PACKAGES_BY_ID.get(id);
 }
 
-export function getNpcPackageByPlotNpcId(plotNpcId: number): NpcPackageDef | undefined {
-  const strId = getPlotNpcStringId(plotNpcId);
-  if (!strId) return undefined;
-  const direct = NPC_PACKAGES_BY_ID.get(strId);
-  if (direct?.content?.plotNpcId === strId) return direct;
-  return NPC_PACKAGES.find(pack => pack.content?.plotNpcId === strId);
+export function getNpcPackageByPlotNpcId(plotNpcId: string): NpcPackageDef | undefined {
+  const direct = NPC_PACKAGES_BY_ID.get(plotNpcId);
+  if (direct?.content?.plotNpcId === plotNpcId) return direct;
+  return NPC_PACKAGES.find(pack => pack.content?.plotNpcId === plotNpcId);
 }
 
 export function allNpcPackages(): readonly NpcPackageDef[] {
@@ -429,8 +399,8 @@ export function npcPackageDisplayName(pack: NpcPackageDef): string {
   return pack.identity.nickname ?? pack.id;
 }
 
-export function plotNpcIdFromPackage(pack: NpcPackageDef): number | undefined {
-  return pack.content?.plotNpcId ? getPlotNpcNumericId(pack.content.plotNpcId) : undefined;
+export function plotNpcIdFromPackage(pack: NpcPackageDef): string | undefined {
+  return pack.content?.plotNpcId;
 }
 
 export function npcReservedIdentityId(packageId: string): string {
@@ -507,14 +477,14 @@ function packagePresenceForPlotNpc(homeFloorKey: string | undefined, presence: N
   return homeFloorKey?.startsWith('design:') ? 'anchor' : 'room_content';
 }
 
-function packageRuntimeSpeed(speed?: number): number | undefined {
-  if (speed === undefined || speed <= 0) return undefined;
+function packageRuntimeSpeed(speed: number): number | undefined {
+  if (speed <= 0) return undefined;
   return Math.max(0.1, Math.min(20, speed));
 }
 
 export function npcPackageFromPlotNpc(input: PlotNpcPackageInput): NpcPackageDef {
   const quests = input.quests ?? [];
-  const homeFloorKey = input.npc.homeFloorKey ?? 'design:living';
+  const homeFloorKey = input.npc.homeFloorKey ?? 'story:living';
   const tags = trimTags(['authored', input.id, ...(input.npc.authoredTags ?? []), ...(input.tags ?? [])]);
   const questIds = quests.map(quest => quest.id);
   const speed = packageRuntimeSpeed(input.npc.speed);
@@ -556,7 +526,6 @@ export function npcPackageFromPlotNpc(input: PlotNpcPackageInput): NpcPackageDef
       homeFloorKey,
       presence: packagePresenceForPlotNpc(homeFloorKey, input.presence, quests),
       mobility: 'fixed_home',
-      roomId: input.npc.spawnRoomAlias,
     },
     speech: {
       talkLines: [...input.npc.talkLines],
@@ -582,6 +551,6 @@ export function npcPackageFromPlotNpc(input: PlotNpcPackageInput): NpcPackageDef
 
 export function registerNpcPackageFromPlotNpc(input: PlotNpcPackageInput): NpcPackageDef {
   const pack = npcPackageFromPlotNpc(input);
-  registerPlotNpc(pack);
+  registerNpcPackage(pack);
   return pack;
 }

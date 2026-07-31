@@ -6,7 +6,7 @@ import { CONTAINER_DEFS } from '../src/data/container_defs';
 import { FACTORIES } from '../src/data/factories';
 import { ITEMS } from '../src/data/items';
 import { resourceForItem } from '../src/data/resources';
-import { BLACK_MARKET_88_STOCK } from '../src/gen/black_market_88';
+import { BLACK_MARKET_88_STOCK } from '../src/gen/design_floors/black_market_88';
 import { useItem } from '../src/systems/inventory';
 import { countInventoryItem, makeGameState, makeTestPlayer } from './helpers';
 

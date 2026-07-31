@@ -1,6 +1,5 @@
 import type { World } from '../../core/world';
 import type { CameraView } from '../../systems/camera';
-import type { Entity } from '../../core/types';
 import type {
   ResolvedVisualGeometryProfile,
   VisualGeometryMode,
@@ -29,7 +28,6 @@ export interface MeshPassContext {
   dynamicLightsRadius?: Float32Array;
   mode: MeshGraphicsMode;
   profile: ResolvedVisualGeometryProfile;
-  entities?: readonly Entity[];
 }
 
 export interface MeshPassStats {

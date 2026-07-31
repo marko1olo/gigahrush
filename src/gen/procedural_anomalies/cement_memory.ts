@@ -79,8 +79,7 @@ function registerCementMemoryCue(
     y: marker.y + 0.5,
     targetX: target.x + 0.5,
     targetY: target.y + 0.5,
-    // @ts-ignore
-    z: ctx.spec.themeTags,
+    floor: ctx.spec.baseFloor,
     roomId: marker.room.id,
     targetRoomId: target.room.id,
     zoneId: ctx.world.zoneMap[ctx.world.idx(marker.x, marker.y)],

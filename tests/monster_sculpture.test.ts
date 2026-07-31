@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { DEF, generateSprite } from '../src/entities/sculpture';
 import { getMonsterEcology } from '../src/data/monster_ecology';
@@ -83,6 +83,7 @@ test('sculpture definition, ecology, and sprite read as a concrete anomaly', () 
 
   assert.equal(DEF.kind, MonsterKind.SCULPTURE);
   assert.deepEqual(DEF.aiFlags, ['weepingAngel']);
+  assert.deepEqual(DEF.floors, [FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID]);
   assert.equal(ecology?.rare, true);
   assert.match(DEF.counterplay ?? '', /Двигается только/i);
   assert.equal(sprite.length, S * S);

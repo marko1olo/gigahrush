@@ -11,7 +11,7 @@ import {
   applyBlackMarket88Purchase,
   createBlackMarket88DesignState,
   quoteBlackMarket88Purchase,
-} from '../src/gen/black_market_88';
+} from '../src/gen/design_floors/black_market_88';
 import { generateLiquidatorArchive } from '../src/gen/ministry/liquidator_archive';
 import { containerAccessInfo } from '../src/systems/containers';
 import { makeTestPlayer } from './helpers';

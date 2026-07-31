@@ -10,7 +10,7 @@ import '../src/gen/hell/content_manifest';
 import '../src/gen/void/content_manifest';
 import '../src/gen/design_floors/manifest';
 
-import { MonsterKind, RoomType } from '../src/core/types';
+import { FloorLevel, MonsterKind, RoomType } from '../src/core/types';
 import { ITEMS } from '../src/data/catalog';
 import { CONTRACTS } from '../src/data/contracts';
 import { FACTORIES } from '../src/data/factories';
@@ -33,7 +33,7 @@ import { getZoneContentRegistrySnapshot } from '../src/gen/living/zone_content';
 const ITEM_IDS = new Set([...Object.keys(ITEMS), 'money']);
 const MONSTER_IDS = new Set(Object.keys(MONSTERS).map(Number));
 const ROOM_TYPE_IDS = new Set(Object.values(RoomType).filter(v => typeof v === 'number'));
-const FLOOR_LEVEL_IDS = new Set(DESIGN_FLOOR_ROUTES.map(r => r.z));
+const FLOOR_LEVEL_IDS = new Set(Object.values(FloorLevel).filter(v => typeof v === 'number'));
 const RESOURCE_IDS = new Set(RESOURCES.map(r => r.id));
 const RUMORS_BY_ID = new Map(RUMORS.map(r => [r.id, r]));
 const ZERO_WEIGHT_MONSTERS = new Set<MonsterKind>([
@@ -208,6 +208,7 @@ test('contracts, rumors, rooms, and variants reference existing ids', () => {
       const rumor = RUMORS_BY_ID.get(rumorId);
       assert.ok(rumor, `SCREEN_SIGNAL_DEFS.${def.id} references missing rumor "${rumorId}"`);
       assert.equal(
+        rumor.floors.some(floor => def.floors.includes(floor)),
         true,
         `SCREEN_SIGNAL_DEFS.${def.id} rumor "${rumorId}" has no valid floor overlap`,
       );
@@ -226,6 +227,7 @@ test('monster ecology covers every registered monster and resolves tactical refe
     assertMonster(def.kind, `${scope}.kind`);
     assert.equal(ecologyKinds.has(def.kind), false, `${scope} duplicate ecology entry`);
     ecologyKinds.add(def.kind);
+    assert.ok(def.floors.length > 0, `${scope} needs at least one floor`);
     assert.ok(def.rooms.length > 0, `${scope} needs at least one room type`);
     if (ZERO_WEIGHT_MONSTERS.has(def.kind)) {
       assert.equal(def.spawnWeight, 0, `${scope} must stay data-disabled for generic spawning`);
@@ -236,7 +238,7 @@ test('monster ecology covers every registered monster and resolves tactical refe
     assert.ok(def.lootHint.trim().length >= 8, `${scope} needs lootHint`);
     assert.ok(def.rumorIds.length > 0, `${scope} needs at least one rumor`);
 
-    const rumorFloors = new Set<number>();
+    const rumorFloors = new Set<FloorLevel>();
     for (const rumorId of def.rumorIds) {
       const rumor = RUMORS_BY_ID.get(rumorId);
       assert.ok(rumor, `${scope} references missing rumor "${rumorId}"`);
@@ -251,7 +253,7 @@ test('monster ecology covers every registered monster and resolves tactical refe
       for (const floor of rumor.floors) rumorFloors.add(floor);
     }
     for (const floor of def.floors) {
-      assert.equal(rumorFloors.has(floor), true, `${scope} has no rumor coverage on floor ${number[floor]}`);
+      assert.equal(rumorFloors.has(floor), true, `${scope} has no rumor coverage on floor ${FloorLevel[floor]}`);
     }
 
     for (const drop of def.rareDrops) {

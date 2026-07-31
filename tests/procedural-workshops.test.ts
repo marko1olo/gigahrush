@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, Feature, RoomType, W, type Room } from '../src/core/types';
+import { Cell, Feature, FloorLevel, RoomType, W, type Room } from '../src/core/types';
 import { auditReachability } from '../src/core/world';
 import { makeProceduralFloorSpec, type ProceduralFloorSpec } from '../src/data/procedural_floors';
 import { generateProceduralFloor } from '../src/gen/procedural_floor';
@@ -33,7 +33,7 @@ test('forced workshops geometry exposes dock loops, tool chords and factory deci
     depth: 34,
     danger: 4,
     geometryId: 'workshops',
-    baseFloor: 'maintenance',
+    baseFloor: FloorLevel.MAINTENANCE,
     majorityId: 'liquidators',
     anomalyId: 'none',
     title: 'Тестовый цеховой этаж',

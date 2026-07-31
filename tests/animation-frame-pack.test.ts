@@ -40,32 +40,26 @@ function assertContiguous(indexes: readonly number[], label: string) {
   });
 }
 
-test('generated Olga and liquidator animation frame packs match source intake contract', () => {
+test('generated Olga animation frame packs match source intake contract', () => {
   assert.equal(existsSync(CYRILLIC_ANIMS_DIR), false, 'old Cyrillic ./аnims/ path must not remain');
   assert.equal(existsSync(ANIMS_DIR), true, 'ASCII anims/ path must exist');
   assert.equal(walkFiles(ANIMS_DIR).some(filePath => path.basename(filePath) === '.DS_Store'), false);
 
   assert.deepEqual([...GENERATED_ANIMATION_CLIP_IDS].sort(), [
-    'liquidator_m_1_harm',
-    'liquidator_m_1_static',
-    'liquidator_m_1_walk',
     'olga_dmitrievna_harm',
     'olga_dmitrievna_walk',
   ]);
 
-  const expected: Record<string, number> = {
-    liquidator_m_1_harm: 3,
-    liquidator_m_1_static: 3,
-    liquidator_m_1_walk: 7,
+  const expected = {
     olga_dmitrievna_harm: 3,
     olga_dmitrievna_walk: 6,
-  };
+  } as const;
 
   for (const [clipId, frameCount] of Object.entries(expected)) {
     const pack = getGeneratedAnimationFramePack(clipId);
     assert.ok(pack, `${clipId} frame pack`);
-    assert.equal(pack.width, 128, `${clipId} width`);
-    assert.equal(pack.height, 128, `${clipId} height`);
+    assert.equal(pack.width, 64, `${clipId} width`);
+    assert.equal(pack.height, 64, `${clipId} height`);
     assert.equal(pack.frameCount, frameCount, `${clipId} frame count`);
     assert.equal(pack.frames.length, frameCount, `${clipId} frame array length`);
 
@@ -78,7 +72,7 @@ test('generated Olga and liquidator animation frame packs match source intake co
       assert.equal(createHash('sha256').update(readFileSync(filePath)).digest('hex'), frame.sha256);
       const decoded = decodeGeneratedAnimationFrame(clipId, frame.index);
       assert.ok(decoded, `${clipId}/${frame.index} decodes`);
-      assert.equal(decoded.length, 128 * 128, `${clipId}/${frame.index} decoded pixel count`);
+      assert.equal(decoded.length, 64 * 64, `${clipId}/${frame.index} decoded pixel count`);
     }
   }
 });

@@ -9,7 +9,6 @@ import {
   msg,
 } from '../core/types';
 import { publishEvent } from './events';
-import { rng } from '../core/rand';
 import { isPlayerEntity } from './player_actor';
 
 export const ZHELEMISH_SKIN_ID: PlayerStatusId = 'zhelemish_skin';
@@ -365,10 +364,10 @@ export function applyZhelemishSkin(
   time: number,
   source: PlayerStatusSource,
   state?: GameState,
-  rand: () => number = rng,
+  rng: () => number = Math.random,
 ): ZhelemishApplyResult {
   const duration = zhelemishDuration(source);
-  const badReaction = source === 'zhelemish_raw' && rand() < RAW_BAD_REACTION_CHANCE;
+  const badReaction = source === 'zhelemish_raw' && rng() < RAW_BAD_REACTION_CHANCE;
   if (!entity.statuses) entity.statuses = [];
   const existing = entity.statuses.find(s => s.id === ZHELEMISH_SKIN_ID);
   const refreshed = existing !== undefined;

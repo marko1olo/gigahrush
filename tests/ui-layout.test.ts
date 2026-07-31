@@ -1,8 +1,7 @@
-import { getPlotNpcNumericId } from '../src/data/npc_packages';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, EntityType, MonsterKind, QuestType, type Entity, type Quest } from '../src/core/types';
+import { Cell, EntityType, FloorLevel, MonsterKind, QuestType, type Entity, type Quest } from '../src/core/types';
 import { World } from '../src/core/world';
 import { INVENTORY_GRID_COLS, INVENTORY_GRID_ROWS, MAX_INVENTORY_SLOTS } from '../src/data/inventory_limits';
 import { drawControlsMenu } from '../src/render/controls_ui';
@@ -10,16 +9,17 @@ import { drawHelpMenu } from '../src/render/help_ui';
 import { drawMinimap, mapEntityDotBudget } from '../src/render/map_ui';
 import {
   allocateHudSlot,
+  containerGridScale,
   containerMenuGridLayout,
   createHudSlots,
   dialogMenuScale,
   fullscreenInventoryLayout,
   tradeMenuGridLayout,
+  tradeGridScale,
 } from '../src/render/ui_layout';
 import { CONTROL_ACTIONS } from '../src/systems/controls';
 import { rebuildEntityIndex } from '../src/systems/entity_index';
 import { makeGameState, makeTestNpc, makeTestPlayer } from './helpers';
-import '../src/data/npc_plot_packages';
 
 class CanvasStubContext {
   readonly canvas: { width: number; height: number };
@@ -57,7 +57,7 @@ function drawMinimapPathFills(quest: Quest, target: Entity, activeQuestId?: numb
   const player = makeTestPlayer({ id: 1, x: 12.5, y: 12.5 });
   for (const entity of [player, target]) world.cells[world.idx(Math.floor(entity.x), Math.floor(entity.y))] = Cell.FLOOR;
   const entities = [player, target];
-  const state = makeGameState({ currentZ: 0, quests: [quest], activeQuestId });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, quests: [quest], activeQuestId });
   rebuildEntityIndex(entities);
   const ctx = new CanvasStubContext();
   drawMinimap(
@@ -69,7 +69,7 @@ function drawMinimapPathFills(quest: Quest, target: Entity, activeQuestId?: numb
     1,
     state.quests,
     undefined,
-    0,
+    FloorLevel.LIVING,
     state,
     0,
     { x: 0, y: 0, w: 120, h: 120 },
@@ -93,21 +93,22 @@ test('inventory grid is an 8x8 power-of-two actor inventory', () => {
 });
 
 test('trade and container inventories use large cells on desktop canvases', () => {
-  assert.ok(tradeMenuGridLayout(1920, 1080).cell >= 50);
-  assert.ok(containerMenuGridLayout(1920, 1080).cell >= 66);
+  assert.ok(tradeGridScale(1920, 1080) >= 2.3);
+  assert.ok(containerGridScale(1920, 1080) >= 3.0);
 });
 
 test('trade inventory scale still fits shorter canvases', () => {
   const layout = tradeMenuGridLayout(1280, 720);
-  assert.ok(layout.cell > 33);
+  assert.ok(layout.scale > 1.5);
   assert.ok(layout.startX >= -0.001);
   assert.ok(layout.npcX + layout.gridTotal <= 1280 + 0.001);
   assert.ok(layout.dealY + layout.dealH <= 720 * 0.82 + 70 * layout.scale + 0.001);
 });
 
 test('grid scale does not force tiny mobile canvases to overflow', () => {
+  const scale = containerGridScale(280, 180);
+  assert.ok(scale < 1);
   const layout = containerMenuGridLayout(280, 180);
-  assert.ok(layout.scale < 1);
   assert.ok(layout.startX >= -0.001);
   assert.ok(layout.containerX + layout.gridTotal <= 280 + 0.001);
   assert.ok(layout.startY + layout.gridTotal <= 180 * 0.82 + 0.001);
@@ -216,9 +217,10 @@ test('minimap renders the selected active quest direction arrow', () => {
 
 test('map renders NPC kill quest targets with red diamonds', () => {
   const target = makeTestNpc({
-    id: getPlotNpcNumericId('barni') ?? 31,
+    id: 31,
     x: 14.5,
     y: 12.5,
+    plotNpcId: 'plot_pechateed',
     canGiveQuest: false,
   });
   const fills = drawMinimapPathFills({
@@ -226,8 +228,8 @@ test('map renders NPC kill quest targets with red diamonds', () => {
     type: QuestType.KILL,
     giverId: 12,
     giverName: 'Секретарь',
-    desc: 'Убери Баринова.',
-    targetNpcId: getPlotNpcNumericId('barni'),
+    desc: 'Убери печатееда.',
+    targetPlotNpcId: 'plot_pechateed',
     killCount: 0,
     killNeeded: 1,
     done: false,

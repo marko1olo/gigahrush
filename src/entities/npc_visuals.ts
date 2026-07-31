@@ -66,7 +66,6 @@ export interface NpcVisualContext {
   faction?: Faction;
   isFemale?: boolean;
   age?: number;
-  plotNpcId?: number;
 }
 
 export type NpcVisualSource = 'procedural' | 'first_party_art' | 'community_art';
@@ -122,31 +121,25 @@ for (const row of ART_SPRITE_MANIFEST) {
   }
 }
 
-const GENERATED_ART_FAMILIES: NpcVisualFamily[] = Object.keys(manifestFamilies).reduce((acc: NpcVisualFamily[], visualId) => {
-  if (visualId !== NPC_VISUAL_WORKER69) {
-    const manifestIds = manifestFamilies[visualId];
-    acc.push({
-      id: visualId,
-      source: 'first_party_art',
-      usesDynamicTexture: true,
-      worldSpriteScale: FIRST_PARTY_NPC_ART_WORLD_SPRITE_SCALE,
-      procedural: false,
-      generate: ctx => {
-        const seed = mix32((ctx.seed || 1) ^ Math.imul((ctx.sprite ?? 0) + 1, 0x51ed270b));
-        const choice = seed % manifestIds.length;
-        const manifestId = manifestIds[choice < 0 ? choice + manifestIds.length : choice];
-        return firstPartyNpcArt(manifestId) ?? new Uint32Array(0);
-      },
-      textureKey: ctx => {
-        const seed = mix32((ctx.seed || 1) ^ Math.imul((ctx.sprite ?? 0) + 1, 0x51ed270b));
-        const choice = seed % manifestIds.length;
-        const manifestId = manifestIds[choice < 0 ? choice + manifestIds.length : choice];
-        return `first_party_art:${manifestId}`;
-      },
-    });
-  }
-  return acc;
-}, []);
+const GENERATED_ART_FAMILIES: NpcVisualFamily[] = Object.entries(manifestFamilies)
+  .filter(([visualId]) => visualId !== NPC_VISUAL_WORKER69)
+  .map(([visualId, manifestIds]) => ({
+    id: visualId,
+    source: 'first_party_art',
+    usesDynamicTexture: true,
+    worldSpriteScale: FIRST_PARTY_NPC_ART_WORLD_SPRITE_SCALE,
+    procedural: false,
+    generate: ctx => {
+      const seed = mix32((ctx.seed || 1) ^ Math.imul((ctx.sprite ?? 0) + 1, 0x51ed270b));
+      const manifestId = manifestIds[seed % manifestIds.length];
+      return firstPartyNpcArt(manifestId) ?? new Uint32Array(0);
+    },
+    textureKey: ctx => {
+      const seed = mix32((ctx.seed || 1) ^ Math.imul((ctx.sprite ?? 0) + 1, 0x51ed270b));
+      const manifestId = manifestIds[seed % manifestIds.length];
+      return `first_party_art:${manifestId}`;
+    },
+  }));
 
 const worker69MaleIds: string[] = [];
 const worker69FemaleIds: string[] = [];
@@ -174,7 +167,7 @@ const worker69Family: NpcVisualFamily = {
       return new Uint32Array(0);
     }
     const choice = seed % 10;
-    if (choice < 0 && worker69FemaleIds.length > 0) {
+    if (choice < 4 && worker69FemaleIds.length > 0) {
       const manifestId = worker69FemaleIds[choice % worker69FemaleIds.length];
       return firstPartyNpcArt(manifestId) ?? generateFloor69FemaleNpcSprite(floor69Variant(ctx));
     }
@@ -188,7 +181,7 @@ const worker69Family: NpcVisualFamily = {
       return `empty`;
     }
     const choice = seed % 10;
-    if (choice < 0 && worker69FemaleIds.length > 0) {
+    if (choice < 4 && worker69FemaleIds.length > 0) {
       const manifestId = worker69FemaleIds[choice % worker69FemaleIds.length];
       return `first_party_art:${manifestId}`;
     }
@@ -350,13 +343,9 @@ export const NPC_VISUAL_FAMILIES: readonly NpcVisualFamily[] = [
   })),
 ] as const;
 
-const NPC_VISUAL_FAMILY_MAP = new Map<string, NpcVisualFamily>(
-  NPC_VISUAL_FAMILIES.map(family => [family.id, family])
-);
-
 export function npcVisualFamily(id: string | undefined): NpcVisualFamily | undefined {
   if (!id) return undefined;
-  return NPC_VISUAL_FAMILY_MAP.get(id);
+  return NPC_VISUAL_FAMILIES.find(family => family.id === id);
 }
 
 export function npcVisualUsesDynamicTexture(id: string | undefined): boolean {
@@ -367,6 +356,9 @@ export function npcVisualWorldSpriteScale(id: string | undefined): number | unde
   return npcVisualFamily(id)?.worldSpriteScale;
 }
 
+export function npcVisualUsesProceduralSprite(id: string | undefined): boolean {
+  return npcVisualUsesDynamicTexture(id);
+}
 
 export function generateNpcVisualSprite(id: string | undefined, ctx: NpcVisualContext): Uint32Array | undefined {
   const family = npcVisualFamily(id);

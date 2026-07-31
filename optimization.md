@@ -42,45 +42,6 @@ If a system needs navigation during geometry mutation (e.g., monsters chasing du
 
 **History**: This rule exists because `cancelSamosborWave()` internally called `unfreezeNavigationCacheForWorld()` after `freezeNavigationCacheForWorld()` at samosbor start, causing every cell mutation to trigger a full 1M-cell BFS rebuild (~5-10ms/frame), resulting in 4-5x FPS drops. The bug recurred multiple times because no explicit rule prevented it.
 
-## Navigation: Region-Portal HPA* + Local Patch (accept-stale)
-
-Date: 2026-07-26.
-
-Navigation in `src/systems/ai/pathfinding.ts` is a **2-level Region-Portal HPA\*** graph, and runtime geometry edits update it through a **local patch + accept-stale** model — never a mid-game full rebake. This is how the game supports full local (infrequent) destructibility and construction of walls/doors while honoring the Iron Law above. Query stays O(1); the graph is always valid; the system is geometry-, anomaly- and map-agnostic ("survives whatever the snake changes, whatever explodes, whatever closes a door").
-
-**Graph shape:**
-
-- **Regions** = rooms + `16×16` cluster flood-fills. A cluster flood has a hard locality guard (`(nx − baseX + W) % W ≥ CLUSTER_SIZE`), so a cluster region can never spill past its own `16×16` — this is what makes scoped recompute possible.
-- **Portals** = contiguous border openings/doors between adjacent regions.
-- **Region-node next-hop matrix** `_regionNext[rS·R + rT]` = next region to step into on a fewest-hops route `rS→rT`. Built by one BFS per region over region adjacency, **O(R·E)** — NOT Floyd-Warshall O(P³), NOT a spanning tree. Every adjacent-region edge is kept, so toroidal cycles survive and there are no seams.
-
-**Two next-hop representations, device-picked once** (`useLowMemNav()`, memoised):
-
-- **PC (default, dense):** the full `_regionNext = Uint16Array(R·R)` matrix. The step-4 BFS-per-region bake is parallelised across Web Workers (copy-mode `postMessage`, **no `SharedArrayBuffer`**; `src/systems/ai/nav_worker_pool.ts` + `nav_worker.ts`, worker count scales with cores). The pure kernel `region_next.ts computeRegionNextRows` is shared bit-identically by workers and the sync fallback (used below `MIN_REGIONS_FOR_WORKERS`, in Node, or when Workers are absent). O(1) query; costs `R²·2` bytes (a mid floor is 250MB–1GB).
-- **Mobile (low-mem):** **no dense matrix.** `regionPath` computes ONE next-hop **column** on demand via `computeRegionNextColumn` (single BFS rooted at the target region over the immutable `RegionGraph`) and keeps a `LOWMEM_COLUMN_SLOTS`=16 LRU (`_regionColumns`). ~1MB resident instead of hundreds, trading memory for a per-uncached-target BFS — this is what keeps the tab under the iOS/WebKit per-tab memory ceiling. All six bake triggers install this path identically via `installLowMemNav()`; patch/samosbor-freeze rules are unchanged. Detection is hardware-accurate and deliberately **PC-biased** (`any-hover: none` **and** no `any-pointer: fine` **and** touch present): misreading a phone as PC is preferred over the reverse, since the dense path merely costs memory a PC has. **The PC dense path is byte-for-byte unchanged by the mobile branch.**
-
-**Two planned full bakes ONLY** (`bakeNavigationTree`), both auto-triggered by `ensureNavigationTree`:
-
-1. **New floor** — `replaceWorldFromGeneration` builds a new `World` object, so `_navWorld !== world`.
-2. **Post-samosbor stitch** — `unfreezeNavigationCacheForWorld` nulls `_navWorld`.
-
-**Same-world edit during gameplay → `patchNavigationRegions`, never a full bake:**
-
-- **Reported cells** (via `markNavigationCellsDirty(cells)`) get a local refresh: reflood only the affected `16×16` clusters, re-assert room cells from the unchanged `roomMap` via the stable `_roomRegionId` map, rescan those clusters' border lines, then rebuild `_regionNext` wholesale (O(R·E), sub-ms).
-- **Grow-ids strategy:** cluster ids simply GROW per patch (old ids abandoned, never recycled) — no free-list, no id surgery, so the patch is trivially correct. `_bakeBaseRegions` tracks the count at the last full bake; growth past `NAV_COMPACT_GROWTH` (1.5×) triggers one compacting full bake to keep the R×R matrix inside budget.
-- **Overflow bail:** more than `NAV_PATCH_MAX_CELLS` (4096) dirty cells or `NAV_PATCH_MAX_CLUSTERS` (64) affected clusters accepts-stale and defers to the next planned bake.
-
-**Accept-stale (the key rule — do not "fix"):** only *reported* cells are refreshed. Unreported mutators (anomaly wall-snakes, Conway life, section_shift, pseudolifts, and any other system that edits cells without calling `markNavigationCellsDirty`) are deliberately NOT wired. They are absorbed as **stale-until-next-planned-bake**: at worst a few cells give a briefly sub-optimal or missing path until the next new-floor/post-samosbor bake. This was an explicit design choice to keep the system one universal, geometry-independent path layer instead of chasing "dirty-set completeness at any cost". Do NOT reintroduce a hook in `core/world.ts markCellsDirty`, and do NOT instrument the ~15 anomaly mutators — that was the rejected complexity.
-
-**During samosbor** the cache stays frozen (`_frozenMacroMask` snapshot); patch does not run. See the Iron Law above.
-
-**Reporting sites currently wired** (the only mutators that get an immediate local patch):
-
-- `src/systems/breach_charge.ts` — breach-charge wall demolition.
-- `src/systems/weapon_beams.ts` — deletion/gravity beam cell removal.
-- `src/systems/door_state.ts` — `setDoorState` (lock/hermetic-close ↔ open) and `damageDoor` (broken open).
-- `src/main.ts` — map-editor / block-kit edits: `setCellToFloor`, door placement, `handleBlockKitTool` (wall placement).
-
 ## Path Blocker Core Storage
 
 Date: 2026-06-07.
@@ -258,9 +219,7 @@ Validation:
 
 ## P0: Floor Memory, Save And Storage Hitches
 
-> **Shipped (Part 1/2):** floor-memory retention is now exactly one active floor, and the save stores that one floor as a delta against its deterministically regenerated base (`save.md`). The multi-candidate save-selection and cold-storage-tier items below are therefore historical; the still-relevant lanes are the RLE byte-writer (#2), double-restore avoidance (#3) and moving load parse/restore under the loading screen (#4). See "Shipped direction" below.
-
-Why this was hitch-visible under the old multi-floor retention:
+Why this is hitch-visible:
 
 - `main.ts:3803` captures A-Life/floor memory and then writes a full JSON save through synchronous `localStorage.setItem`.
 - `systems/floor_memory.ts:1374` builds candidates by packing live worlds and cloning entities.
@@ -287,18 +246,20 @@ Safe optimizations inside the current format:
    - Saved floor-memory restore can regenerate design floors only to recover extras.
    - Store lightweight metadata or resolve extras only when that floor is taken active.
 
-Shipped direction (Part 1/2 — replaced the LRU/IndexedDB sketch this block used to propose):
+Longer-term safe direction:
 
-- Exactly one floor is live: the active `World`. No hot-inactive LRU and no cold tier — a floor is a pure function of `(runSeed, z)` and regenerates deterministically on return, so departing floors are dropped, not parked. This removed the multi-candidate save-selection cost above (`MAX_FLOOR_MEMORY_SAVE_ENTRIES = 1`) and bounded live RAM to one `World` (the mobile-OOM fix).
-- `localStorage` holds player/run state plus that one active floor, and the floor is written as a **delta against its regenerated base** (XOR'd geometry + sparse room/door diffs; entities, containers and zones absolute), so even a dense floor fits under ~5 MB without an IndexedDB blob tier.
-- A `baseHash` (FNV-1a) drift guard makes a stale/drifted base decode to `null` → the loader regenerates the floor fresh instead of corrupting the grid. `SAVE_SHAPE_VERSION` bumped to 24; stale saves reject natively.
+- Keep active floor live.
+- Keep a small hot inactive LRU of live `World` objects in RAM.
+- Move cold packed snapshots to IndexedDB as binary `Uint8Array` / `ArrayBuffer` blocks.
+- Keep `localStorage` as a small manifest plus critical player/run state.
+- Because this changes save shape, bump `SAVE_SHAPE_VERSION` and reject stale saves explicitly.
 
 Validation:
 
-- Delta round-trip unit test: mutate doors, containers, `surfaceMap`, entities, walls and fog on a dense floor, `worldForSave(live, base)` → save → `worldFromSave(save, …, base2)` against an independently regenerated base; assert delta bytes ≪ full snapshot and every mutation survives (`tests/floor-memory.test.ts`).
-- Determinism + drift-guard: `generateFloorForTarget(z,e)` twice is byte-identical; a mismatched `baseHash` decodes to `null` and the loader falls back to a fresh floor with the rest of the save intact.
-- Browser test: revisit a floor via lift → deterministically identical layout; save+reload a dense floor → mutations survive and saved bytes stay under the `localStorage` ceiling.
-- Measure heap (should track one `World`), save JSON size and floor transition latency.
+- Fake-storage unit tests for put/get/delete/list/prune, quota failure, corrupt snapshot and missing cold ref.
+- Floor round-trip test: mutate doors, containers, `surfaceMap`, entities and fog; evict cold; restore; verify state.
+- Browser test: visit many floors, force cold tier, reload, return to old floors.
+- Measure heap after N visited floors, save JSON size, IndexedDB usage, cold restore time and floor transition latency.
 
 ## P1: Render And Sprite Hot Paths
 
@@ -495,11 +456,3 @@ Minimum checks by change type:
 - Data/registry only: `npm run typecheck`; prefer `npm run check:readonly`.
 - Runtime/generation/save/render/UI/browser: `npm run check`.
 - Render/UI/mobile/storage: also `npm run check:browser` when Chrome is available, plus manual visual/browser validation.
-
-## Applied Optimizations
-
-**Date:** 2026-07-09
-**Target:** FPS drop in dense areas (e.g., Kvartiry).
-**Changes:**
-1. **`getWeaponStats` Fast Path:** Skipped evaluating `govnyakAimSpreadMult` and `sporeHazeAimSpreadMult` for entities without statuses or for melee weapons. This prevents allocating empty arrays `(e.statuses ?? [])` and doing `.findIndex()` multiple times per frame per NPC.
-2. **`queryRadiusCapped` / `queryPathRadius` In-Place Sort:** Replaced array `.push()`, `.pop()`, and `.length = cap` resizing in hot loops with a GC-free, in-place insertion sort logic. This eliminates major array reallocation overhead in V8 when spatial limits are hit.

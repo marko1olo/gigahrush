@@ -1,8 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, type Entity, type Msg } from '../src/core/types';
-import { bakeNavigationTree } from '../src/systems/ai/pathfinding';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { DEF, generateSprite } from '../src/entities/green_dog';
 import { getMonsterEcology } from '../src/data/monster_ecology';
@@ -17,12 +16,7 @@ import { makeGameState } from './helpers';
 
 function openWorld(): World {
   const world = new World();
-  world.cells.fill(Cell.WALL);
-  for (let y = 1; y < 60; y++) {
-    for (let x = 1; x < 60; x++) {
-      world.cells[world.idx(x, y)] = Cell.FLOOR;
-    }
-  }
+  world.cells.fill(Cell.FLOOR);
   world.zoneMap.fill(0);
   world.zones[0] = {
     id: 0,
@@ -75,11 +69,10 @@ function greenDog(id: number, x: number, y: number): Entity {
   };
 }
 
-function prime(world: World, entities: Entity[]): void {
+function prime(entities: Entity[]): void {
   rebuildEntityIndex(entities);
   getEntityIndex().beginTelemetryFrame();
   setEntityMap(new Map(entities.map(e => [e.id, e])));
-  bakeNavigationTree(world);
 }
 
 test('green dog definition, ecology, and sprite read as a mossy pack predator', () => {
@@ -98,6 +91,7 @@ test('green dog definition, ecology, and sprite read as a mossy pack predator', 
 
   assert.equal(DEF.kind, MonsterKind.GREEN_DOG);
   assert.deepEqual(DEF.aiFlags, ['packHowl', 'noiseFear', 'foodBait']);
+  assert.deepEqual(DEF.floors, [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE]);
   assert.equal(ecology?.rare, false);
   assert.match(DEF.counterplay ?? '', /металл|дроб|шум/i);
   assert.equal(sprite.length, S * S);
@@ -117,7 +111,7 @@ test('green dog howl shares target only through a bounded pack radius query', ()
   const state = makeGameState({ worldEvents: createWorldEventState() });
   const msgs: Msg[] = [];
 
-  prime(world, entities);
+  prime(entities);
   updateMonster(world, entities, caller, 0.1, 1, msgs, target.id, { v: 10 }, state);
 
   assert.equal(caller.ai?.combatTargetId, target.id);
@@ -144,7 +138,7 @@ test('green dog pack share is capped and cooldown-gated', () => {
   const state = makeGameState({ worldEvents: createWorldEventState() });
   const msgs: Msg[] = [];
 
-  prime(world, entities);
+  prime(entities);
   updateMonster(world, entities, caller, 0.1, 5, msgs, target.id, { v: 40 }, state);
 
   const firstShared = pack.filter(dog => dog.ai?.combatTargetId === target.id).length;
@@ -155,7 +149,7 @@ test('green dog pack share is capped and cooldown-gated', () => {
   assert.equal(howl.data?.shared, firstShared);
 
   for (const dog of pack) dog.ai!.combatTargetId = undefined;
-  prime(world, entities);
+  prime(entities);
   updateMonster(world, entities, caller, 0.1, 5.25, msgs, target.id, { v: 40 }, state);
 
   assert.equal(pack.filter(dog => dog.ai?.combatTargetId === target.id).length, 0);
@@ -166,8 +160,8 @@ test('green dog drops target and flees from shotgun or loud metal noise', () => 
   resetNoiseRecords();
   const world = openWorld();
   setListenerPos(512, 512, world.dist2.bind(world));
-  const target = player(2, 2);
-  const dog = greenDog(2, 5, 2);
+  const target = player(10, 10);
+  const dog = greenDog(2, 12, 10);
   dog.ai!.combatTargetId = target.id;
   const entities = [target, dog];
   const state = makeGameState({ worldEvents: createWorldEventState() });
@@ -185,7 +179,7 @@ test('green dog drops target and flees from shotgun or loud metal noise', () => 
     tags: ['weapon', 'shotgun', 'metal'],
   });
 
-  prime(world, entities);
+  prime(entities);
   updateMonster(world, entities, dog, 0.2, state.time, msgs, target.id, { v: 10 }, state);
 
   assert.equal(dog.ai?.combatTargetId, undefined);
@@ -199,8 +193,8 @@ test('green dog treats valve and pipe events as loud metal counterplay', () => {
   resetNoiseRecords();
   const world = openWorld();
   setListenerPos(512, 512, world.dist2.bind(world));
-  const target = player(2, 2);
-  const dog = greenDog(20, 5, 2);
+  const target = player(10, 10);
+  const dog = greenDog(20, 13, 10);
   dog.ai!.combatTargetId = target.id;
   const entities = [target, dog];
   const state = makeGameState({ worldEvents: createWorldEventState() });
@@ -210,8 +204,8 @@ test('green dog treats valve and pipe events as loud metal counterplay', () => {
   publishEvent(state, {
     type: 'paritel_valve_changed',
     zoneId: 0,
-    x: 3,
-    y: 2,
+    x: 11,
+    y: 10,
     actorId: target.id,
     actorName: target.name,
     actorFaction: target.faction,
@@ -221,7 +215,7 @@ test('green dog treats valve and pipe events as loud metal counterplay', () => {
     data: { pressure: 1 },
   });
 
-  prime(world, entities);
+  prime(entities);
   updateMonster(world, entities, dog, 0.2, state.time, msgs, target.id, { v: 30 }, state);
 
   assert.equal(dog.ai?.combatTargetId, undefined);

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, ContainerKind, EntityType, Faction, ItemType, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, ContainerKind, EntityType, Faction, FloorLevel, ItemType, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { CONTAINER_DEFS } from '../src/data/container_defs';
 import { ITEMS, WEAPON_STATS } from '../src/data/catalog';
@@ -610,7 +610,7 @@ test('P14 gasmask receipt is an Office/HQ document with a black-market spend pat
   assert.equal(inventoryItemCategory(def.id), 'documents');
 
   const player = makePlayer();
-  const state = makeGameState({ currentZ: 0 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
   const msgs: Msg[] = [];
   assert.equal(addItem(player, def.id, 1), true);
 
@@ -640,7 +640,7 @@ test('cleanup order stub is a liquidator document with access and sale choices',
   assert.ok(permit.accessTags.includes('general_admin'));
 
   const player = makePlayer();
-  const state = makeGameState({ currentZ: 0 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
   const msgs: Msg[] = [];
   assert.equal(addItem(player, def.id, 1), true);
 

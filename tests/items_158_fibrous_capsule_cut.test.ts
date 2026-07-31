@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, MonsterKind } from '../src/core/types';
+import { FloorLevel, ItemType, MonsterKind } from '../src/core/types';
 import { FACTORY_BY_ID, productionOutputResourceIds, productionRouteGoals } from '../src/data/factories';
 import { ITEM_TAGS, ITEMS, getStack } from '../src/data/items';
 import { MONSTER_ECOLOGY } from '../src/data/monster_ecology';
@@ -37,6 +37,7 @@ test('fibrous capsule cut is reachable from meat samosbor aftermath and meat mon
   assert.ok(beat);
   assert.equal(beat.itemId, ITEM_ID);
   assert.equal(beat.effect, 'item_residue');
+  assert.equal(beat.floors.includes(FloorLevel.HELL), true);
   assert.deepEqual(beat.variants, ['meat']);
   assert.equal(beat.maxRuns, 2);
   assert.ok(beat.weight < 10, 'fibrous capsule aftermath should stay rare');
@@ -45,7 +46,7 @@ test('fibrous capsule cut is reachable from meat samosbor aftermath and meat mon
   }
 
   assert.equal(
-    getSamosborAftermathBeats(-36).some(def => def.id === 'aftermath_fibrous_capsule_cut'),
+    getSamosborAftermathBeats('meat', FloorLevel.HELL).some(def => def.id === 'aftermath_fibrous_capsule_cut'),
     true,
   );
   assert.ok(

@@ -4,6 +4,7 @@ import {
   Cell,
   DoorState,
   Feature,
+  FloorLevel,
   LiftDirection,
   RoomType,
   Tex,
@@ -205,8 +206,7 @@ export function buildKvartirySocialMacroGraph(
   graphByWorld.set(world, graph);
   recordPoiGenerationMetadata(world, {
     id: 'kvartiry_social_macro_graph',
-    // @ts-ignore
-    z: 'kvartiry',
+    floor: 'kvartiry',
     debugLabel: 'Квартиры: социальный макрограф очередей, кухонь, воды, баррикады, лифтов и типографии',
     roomIds: nodes.map(n => n.roomId).filter((id): id is number => id !== undefined),
     decisionHooks: [
@@ -373,7 +373,7 @@ function connectSocialRoutes(world: World, nodes: readonly KvSocialMacroNode[]):
       y: from.accessY,
       targetX: to.accessX,
       targetY: to.accessY,
-      z: 60,
+      floor: FloorLevel.KVARTIRY,
       roomId: from.roomId,
       targetRoomId: to.roomId,
       zoneId: from.zoneId,

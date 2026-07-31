@@ -1,6 +1,6 @@
 /* ── Lishennyy: deep light-following shadow guardian ------------ */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.05,
   sprite: 0,
   aiFlags: ['lightFollower'],
+  floors: [FloorLevel.HELL, FloorLevel.VOID],
   counterplay: 'Свет ведет Лишенного к вам: бросайте фонарь или свечу как приманку, выключайте луч перед поворотом и не держите контакт.',
   lootHint: 'пепельная пыль, черный след, редкий странный сгусток',
 };

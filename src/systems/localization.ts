@@ -1,5 +1,4 @@
 import { type TitleLanguageId } from '../data/languages';
-import { uiElementEnabled } from './ui_orchestrator';
 
 type RuntimeLocaleCatalogData = readonly [
   readonly (readonly [string, string])[],
@@ -333,10 +332,7 @@ export function getLocalizationLanguage(): TitleLanguageId {
   return activeLanguage;
 }
 
-export const SKIP_TRANSLATE_PREFIX = '\u200B';
-
 export function translateText(input: string): string {
-  if (input.includes(SKIP_TRANSLATE_PREFIX)) return input.split(SKIP_TRANSLATE_PREFIX).join('');
   const catalog = catalogForActiveLanguage();
   if (!catalog || !input || !CYRILLIC_RE.test(input)) return input;
 
@@ -360,7 +356,7 @@ function localizedCanvasText(value: unknown): string {
 
 const CANVAS_TEXT_GLITCH_CHARS = '#%&*+=?/\\<>[]{}';
 const CANVAS_TEXT_GLITCH_RE = /[A-Za-zА-Яа-яЁё]/;
-const CANVAS_TEXT_GLITCH_BASE_PER_MILLE = 0;
+const CANVAS_TEXT_GLITCH_BASE_PER_MILLE = 10;
 const CANVAS_TEXT_GLITCH_SAMOSBOR_BASE_PER_MILLE = 50;
 const CANVAS_TEXT_GLITCH_MAX_PER_MILLE = 100;
 
@@ -402,7 +398,6 @@ function canvasTextGlitchHash(text: string, index: number, x: number, y: number,
 
 function canvasTextGlitch(text: string, x: number, y: number): string {
   if (text.length < 4) return text;
-  if (!uiElementEnabled('text_glitch')) return text;
   const chars = Array.from(text);
   const maxChanges = Math.max(1, Math.min(4, Math.floor(chars.length / 16)));
   const tick = canvasTextGlitchTick();

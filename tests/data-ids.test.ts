@@ -3,6 +3,7 @@ import * as assert from 'node:assert/strict';
 
 import {
   Faction,
+  FloorLevel,
   ItemType,
   MonsterKind,
   Occupation,
@@ -51,9 +52,9 @@ import { SCREEN_SIGNAL_DEFS } from '../src/data/screen_signals';
 import { SLIME_DEFS, SLIME_SAMPLE_IDS, slimeRoomAttractionWeight, slimeSampleIdForRoomName, validateSlimeDefs } from '../src/data/slime_defs';
 import { ZHELEMISH_DEFS, ZHELEMISH_ITEM_IDS, validateZhelemishDefs } from '../src/data/zhelemish_defs';
 import { MONSTERS } from '../src/entities/monster';
-import { BLACK_MARKET_88_CONTRACT_ROWS } from '../src/gen/black_market_88';
+import { BLACK_MARKET_88_CONTRACT_ROWS } from '../src/gen/design_floors/black_market_88';
 import '../src/gen/design_floors/manifest';
-import { isValidZ } from '../src/gen/floor_manifest';
+import { isFloorLevel } from '../src/gen/floor_manifest';
 
 type QuestLike = PlotStep & {
   id?: string;
@@ -64,13 +65,13 @@ type SideQuestRefs = Partial<Pick<SideQuestStep, 'requiresSideQuestDone' | 'bloc
 
 const ID_RE = /^[a-z][a-z0-9_]*$/;
 const SCREEN_VARIANT_COUNT = 8;
-const CONTRACT_FLOOR_TAGS: Record<string> = {
-  ['ministry']: 'floor_ministry',
-  ['kvartiry']: 'floor_kvartiry',
-  ['living']: 'floor_living',
-  ['maintenance']: 'floor_maintenance',
-  ['hell']: 'floor_hell',
-  ['void']: 'floor_void',
+const CONTRACT_FLOOR_TAGS: Record<FloorLevel, string> = {
+  [FloorLevel.MINISTRY]: 'floor_ministry',
+  [FloorLevel.KVARTIRY]: 'floor_kvartiry',
+  [FloorLevel.LIVING]: 'floor_living',
+  [FloorLevel.MAINTENANCE]: 'floor_maintenance',
+  [FloorLevel.HELL]: 'floor_hell',
+  [FloorLevel.VOID]: 'floor_void',
 };
 const COMPACT_CONTRACT_ACTION_TAGS = ['kill', 'retrieve', 'deliver', 'repair', 'talk', 'visit'] as const;
 const COMPACT_CONTRACT_ACTION_TAG_SET = new Set<string>(COMPACT_CONTRACT_ACTION_TAGS);
@@ -257,10 +258,10 @@ test('story and side quest ids are unique and resolve through NPC packages', () 
     if (q.targetRoomType !== undefined && !ROOM_TYPE_IDS.has(q.targetRoomType)) {
       missing.push(dataRef('quest', id, 'targetRoomType', q.targetRoomType));
     }
-    if (q.targetFloor !== undefined && !isValidZ(q.targetFloor)) {
+    if (q.targetFloor !== undefined && !isFloorLevel(q.targetFloor)) {
       missing.push(dataRef('quest', id, 'targetFloor', q.targetFloor));
     }
-    if (q.visitFloor !== undefined && !isValidZ(q.visitFloor)) {
+    if (q.visitFloor !== undefined && !isFloorLevel(q.visitFloor)) {
       missing.push(dataRef('quest', id, 'visitFloor', q.visitFloor));
     }
     const sideRefs = q as QuestLike & SideQuestRefs;
@@ -311,7 +312,7 @@ test('contract, resource, factory, and container ids stay coherent', () => {
     (c.extraRewards ?? []).forEach((reward, index) => pushItemStackRefs(missing, 'contract', c.id, `extraRewards[${index}]`, reward));
     if (c.targetCount !== undefined && c.targetCount <= 0) missing.push(dataRef('contract', c.id, 'targetCount', c.targetCount));
     if (c.rewardCount !== undefined && c.rewardCount <= 0) missing.push(dataRef('contract', c.id, 'rewardCount', c.rewardCount));
-    if (!isValidZ(c.target.floor)) missing.push(dataRef('contract', c.id, 'target.floor', c.target.floor));
+    if (!isFloorLevel(c.target.floor)) missing.push(dataRef('contract', c.id, 'target.floor', c.target.floor));
     if (c.target.roomType !== undefined && !ROOM_TYPE_IDS.has(c.target.roomType)) missing.push(dataRef('contract', c.id, 'target.roomType', c.target.roomType));
     if (c.targetPlotNpcId && !hasPlotNpc(c.targetPlotNpcId)) missing.push(dataRef('contract', c.id, 'targetPlotNpcId', c.targetPlotNpcId));
     if (c.rewardResourceId && !resourceIds.has(c.rewardResourceId)) missing.push(dataRef('contract', c.id, 'rewardResourceId', c.rewardResourceId));
@@ -479,7 +480,7 @@ test('samosbor variants, director beats, and aftermath stay coherent', () => {
   const missing: string[] = [];
 
   for (const variant of SAMOSBOR_VARIANTS) {
-    for (const floor of variant.floors) if (!isValidZ(floor)) missing.push(`samosborVariant:${variant.id}:floor:${floor}`);
+    for (const floor of variant.floors) if (!isFloorLevel(floor)) missing.push(`samosborVariant:${variant.id}:floor:${floor}`);
     if (variant.warningLines.length === 0) missing.push(`samosborVariant:${variant.id}:warningLines`);
     if (variant.gameplaySignal.length < 16) missing.push(`samosborVariant:${variant.id}:gameplaySignal`);
     for (const modifierId of variant.modifiers) {
@@ -488,7 +489,7 @@ test('samosbor variants, director beats, and aftermath stay coherent', () => {
   }
 
   for (const beat of getSamosborBeatDefs()) {
-    for (const floor of beat.floors) if (!isValidZ(floor)) missing.push(`samosborDirector:${beat.id}:floor:${floor}`);
+    for (const floor of beat.floors) if (!isFloorLevel(floor)) missing.push(`samosborDirector:${beat.id}:floor:${floor}`);
     for (const variant of beat.variants) if (!variantIds.has(variant)) missing.push(`samosborDirector:${beat.id}:variant:${variant}`);
     if (beat.resourceId && !resourceIds.has(beat.resourceId)) missing.push(`samosborDirector:${beat.id}:resource:${beat.resourceId}`);
     if (beat.cooldown < 0) missing.push(`samosborDirector:${beat.id}:cooldown:${beat.cooldown}`);
@@ -496,7 +497,7 @@ test('samosbor variants, director beats, and aftermath stay coherent', () => {
   }
 
   for (const beat of SAMOSBOR_AFTERMATH_BEATS) {
-    for (const floor of beat.floors) if (!isValidZ(floor)) missing.push(`samosborAftermath:${beat.id}:floor:${floor}`);
+    for (const floor of beat.floors) if (!isFloorLevel(floor)) missing.push(`samosborAftermath:${beat.id}:floor:${floor}`);
     for (const variant of beat.variants) if (!variantIds.has(variant)) missing.push(`samosborAftermath:${beat.id}:variant:${variant}`);
     if (beat.resourceId && !resourceIds.has(beat.resourceId)) missing.push(`samosborAftermath:${beat.id}:resource:${beat.resourceId}`);
     if (beat.itemId) missing.push(...missingItems(`samosborAftermath:${beat.id}`, [beat.itemId]));
@@ -560,7 +561,7 @@ test('samosbor floor families expose warning and aftermath identities', () => {
   const families = [
     {
       label: 'social',
-      z: 34,
+      floor: FloorLevel.MINISTRY,
       variants: ['electric', 'maronary', 'istotit', 'veretar'] as const,
       aftermathVariant: 'electric' as const,
       tag: 'civil',
@@ -568,7 +569,7 @@ test('samosbor floor families expose warning and aftermath identities', () => {
     },
     {
       label: 'maintenance',
-      z: -14,
+      floor: FloorLevel.MAINTENANCE,
       variants: ['wet', 'electric'] as const,
       aftermathVariant: 'wet' as const,
       tag: 'maintenance',
@@ -576,7 +577,7 @@ test('samosbor floor families expose warning and aftermath identities', () => {
     },
     {
       label: 'hell',
-      z: -36,
+      floor: FloorLevel.HELL,
       variants: ['meat'] as const,
       aftermathVariant: 'meat' as const,
       tag: 'hell',
@@ -584,7 +585,7 @@ test('samosbor floor families expose warning and aftermath identities', () => {
     },
     {
       label: 'void',
-      z: -50,
+      floor: FloorLevel.VOID,
       variants: ['veretar', 'maronary'] as const,
       aftermathVariant: 'veretar' as const,
       tag: 'void',
@@ -597,7 +598,8 @@ test('samosbor floor families expose warning and aftermath identities', () => {
     const familyWeight = family.variants.reduce((sum, id) => sum + getSamosborVariantWeight(id, family.floor), 0);
     assert.ok(familyWeight > classicWeight, `${family.label} variants should outweigh classic on their floor family`);
     assert.ok(
-      directorBeats.some(beat => beat.tags.includes(family.tag)),
+      directorBeats.some(beat =>
+        beat.phase === 'warning' && beat.floors.includes(family.floor) && beat.tags.includes(family.warningTag)),
       `${family.label} needs a warning/counterplay director beat`,
     );
     assert.ok(
@@ -619,6 +621,7 @@ test('slime definitions expose stable sample ids and text handles', () => {
   assert.equal(
     SAMOSBOR_AFTERMATH_BEATS.some(beat =>
       beat.id === 'aftermath_zinc_slime_bucket'
+      && beat.floors.includes(FloorLevel.MAINTENANCE)
       && beat.itemId === 'zinc_slime_bucket'),
     true,
     'zinc slime bucket must be reachable through Maintenance aftermath',
@@ -701,7 +704,8 @@ test('rumor reveals and expedition leads reference known gameplay ids', () => {
 
   for (const rumor of RUMORS) {
     if (!ID_RE.test(rumor.id)) missing.push(dataRef('rumor', rumor.id, 'idFormat', rumor.id));
-    for (const floor of rumor.floors) if (!isValidZ(floor)) missing.push(dataRef('rumor', rumor.id, 'floors', floor));
+    if (rumor.floors.length === 0) missing.push(dataRef('rumor', rumor.id, 'floors', 'empty'));
+    for (const floor of rumor.floors) if (!isFloorLevel(floor)) missing.push(dataRef('rumor', rumor.id, 'floors', floor));
     const reveals: readonly RumorReveal[] = rumor.reveals === undefined ? [] : Array.isArray(rumor.reveals) ? rumor.reveals : [rumor.reveals];
     reveals.forEach((reveal, index) => {
       if (reveal.kind === 'item') pushItemRef(missing, 'rumor', rumor.id, `reveals[${index}].itemId`, reveal.itemId);
@@ -711,7 +715,7 @@ test('rumor reveals and expedition leads reference known gameplay ids', () => {
       if (reveal.kind === 'room' && reveal.roomType !== undefined && !ROOM_TYPE_IDS.has(reveal.roomType)) {
         missing.push(dataRef('rumor', rumor.id, `reveals[${index}].roomType`, reveal.roomType));
       }
-      if (reveal.kind === 'floor' && !isValidZ(reveal.floor)) {
+      if (reveal.kind === 'floor' && !isFloorLevel(reveal.floor)) {
         missing.push(dataRef('rumor', rumor.id, `reveals[${index}].floor`, reveal.floor));
       }
       if (reveal.kind === 'faction' && reveal.faction !== undefined && !FACTION_IDS.has(reveal.faction)) {
@@ -724,7 +728,7 @@ test('rumor reveals and expedition leads reference known gameplay ids', () => {
 
     if (!rumor.lead) continue;
     leadCount++;
-    if (rumor.lead.floor !== undefined && !isValidZ(rumor.lead.floor)) missing.push(dataRef('rumor', rumor.id, 'lead.floor', rumor.lead.floor));
+    if (rumor.lead.floor !== undefined && !isFloorLevel(rumor.lead.floor)) missing.push(dataRef('rumor', rumor.id, 'lead.floor', rumor.lead.floor));
     if (rumor.lead.roomType !== undefined && !ROOM_TYPE_IDS.has(rumor.lead.roomType)) missing.push(dataRef('rumor', rumor.id, 'lead.roomType', rumor.lead.roomType));
     pushItemRef(missing, 'rumor', rumor.id, 'lead.itemId', rumor.lead.itemId);
     if (rumor.lead.monsterKind !== undefined && !monsterExists(rumor.lead.monsterKind as MonsterKind)) {
@@ -748,6 +752,7 @@ test('screen signal definitions reference known rumors, rooms, factions, and var
     if (!ID_RE.test(def.id)) invalid.push(dataRef('screenSignal', def.id, 'idFormat', def.id));
     if (def.weight <= 0) invalid.push(dataRef('screenSignal', def.id, 'weight', def.weight));
     if (def.textureVariants.length === 0) invalid.push(dataRef('screenSignal', def.id, 'textureVariants', 'empty'));
+    if (def.floors.length === 0) invalid.push(dataRef('screenSignal', def.id, 'floors', 'empty'));
     if (def.eventTypes.length === 0) invalid.push(dataRef('screenSignal', def.id, 'eventTypes', 'empty'));
     if (def.rumorIds.length === 0) invalid.push(dataRef('screenSignal', def.id, 'rumorIds', 'empty'));
     if (!def.tags.includes('screen_signal')) invalid.push(dataRef('screenSignal', def.id, 'tags', 'screen_signal'));
@@ -761,7 +766,7 @@ test('screen signal definitions reference known rumors, rooms, factions, and var
       if (owner) invalid.push(dataRef('screenSignal', def.id, 'textureVariants.duplicate', `${owner}:${variant}`));
       else variantOwners.set(variant, def.id);
     }
-    for (const floor of def.floors) if (!isValidZ(floor)) invalid.push(dataRef('screenSignal', def.id, 'floors', floor));
+    for (const floor of def.floors) if (!isFloorLevel(floor)) invalid.push(dataRef('screenSignal', def.id, 'floors', floor));
     for (const roomType of def.roomTypes ?? []) if (!ROOM_TYPE_IDS.has(roomType)) invalid.push(dataRef('screenSignal', def.id, 'roomTypes', roomType));
     for (const zoneFaction of def.zoneFactions ?? []) if (!ZONE_FACTION_IDS.has(zoneFaction)) invalid.push(dataRef('screenSignal', def.id, 'zoneFactions', zoneFaction));
     def.eventTypes.forEach((eventType, index) => {
@@ -799,7 +804,8 @@ test('permit and local terminal registries stay keyed and reference live data', 
     if (def.title.trim().length === 0) invalid.push(dataRef('permit', def.id, 'title', def.title));
     if (def.accessTags.length === 0) invalid.push(dataRef('permit', def.id, 'accessTags', 'empty'));
     for (const tag of def.accessTags) if (!ID_RE.test(tag)) invalid.push(dataRef('permit', def.id, 'accessTags', tag));
-    for (const floor of def.floors) if (!isValidZ(floor)) invalid.push(dataRef('permit', def.id, 'floors', floor));
+    if (def.floors.length === 0) invalid.push(dataRef('permit', def.id, 'floors', 'empty'));
+    for (const floor of def.floors) if (!isFloorLevel(floor)) invalid.push(dataRef('permit', def.id, 'floors', floor));
     if (def.severity < 1 || def.severity > 5) invalid.push(dataRef('permit', def.id, 'severity', def.severity));
     if (!['private', 'local', 'witnessed', 'public'].includes(def.privacy)) invalid.push(dataRef('permit', def.id, 'privacy', def.privacy));
     if (def.successLine.trim().length < 16) invalid.push(dataRef('permit', def.id, 'successLine', def.successLine));
@@ -878,7 +884,7 @@ test('monster ecology and floor catalog ids are unique and valid', () => {
 
   for (const e of MONSTER_ECOLOGY) {
     if (!monsterExists(e.kind)) invalid.push(dataRef('monsterEcology', e.kind, 'kind', e.kind));
-    for (const floor of e.floors) if (!isValidZ(floor)) invalid.push(dataRef('monsterEcology', e.kind, 'floors', floor));
+    for (const floor of e.floors) if (!isFloorLevel(floor)) invalid.push(dataRef('monsterEcology', e.kind, 'floors', floor));
     for (const roomType of e.rooms) if (!ROOM_TYPE_IDS.has(roomType)) invalid.push(dataRef('monsterEcology', e.kind, 'rooms', roomType));
     for (const rumorId of e.rumorIds) if (!rumorIds.has(rumorId)) invalid.push(dataRef('monsterEcology', e.kind, 'rumorIds', rumorId));
     e.rareDrops.forEach((drop, index) => pushItemRef(invalid, 'monsterEcology', e.kind, `rareDrops[${index}].itemId`, drop.itemId));
@@ -886,14 +892,14 @@ test('monster ecology and floor catalog ids are unique and valid', () => {
 
   for (const f of FLOOR_CATALOG) {
     if (!ID_RE.test(f.id)) invalid.push(dataRef('floorCatalog', f.id, 'idFormat', f.id));
-    if (!isValidZ(f.baseFloor)) invalid.push(dataRef('floorCatalog', f.id, 'baseFloor', f.baseFloor));
+    if (!isFloorLevel(f.baseFloor)) invalid.push(dataRef('floorCatalog', f.id, 'baseFloor', f.baseFloor));
     if (f.tags.length === 0) invalid.push(dataRef('floorCatalog', f.id, 'tags', 'empty'));
   }
   for (const f of FLOOR_INSTANCES) {
     if (!ID_RE.test(f.id)) invalid.push(dataRef('floorInstance', f.id, 'idFormat', f.id));
-    if (!isValidZ(f.baseFloor)) invalid.push(dataRef('floorInstance', f.id, 'baseFloor', f.baseFloor));
+    if (!isFloorLevel(f.baseFloor)) invalid.push(dataRef('floorInstance', f.id, 'baseFloor', f.baseFloor));
     if (!rumorIds.has(f.rumorId)) invalid.push(dataRef('floorInstance', f.id, 'rumorId', f.rumorId));
-    if (f.generatorId !== 'design_pocket') invalid.push(dataRef('floorInstance', f.id, 'generatorId', f.generatorId));
+    if (f.generatorId !== 'story_pocket') invalid.push(dataRef('floorInstance', f.id, 'generatorId', f.generatorId));
     if (f.exitRule !== 'next_lift_returns') invalid.push(dataRef('floorInstance', f.id, 'exitRule', f.exitRule));
     if (f.npcPolicy !== 'none' && f.npcPolicy !== 'generator') invalid.push(dataRef('floorInstance', f.id, 'npcPolicy', f.npcPolicy));
     if (f.monsterPolicy !== 'none' && f.monsterPolicy !== 'generator') invalid.push(dataRef('floorInstance', f.id, 'monsterPolicy', f.monsterPolicy));

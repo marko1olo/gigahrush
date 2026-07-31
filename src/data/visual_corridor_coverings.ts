@@ -205,9 +205,9 @@ export const VISUAL_CORRIDOR_COVERINGS: readonly VisualCorridorCoveringDef[] = [
 ] as const;
 
 export const VISUAL_CORRIDOR_COVERING_RULES: readonly VisualCorridorCoveringRule[] = [
-  { id: 'design_void', coveringId: 'void', priority: 100, requiredTags: ['void'] },
+  { id: 'story_void', coveringId: 'void', priority: 100, requiredTags: ['void'] },
   { id: 'finale_void', coveringId: 'void', priority: 98, requiredTags: ['finale'] },
-  { id: 'design_meat', coveringId: 'meat', priority: 92, requiredTags: ['meat'] },
+  { id: 'story_meat', coveringId: 'meat', priority: 92, requiredTags: ['meat'] },
   { id: 'samosbor_meat', coveringId: 'meat', priority: 90, requiredTags: ['samosbor'] },
   { id: 'hell_meat', coveringId: 'meat', priority: 88, requiredTags: ['hell'] },
   { id: 'underhell_meat', coveringId: 'meat', priority: 84, requiredTags: ['underhell'] },

@@ -80,6 +80,17 @@
       const token = document.getElementById('token');
       const list = document.getElementById('list');
       const headers = () => ({ 'X-Tenevik-Review-Token': token.value });
+
+      function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, ch => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;',
+        })[ch]);
+      }
+
       async function api(path, init = {}) {
         const response = await fetch(path, { ...init, headers: { ...headers(), ...(init.headers || {}) } });
         const type = response.headers.get('Content-Type') || '';
@@ -93,71 +104,25 @@
         for (const sub of submissions) {
           const article = document.createElement('article');
           const preview = sub.preview || {};
-
-          const topDiv = document.createElement('div');
-          topDiv.className = 'top';
-          const topStrong = document.createElement('strong');
-          topStrong.textContent = sub.packageId;
-          const topSpan = document.createElement('span');
-          topSpan.textContent = sub.status;
-          topDiv.appendChild(topStrong);
-          topDiv.appendChild(topSpan);
-          article.appendChild(topDiv);
-
-          const subIdDiv = document.createElement('div');
-          subIdDiv.className = 'muted';
-          subIdDiv.textContent = sub.submissionId;
-          article.appendChild(subIdDiv);
-
-          const contactDiv = document.createElement('div');
-          contactDiv.className = 'muted';
-          contactDiv.textContent = 'contact: ' + (sub.authorContactPrivate || 'not provided');
-          article.appendChild(contactDiv);
-
-          const publicLineDiv = document.createElement('div');
-          publicLineDiv.textContent = preview.publicLine || 'Нет публичной строки';
-          article.appendChild(publicLineDiv);
-
-          const samplePostDiv = document.createElement('div');
-          samplePostDiv.className = 'muted';
-          samplePostDiv.textContent = preview.samplePost || '';
-          article.appendChild(samplePostDiv);
-
-          const actionsDiv = document.createElement('div');
-          actionsDiv.className = 'actions';
-
-          const btnDownload = document.createElement('button');
-          btnDownload.dataset.download = sub.submissionId;
-          btnDownload.textContent = 'ZIP';
-          actionsDiv.appendChild(btnDownload);
-
-          const btnExport = document.createElement('button');
-          btnExport.dataset.export = sub.submissionId;
-          btnExport.textContent = 'Export';
-          actionsDiv.appendChild(btnExport);
-
-          const selectStatus = document.createElement('select');
-          selectStatus.dataset.status = sub.submissionId;
-          for (const status of ['submitted', 'needs_review', 'accepted', 'rejected', 'imported']) {
-            const opt = document.createElement('option');
-            opt.textContent = status;
-            if (status === sub.status) opt.selected = true;
-            selectStatus.appendChild(opt);
-          }
-          actionsDiv.appendChild(selectStatus);
-
-          const btnSave = document.createElement('button');
-          btnSave.dataset.save = sub.submissionId;
-          btnSave.textContent = 'Save';
-          actionsDiv.appendChild(btnSave);
-
-          const txtNotes = document.createElement('textarea');
-          txtNotes.dataset.notes = sub.submissionId;
-          txtNotes.placeholder = 'moderator notes';
-          txtNotes.value = sub.moderatorNotes || '';
-          actionsDiv.appendChild(txtNotes);
-
-          article.appendChild(actionsDiv);
+          article.innerHTML = `
+            <div class="top">
+              <strong>${escapeHtml(sub.packageId)}</strong>
+              <span>${escapeHtml(sub.status)}</span>
+            </div>
+            <div class="muted">${escapeHtml(sub.submissionId)}</div>
+            <div class="muted">contact: ${escapeHtml(sub.authorContactPrivate || 'not provided')}</div>
+            <div>${escapeHtml(preview.publicLine || 'Нет публичной строки')}</div>
+            <div class="muted">${escapeHtml(preview.samplePost || '')}</div>
+            <div class="actions">
+              <button data-download="${escapeHtml(sub.submissionId)}">ZIP</button>
+              <button data-export="${escapeHtml(sub.submissionId)}">Export</button>
+              <select data-status="${escapeHtml(sub.submissionId)}">
+                ${['submitted', 'needs_review', 'accepted', 'rejected', 'imported'].map(status => `<option ${status === sub.status ? 'selected' : ''}>${escapeHtml(status)}</option>`).join('')}
+              </select>
+              <button data-save="${escapeHtml(sub.submissionId)}">Save</button>
+              <textarea data-notes="${escapeHtml(sub.submissionId)}" placeholder="moderator notes">${escapeHtml(sub.moderatorNotes || '')}</textarea>
+            </div>
+          `;
           list.appendChild(article);
         }
       }

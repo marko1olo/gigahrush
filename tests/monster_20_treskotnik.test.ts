@@ -1,12 +1,12 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, Feature, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, Feature, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
 import { DEF, generateSprite } from '../src/entities/treskotnik';
+import { MONSTERS, MONSTER_SPRITES, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { S } from '../src/render/pixutil';
 import { setListenerPos } from '../src/systems/audio';
 import { setEntityMap, TRESKOTNIK_STAGGER_SEC, TRESKOTNIK_WINDUP_SEC, updateMonster } from '../src/systems/ai/monster';
@@ -88,10 +88,15 @@ test('treskotnik is standalone brittle crack-sprinter content', () => {
 
   assert.equal(DEF.kind, MonsterKind.TRESKOTNIK);
   assert.deepEqual(DEF.aiFlags, ['fractureSprint']);
+  assert.deepEqual(DEF.floors, [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.HELL]);
   assert.equal(MONSTERS[MonsterKind.TRESKOTNIK], DEF);
   assert.equal(MONSTER_SPRITES[MonsterKind.TRESKOTNIK], generateSprite);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.KVARTIRY].includes(MonsterKind.TRESKOTNIK), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.LIVING].includes(MonsterKind.TRESKOTNIK), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.HELL].includes(MonsterKind.TRESKOTNIK), true);
 
   assert.ok(ecology);
+  assert.deepEqual(ecology?.floors, [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.HELL]);
   assert.equal(ecology?.rooms.includes(RoomType.CORRIDOR), true);
   assert.equal(ecology?.rumorIds.includes('monster_treskotnik_crack_pulse'), true);
   assert.equal(ecology?.rumorIds.includes('ecology_treskotnik_corner'), true);
@@ -130,7 +135,7 @@ test('treskotnik windup is cancelled by damage and emits an interrupt event', ()
   const threat = treskotnik(10.5, 10.5);
   const entities = [target, threat];
   const msgs: Msg[] = [];
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
 
   syncEntities(entities);
   updateMonster(world, entities, threat, 0.1, 1, msgs, target.id, { v: 100 }, state);
@@ -158,7 +163,7 @@ test('treskotnik straight sprint damages the target and itself', () => {
   const threat = treskotnik(10.5, 10.5);
   const entities = [target, threat];
   const msgs: Msg[] = [];
-  const state = makeGameState({ currentZ: 14, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.KVARTIRY, worldEvents: createWorldEventState() });
 
   syncEntities(entities);
   updateMonster(world, entities, threat, 0.1, 3, msgs, target.id, { v: 100 }, state);
@@ -188,7 +193,7 @@ test('treskotnik fracture sprint works against a non-player target', () => {
   const threat = treskotnik(10.5, 10.5);
   const entities = [distantPlayer, target, threat];
   const msgs: Msg[] = [];
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
 
   syncEntities(entities);
   updateMonster(world, entities, threat, 0.1, 5, msgs, distantPlayer.id, { v: 100 }, state);

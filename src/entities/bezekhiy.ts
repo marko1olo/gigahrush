@@ -1,6 +1,6 @@
 /* ── Bezekhiy — door-threshold dead-echo ambusher ────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.45,
   sprite: 0,
   aiFlags: ['deadEcho'],
+  floors: [FloorLevel.LIVING, FloorLevel.KVARTIRY, FloorLevel.MINISTRY],
   counterplay: 'Проверяйте косяки до лута, закрывайте дверь за собой и проходите порог спиной назад: безэхий слаб лицом к лицу, но резко бьет в спину у открытого проема.',
   lootHint: 'серый дверной налет, белая ногтевая крошка, редкий шумовой крючок',
 };

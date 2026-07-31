@@ -1,10 +1,10 @@
 /* ── Monster_09 Pressovik — production-line timing room ──────── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   ContainerKind,
   Faction,
   Feature,
+  FloorLevel,
   MonsterKind,
   Occupation,
   QuestType,
@@ -60,7 +60,7 @@ const MASTER_DEF: PlotNpcDef = {
 
 registerSideQuest('pressovik_stop_master', MASTER_DEF, [{
   id: STOP_QUEST_ID,
-  giverId: getPlotNpcNumericId('pressovik_stop_master')!,
+  giverNpcId: 'pressovik_stop_master',
   type: QuestType.FETCH,
   desc: 'Нина: «Одна шестерня в стопор Прессовика. Переждёшь удар, подойдёшь к пульту и линия встанет без похорон.»',
   targetItem: 'gear',
@@ -100,7 +100,9 @@ function eventDataString(event: WorldEvent, key: string): string | undefined {
 }
 
 function pressTags(extra: readonly string[] = []): string[] {
-  return Array.from(new Set([CONTENT_TAG, 'monster', 'press', 'timing', 'production', ...extra]));
+  const tags = [CONTENT_TAG, 'monster', 'press', 'timing', 'production'];
+  for (const tag of extra) if (!tags.includes(tag)) tags.push(tag);
+  return tags;
 }
 
 function runtimeForEvent(event: WorldEvent): PressovikRuntime | null {
@@ -234,8 +236,7 @@ function addContainer(
     id: nextContainerId(ctx),
     x: wx,
     y: wy,
-    // @ts-ignore
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     roomId: room.id,
     zoneId: ctx.world.zoneMap[ci],
     ...container,
@@ -342,7 +343,6 @@ function dressBypass(ctx: MaintContentCtx, bypass: Room): void {
 }
 
 function addPressContainers(ctx: MaintContentCtx, bypass: Room, output: Room, ownerId: number): { stop: WorldContainer; output: WorldContainer } {
-  // @ts-ignore
   const stop = addContainer(ctx, bypass, bypass.x + Math.floor(bypass.w / 2), bypass.y + 2, {
     kind: ContainerKind.TOOL_LOCKER,
     name: 'Пульт ручного стопа Прессовика',
@@ -359,7 +359,6 @@ function addPressContainers(ctx: MaintContentCtx, bypass: Room, output: Room, ow
     tags: pressTags([STOP_TAG, 'bypass', 'repair', 'tool']),
   });
 
-  // @ts-ignore
   const out = addContainer(ctx, output, output.x + output.w - 3, output.y + 2, {
     kind: ContainerKind.METAL_CABINET,
     name: 'Выходная кассета Прессовика',

@@ -26,9 +26,7 @@ export type MarkovIntent =
   | 'rumor_flavor'
   | 'demos_post'
   | 'demos_reaction'
-  | 'locked_author_text'
-  | 'document_flavor'
-  | 'lore_note';
+  | 'locked_author_text';
 
 export type MarkovSource = 'generated_markov' | 'curated_pool' | 'locked_author_text';
 
@@ -65,8 +63,6 @@ const DEFAULT_INTENT_CAPS: Record<MarkovIntent, number> = {
   demos_post: 220,
   demos_reaction: 120,
   locked_author_text: 4096,
-  document_flavor: 280,
-  lore_note: 340,
 };
 
 const CURATED_FALLBACKS: Record<MarkovIntent, string> = {
@@ -75,12 +71,10 @@ const CURATED_FALLBACKS: Record<MarkovIntent, string> = {
   log_speech: 'Слышали разговор, но слов не разобрали.',
   bark_ambient: 'Не стой на проходе.',
   procedural_quest: 'Работа есть, но детали скажу у места.',
-  rumor_flavor: 'Слухи ходят по этажу, но правду знают у дверей.',
+  rumor_flavor: 'Слух есть, подробности лучше проверить самому.',
   demos_post: 'Короткая запись без лишних подробностей.',
   demos_reaction: 'Принято к сведению.',
   locked_author_text: '',
-  document_flavor: 'Обрывок бумаги с полустертыми цифрами и печатью смены.',
-  lore_note: 'Заметка дежурного: герметичность в норме, посторонних шумов нет.',
 };
 
 const GENERATED_BLOCKED_TAGS = new Set([
@@ -102,15 +96,11 @@ export function routeSpeech(request: SpeechRouterRequest): SpeechRouterResult {
     return lockedTextResult(request);
   }
 
-  if (request.source === 'curated_pool') return curatedPoolResult(request);
-
-  // Try Markov generation first; use exactFallback only as safety net on failure
-  const generated = generateMarkovText(request);
-  if (!generated.fallbackUsed) return generated;
-
   if (hasText(request.exactFallback)) return fallbackResult(request, 'curated_pool');
 
-  return generated;
+  if (request.source === 'curated_pool') return curatedPoolResult(request);
+
+  return generateMarkovText(request);
 }
 
 export function generateMarkovText(request: SpeechRouterRequest): SpeechRouterResult {
@@ -138,7 +128,7 @@ export function generateMarkovText(request: SpeechRouterRequest): SpeechRouterRe
   if (generated && generated.source === 'generated_markov' && hasText(generated.text) && !generated.fallbackUsed) {
     return {
       ...generated,
-      text: generated.text.replace(/\s+/g, ' ').trim(),
+      text: capText(generated.text, maxCharsForRequest(request)),
       tags: normalizeResultTags(request, generated.tags),
       fallbackUsed: false,
     };
@@ -165,7 +155,7 @@ function lockedTextResult(request: SpeechRouterRequest): SpeechRouterResult {
 function fallbackResult(request: SpeechRouterRequest, source: MarkovSource): SpeechRouterResult {
   const text = request.exactFallback ?? CURATED_FALLBACKS[request.intent] ?? CURATED_FALLBACKS.talk_context;
   return {
-    text: request.maxChars !== undefined ? capText(text, maxCharsForRequest(request)) : text.replace(/\s+/g, ' ').trim(),
+    text: capText(text, maxCharsForRequest(request)),
     source,
     intent: request.intent,
     tags: normalizeResultTags(request),
@@ -185,7 +175,7 @@ function curatedPoolResult(request: SpeechRouterRequest): SpeechRouterResult {
   if (hasText(curated.text)) {
     return {
       ...curated,
-      text: request.maxChars !== undefined ? capText(curated.text, maxCharsForRequest(request)) : curated.text.replace(/\s+/g, ' ').trim(),
+      text: capText(curated.text, maxCharsForRequest(request)),
       source: 'curated_pool',
       tags: normalizeResultTags(request, curated.tags),
     };

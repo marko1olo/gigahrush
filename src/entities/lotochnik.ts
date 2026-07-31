@@ -1,6 +1,6 @@
 /* ── Lotochnik: wet-service drain crawler ────────────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.25,
   sprite: 0,
   aiFlags: ['waterStrider', 'drainArmor'],
+  floors: [FloorLevel.MAINTENANCE, FloorLevel.LIVING],
   counterplay: 'Не принимайте его в лотке: вытяните Лоточника на сухой бетон, разорвите погоню через сухой порог и бейте, пока мокрая броня не вернулась.',
   lootHint: 'мокрая ветошь, фильтрующий слой, желтый осадок из служебного лотка',
 };

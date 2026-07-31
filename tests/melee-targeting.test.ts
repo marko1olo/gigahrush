@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { EntityType, Faction, W, Cell, type Entity } from '../src/core/types';
+import { EntityType, Faction, W, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { selectMeleeTarget } from '../src/systems/melee_targeting';
 
@@ -23,7 +23,6 @@ function actor(overrides: Partial<Entity>): Entity {
 
 test('melee target selection uses geometry instead of candidate order', () => {
   const world = new World();
-  world.cells.fill(Cell.FLOOR);
   const player = actor({ id: 1, faction: Faction.PLAYER });
   const offLineFirst = actor({ id: 2, type: EntityType.MONSTER, x: 11.9, y: 10.7 });
   const onLineSecond = actor({ id: 9, type: EntityType.MONSTER, x: 11.9, y: 10.05 });
@@ -35,7 +34,6 @@ test('melee target selection uses geometry instead of candidate order', () => {
 
 test('melee target selection uses toroidal geometry at world edge', () => {
   const world = new World();
-  world.cells.fill(Cell.FLOOR);
   const player = actor({ id: 1, x: W - 0.5, y: 20, angle: 0, faction: Faction.PLAYER });
   const wrappedTarget = actor({ id: 4, type: EntityType.MONSTER, x: 0.45, y: 20.05 });
 

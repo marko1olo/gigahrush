@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { MonsterKind } from '../src/core/types';
+import { FloorLevel, MonsterKind } from '../src/core/types';
 import { DEF, generateSprite } from '../src/entities/paragraph';
 import { generateSprite as generateEyeSprite } from '../src/entities/eye';
 import { CLEAR, S } from '../src/render/pixutil';
@@ -19,6 +19,7 @@ test('paragraph stays a medium-range document shooter with a close-after-shot an
   assert.equal(DEF.kind, MonsterKind.PARAGRAPH);
   assert.equal(DEF.isRanged, true);
   assert.equal(DEF.aiFlags?.includes('rangedClause'), true);
+  assert.deepEqual(DEF.floors, [FloorLevel.MINISTRY, FloorLevel.VOID]);
   assert.equal(DEF.hp >= 40 && DEF.hp <= 70, true, 'PARAGRAPH should stay tougher than Eye but not boss-heavy');
   assert.equal(DEF.speed <= 1.2, true, 'PARAGRAPH should not kite like Eye');
   assert.equal(DEF.dmg >= 14, true, 'PARAGRAPH shot should matter at medium range');

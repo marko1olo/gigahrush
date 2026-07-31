@@ -3,6 +3,7 @@ import * as assert from 'node:assert/strict';
 
 import {
   EntityType,
+  FloorLevel,
   MonsterKind,
   QuestType,
   Tex,
@@ -71,11 +72,11 @@ test('Pustoy Sosed registers verification, avoidance, and reveal quests', () => 
 test('Pustoy Sosed room gives clues before NELYUD close reveal', () => {
   const world = new World();
   const entities = [];
-  const nextId = { v: getPlotNpcCount() + 1 }
+  const nextId = { v: 1 };
   const nextRoomId = generatePustoySosedRoom(world, 0, entities, nextId, 512, 512);
 
   assert.equal(nextRoomId, 1);
-  const witness = entities.find(e => (e as any).npcPackageId === 'pustoy_sosed_liza_sverka');
+  const witness = entities.find(e => e.plotNpcId === 'pustoy_sosed_liza_sverka');
   const suspect = entities.find(e => e.type === EntityType.MONSTER && e.monsterKind === MonsterKind.NELYUD && e.name === 'Пустой Сосед');
   assert.ok(witness);
   assert.ok(suspect);
@@ -93,7 +94,7 @@ test('Pustoy Sosed room gives clues before NELYUD close reveal', () => {
 
 test('Pustoy Sosed quest completion publishes compact outcome event data', () => {
   initFactionRelations();
-  const state = makeGameState({ currentZ: 14 });
+  const state = makeGameState({ currentFloor: FloorLevel.KVARTIRY });
 
   publishEvent(state, {
     type: 'quest_completed',
@@ -105,7 +106,7 @@ test('Pustoy Sosed quest completion publishes compact outcome event data', () =>
   });
 
   const outcome = getRecentEvents(state, { type: 'faction_relation_changed', tags: ['pustoy_sosed_outcome'], limit: 1 })[0];
-  assert.equal(outcome?.z, 60);
+  assert.equal(outcome?.floor, FloorLevel.KVARTIRY);
   assert.equal(outcome?.data?.outcome, 'exposed');
   assert.equal(outcome?.tags.includes('false_neighbor'), true);
   assert.equal(outcome?.tags.includes('infected'), true);

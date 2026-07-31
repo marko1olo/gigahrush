@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, Feature, LiftDirection, RoomType, Tex } from '../src/core/types';
+import { Cell, Feature, FloorLevel, LiftDirection, RoomType, Tex } from '../src/core/types';
 import { World, auditReachability, hasReachableAdjacentCell, type ReachabilityAudit } from '../src/core/world';
 import { makeProceduralFloorSpec, type ProceduralFloorSpec } from '../src/data/procedural_floors';
 import { generateProceduralFloor } from '../src/gen/procedural_floor';
@@ -82,7 +82,7 @@ test('procedural Hladon anomaly exposes cold shells, reachable warm counterplay 
   const spec: ProceduralFloorSpec = {
     ...base,
     geometryId: 'communal_knots',
-    baseFloor: 'kvartiry',
+    baseFloor: FloorLevel.KVARTIRY,
     majorityId: 'citizens',
     anomalyId: 'hladon',
     danger: 4,

@@ -1,6 +1,7 @@
 /* ── World log consumer: structured events → HUD/log strings ──── */
 
 import {
+  FloorLevel,
   type GameState,
   type LogEntry,
   type Msg,
@@ -10,7 +11,6 @@ import {
   type WorldEventType,
   msgAt,
 } from "../core/types";
-import { getCurrentPlayerId } from "./player_actor";
 
 const LOG_MAX = 500;
 const DEDUPE_SECONDS = 4;
@@ -27,7 +27,7 @@ export interface WorldLogPoint {
 }
 
 export interface WorldLogSpatialContext {
-  z: string | number;
+  floor: FloorLevel;
   playerX: number;
   playerY: number;
   audibleRadiusMeters?: number;
@@ -105,8 +105,8 @@ export function worldLogDistanceForLocation(
 ): number | undefined {
   const context = currentSpatialContext();
   if (!context) return undefined;
-  const locationFloor = location.z ?? context.z;
-  if (locationFloor !== context.z) return undefined;
+  const locationFloor = location.floor ?? context.floor;
+  if (locationFloor !== context.floor) return undefined;
   const point = locationPoint(location, context);
   if (!point) return undefined;
   const d2 = context.dist2(context.playerX, context.playerY, point.x, point.y);
@@ -371,16 +371,16 @@ const EVENT_TEXT_HANDLERS: Partial<
     return shelterTallyText(e);
   },
   hermodoor_borer_detected: (e) => {
-    return `Гермоточильщик у двери: ${String(e.data?.roomDefId ?? "укрытие")}. Есть время среагировать.`;
+    return `Гермоточильщик у двери: ${String(e.data?.roomName ?? "укрытие")}. Есть время среагировать.`;
   },
   hermodoor_borer_damage: (e) => {
-    return `Гермодверь повреждена: ${String(e.data?.roomDefId ?? "укрытие")}.`;
+    return `Гермодверь повреждена: ${String(e.data?.roomName ?? "укрытие")}.`;
   },
   hermodoor_borer_repaired: (e) => {
-    return `Гермодверь отремонтирована: ${String(e.data?.roomDefId ?? "укрытие")}.`;
+    return `Гермодверь отремонтирована: ${String(e.data?.roomName ?? "укрытие")}.`;
   },
   hermodoor_borer_compromised: (e) => {
-    return `Укрытие скомпрометировано: ${String(e.data?.roomDefId ?? "укрытие")}.`;
+    return `Укрытие скомпрометировано: ${String(e.data?.roomName ?? "укрытие")}.`;
   },
   fog_boss_spawned: (e) => {
     return `Босс тумана появился${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ""}.`;
@@ -845,20 +845,13 @@ function deathFactAlreadyLogged(
     const entry = state.msgLog[i];
     if (entry.text !== text || entry.color !== color) continue;
     if (entry.targetId !== event.targetId) continue;
-    if (entry.z !== undefined && entry.z !== event.z) continue;
+    if (entry.floor !== undefined && entry.floor !== event.floor) continue;
     return true;
   }
   return false;
 }
 
 export function recordWorldLogEvent(state: GameState, event: WorldEvent): void {
-  // Filter out non-player item pickups from stenosvodka until NPC Markov pickup barks are ready
-  if (event.type === 'player_pick_item') {
-    const pid = getCurrentPlayerId() ?? 0;
-    if (event.actorId !== undefined && event.actorId !== 0 && event.actorId !== pid) {
-      return;
-    }
-  }
   if (state.tutorialMode && event.type !== 'player_pick_item') return;
   if (!state.worldEvents || !shouldLog(event)) return;
   const key = eventKey(event);
@@ -873,7 +866,7 @@ export function recordWorldLogEvent(state: GameState, event: WorldEvent): void {
   const text = eventText(event);
   const color = colorFor(event);
   const location: MsgLocation = {
-    z: event.z,
+    floor: event.floor,
     x: event.x,
     y: event.y,
     actorId: event.actorId,

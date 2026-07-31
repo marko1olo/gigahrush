@@ -1,13 +1,13 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, EntityType, Feature, RoomType, W, ZoneFaction, type Entity } from '../src/core/types';
+import { Cell, EntityType, Feature, FloorLevel, RoomType, W, ZoneFaction, type Entity } from '../src/core/types';
 import { auditReachability, hasReachableAdjacentCell } from '../src/core/world';
 import { designFloorById } from '../src/data/design_floors';
 import { designFloorPopulationProfile } from '../src/data/design_floor_population';
 import { HUMAN_TERRITORY_OWNERS, factionToTerritoryOwner } from '../src/data/factions';
 import { SIDE_QUESTS } from '../src/data/plot';
-import { expandDesignFloorGeneration } from '../src/gen/full_floor';
+import { expandDesignFloorGeneration } from '../src/gen/design_floors/full_floor';
 import {
   NUMBER_REGISTRY_CRT_INTERSECTIONS,
   NUMBER_REGISTRY_DECISIONS,
@@ -15,7 +15,7 @@ import {
   NUMBER_REGISTRY_ROUTE_ID,
   NUMBER_REGISTRY_TERRITORY_TARGETS,
   generateNumberRegistryDesignFloor,
-} from '../src/gen/number_registry';
+} from '../src/gen/design_floors/number_registry';
 import { getRouteCueMarkers } from '../src/systems/route_cues';
 import { countTerritoryCells, territoryHqAnchors, territoryOwnerAt } from '../src/systems/territory';
 
@@ -34,7 +34,7 @@ function numberRegistryForRead(): ReturnType<typeof generateNumberRegistry> {
 
 function isAmbientNpcTemplate(entity: Entity): boolean {
   return entity.type === EntityType.NPC &&
-    !(entity as any).npcPackageId &&
+    !entity.plotNpcId &&
     !entity.persistentNpcId &&
     entity.alifeId === undefined &&
     entity.questId === -1;
@@ -44,12 +44,12 @@ test('number_registry is a Ministry authored route with residue population press
   const route = designFloorById(NUMBER_REGISTRY_ROUTE_ID);
   assert.ok(route);
   assert.equal(route.z, 32);
-  assert.equal(route.themeTags?.includes('ministry'), true);
+  assert.equal(route.baseFloor, FloorLevel.MINISTRY);
   assert.equal(route.role.includes('модули'), true);
 
   const profile = designFloorPopulationProfile(route);
-  assert.ok(profile.npcTarget >= 98 && profile.npcTarget <= 9800, 'npcTarget in bounds');
-  assert.ok(profile.monsterTarget >= 98 && profile.monsterTarget <= 9800, 'monsterTarget in bounds');
+  assert.equal(profile.npcTarget, 980);
+  assert.equal(profile.monsterTarget, 980);
   assert.equal(profile.npcNoun, 'регистрант');
   assert.equal(profile.monsterTags.includes('prime_corridor'), true);
   assert.equal((profile.npcPlacement.anchors?.length ?? 0) >= 4, true);
@@ -93,7 +93,7 @@ test('number_registry population field keeps authored actors and exact ambient t
   const profile = designFloorPopulationProfile(route);
   const gen = numberRegistryForRead();
 
-  const plotIds = new Set(gen.entities.map(entity => (entity as any).npcPackageId).filter(Boolean));
+  const plotIds = new Set(gen.entities.map(entity => entity.plotNpcId).filter(Boolean));
   assert.equal(plotIds.has('number_registry_vera_modulus'), true);
   assert.equal(plotIds.has('number_registry_prime_guard'), true);
   assert.equal(plotIds.has('number_registry_composite_witness'), true);

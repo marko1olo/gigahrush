@@ -1,9 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { makeGameState } from './helpers';
-
-import { EntityType, Faction, Occupation, type Entity, type GameState } from '../src/core/types';
+import { EntityType, Faction, FloorLevel, Occupation, type Entity, type GameState } from '../src/core/types';
 import {
   DEMOS_EDGE_DEBT,
   DEMOS_EDGE_ENEMY,
@@ -19,13 +17,12 @@ import {
   DEMOS_SOCIAL_INITIAL_NPC_SLOTS,
   DemosSocialRoleId,
 } from '../src/data/demos_social';
-import { getPlotNpcNumericId, registerNpcPackages, type NpcPackageDef } from '../src/data/npc_packages';
+import { registerNpcPackages, type NpcPackageDef } from '../src/data/npc_packages';
 import { initFactionRelations } from '../src/data/relations';
 import { createEmptyDemosSocialSaveState } from '../src/systems/demos_save';
 import {
   captureAlifeFloorState,
   createPrefilledAlifeState,
-  ensureAlifeState,
   recordAlifeNpcDeath,
   type AlifePopulationReservedNpc,
 } from '../src/systems/alife';
@@ -46,11 +43,11 @@ interface DemosSocialGraphDebug {
 
 function stateWithPopulation(seed: number, total: number, reserved: readonly AlifePopulationReservedNpc[] = []): GameState {
   initFactionRelations();
-  const state = { currentZ: 0 } as GameState;
+  const state = { currentFloor: FloorLevel.LIVING } as GameState;
   createPrefilledAlifeState(state, seed, total, {
     buckets: [{
-      floorKey: 'design:living',
-      z: -6,
+      floorKey: 'story:living',
+      floor: FloorLevel.LIVING,
       targetCount: total,
       reserved,
     }],
@@ -77,7 +74,7 @@ function demosPackage(id: string, displayName: string, social: NpcPackageDef['so
     loadout: {},
     social,
     visual: {},
-    placement: { homeFloorKey: 'design:living', presence: 'population' },
+    placement: { homeFloorKey: 'story:living', presence: 'population' },
     speech: {},
   };
 }
@@ -251,23 +248,22 @@ test('Demos dead family targets remain returnable as visible history edges', () 
 });
 
 test('Demos social graph applies optional authored plot relations', () => {
-  const state = makeGameState();
-  ensureAlifeState(state);
+  const state = stateWithPopulation(909, 7, [
+    { kind: 'plot', plotNpcId: 'olga', name: 'Ольга Дмитриевна', faction: Faction.SCIENTIST, occupation: Occupation.DOCTOR },
+    { kind: 'plot', plotNpcId: 'yakov', name: 'Яков Давидович', faction: Faction.SCIENTIST, occupation: Occupation.SCIENTIST },
+    { kind: 'plot', plotNpcId: 'barni', name: 'Сержант Баринов', faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER },
+    { kind: 'plot', plotNpcId: 'vanka', name: 'Ванька Банчиный', faction: Faction.CULTIST, occupation: Occupation.ALCOHOLIC },
+    { kind: 'plot', plotNpcId: 'major_grom', name: 'Майор Громный', faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER },
+    { kind: 'plot', plotNpcId: 'rotenbergov', name: 'Министр Ротенбергов', faction: Faction.CITIZEN, occupation: Occupation.DIRECTOR },
+    { kind: 'plot', plotNpcId: 'f69_accountant_nil', name: 'Нил Расписочный', faction: Faction.CITIZEN, occupation: Occupation.STOREKEEPER },
+  ]);
 
-  const idOlga = getPlotNpcNumericId('olga')!;
-  const idYakov = getPlotNpcNumericId('yakov')!;
-  const idBarni = getPlotNpcNumericId('barni')!;
-  const idVanka = getPlotNpcNumericId('vanka')!;
-  const idGrom = getPlotNpcNumericId('major_grom')!;
-  const idRotenbergov = getPlotNpcNumericId('rotenbergov')!;
-  const idNil = getPlotNpcNumericId('f69_accountant_nil')!;
-
-  const olgaToYakov = getDemosNpcOnlySocialEdges(state, idOlga).find(edge => edge.targetAlifeId === idYakov);
-  const yakovToOlga = getDemosNpcOnlySocialEdges(state, idYakov).find(edge => edge.targetAlifeId === idOlga);
-  const barniToOlga = getDemosNpcOnlySocialEdges(state, idBarni).find(edge => edge.targetAlifeId === idOlga);
-  const vankaToYakov = getDemosNpcOnlySocialEdges(state, idVanka).find(edge => edge.targetAlifeId === idYakov);
-  const gromToYakov = getDemosNpcOnlySocialEdges(state, idGrom).find(edge => edge.targetAlifeId === idYakov);
-  const rotenbergovToNil = getDemosNpcOnlySocialEdges(state, idRotenbergov).find(edge => edge.targetAlifeId === idNil);
+  const olgaToYakov = getDemosNpcOnlySocialEdges(state, 1).find(edge => edge.targetAlifeId === 2);
+  const yakovToOlga = getDemosNpcOnlySocialEdges(state, 2).find(edge => edge.targetAlifeId === 1);
+  const barniToOlga = getDemosNpcOnlySocialEdges(state, 3).find(edge => edge.targetAlifeId === 1);
+  const vankaToYakov = getDemosNpcOnlySocialEdges(state, 4).find(edge => edge.targetAlifeId === 2);
+  const gromToYakov = getDemosNpcOnlySocialEdges(state, 5).find(edge => edge.targetAlifeId === 2);
+  const rotenbergovToNil = getDemosNpcOnlySocialEdges(state, 6).find(edge => edge.targetAlifeId === 7);
 
   assert.equal(olgaToYakov?.role, DemosSocialRoleId.FRIEND);
   assert.equal(olgaToYakov?.relation, 88);

@@ -3,9 +3,10 @@ import * as assert from 'node:assert/strict';
 
 import { getEconomyQuote, registerEconomyTariffProvider, invalidateEconomyPrices, type EconomyTariffProvider, ensureEconomyState } from '../src/systems/economy';
 import { makeGameState } from './helpers';
+import { FloorLevel } from '../src/core/types';
 
 test('registerEconomyTariffProvider adds a new provider and overrides existing if ID matches', () => {
-  const state = makeGameState({ currentZ: 0 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
   ensureEconomyState(state);
 
   const initialQuote = getEconomyQuote(state, 'water');

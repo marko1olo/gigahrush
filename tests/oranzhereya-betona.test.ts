@@ -6,6 +6,7 @@ import {
   DoorState,
   EntityType,
   Feature,
+  FloorLevel,
   LiftDirection,
   MonsterKind,
   RoomType,
@@ -28,7 +29,7 @@ import {
   ORANZHEREYA_MICRO_ROOM_PREFIXES,
   ORANZHEREYA_ROOM_NAMES,
   measureOranzhereyaBetonaGeometry,
-} from '../src/gen/oranzhereya_betona';
+} from '../src/gen/design_floors/oranzhereya_betona';
 import { countTerritoryCells, territoryHqAnchors, territoryOwnerAt, territoryRoomOwner } from '../src/systems/territory';
 import type { FloorGeneration } from '../src/gen/floor_manifest';
 
@@ -43,8 +44,9 @@ test('oranzhereya_betona is registered as the z -2 scarcity greenhouse route', (
   const route = designFloorById(ORANZHEREYA_BETONA_ROUTE_ID);
 
   assert.equal(route?.z, ORANZHEREYA_BETONA_Z);
-  assert.equal(route?.themeTags?.includes('living'), true);
-    assert.equal(route?.displayName, ORANZHEREYA_BETONA_DISPLAY_NAME);
+  assert.equal(route?.baseFloor, FloorLevel.LIVING);
+  assert.equal(route?.baseFloor, ORANZHEREYA_BETONA_BASE_FLOOR);
+  assert.equal(route?.displayName, ORANZHEREYA_BETONA_DISPLAY_NAME);
   assert.equal(route?.danger, 3);
   assert.equal(designFloorAtZ(ORANZHEREYA_BETONA_Z)?.id, ORANZHEREYA_BETONA_ROUTE_ID);
 });
@@ -78,7 +80,7 @@ test('oranzhereya_betona generates reachable crop rooms, water graph, and lifts'
 test('oranzhereya_betona exposes harvest, poison, burn, reroute, and guard choices', () => {
   const gen = oranzhereya();
   const quests = new Set(getSideQuestRegistrySnapshot().map(quest => quest.id));
-  const plotIds = new Set(gen.entities.filter(e => e.type === EntityType.NPC).map(e => (e as any).npcPackageId));
+  const plotIds = new Set(gen.entities.filter(e => e.type === EntityType.NPC).map(e => e.plotNpcId));
   const monsterKinds = new Set(gen.entities.filter(e => e.type === EntityType.MONSTER).map(e => e.monsterKind));
 
   for (const id of [
@@ -202,8 +204,8 @@ test('oranzhereya_betona uses a bounded food-water population profile', () => {
   const npcs = gen.entities.filter(entity => entity.type === EntityType.NPC);
   const monsters = gen.entities.filter(entity => entity.type === EntityType.MONSTER);
 
-  assert.ok(profile.npcTarget >= 98 && profile.npcTarget <= 9800, 'npcTarget in bounds');
-  assert.ok(profile.monsterTarget >= 92 && profile.monsterTarget <= 9200, 'monsterTarget in bounds');
+  assert.equal(profile.npcTarget, 980);
+  assert.equal(profile.monsterTarget, 920);
   assert.equal(profile.npcNoun, 'тепличник');
   assert.equal(profile.monsterTags.includes('greenhouse'), true);
   assert.equal(profile.monsterTags.includes('spore'), true);
@@ -217,7 +219,7 @@ test('oranzhereya_betona uses a bounded food-water population profile', () => {
 
 function isAmbientNpcTemplate(entity: Entity): boolean {
   return entity.type === EntityType.NPC &&
-    !(entity as any).npcPackageId &&
+    !entity.plotNpcId &&
     !entity.persistentNpcId &&
     entity.alifeId === undefined &&
     entity.questId === -1;

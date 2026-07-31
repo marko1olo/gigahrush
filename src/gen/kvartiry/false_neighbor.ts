@@ -1,32 +1,17 @@
 /* ── Комната чужой очереди — Kvartiry close-reveal encounter ─── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
-  AIGoal, Cell, ContainerKind, EntityType, Faction, MonsterKind, Occupation, QuestType,
+  AIGoal, Cell, ContainerKind, EntityType, Faction, FloorLevel, MonsterKind, Occupation, QuestType,
   RoomType, Tex, Feature, type Entity, type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { type PlotNpcDef, registerSideQuest , registerAuthoredNpc } from '../../data/plot';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Леня Очередной',
-  isFemale: false,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.LOCKSMITH,
-  sprite: Occupation.LOCKSMITH,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'bread', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_0_6omcn', npc: AMBIENT_NPC_0 });
-
+import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { MONSTERS } from '../../entities/monster';
 import { monsterSpr } from '../../render/sprite_index';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import {
-  createSocialPoiRoom, placeDropNear, roomCell, setFeatureIfFloor, spawnSocialNpc,
+  createSocialPoiRoom, placeDropNear, roomCell, setFeatureIfFloor, spawnAmbientNpc, spawnSocialNpc,
   type SocialPoiRoom,
 } from './social_helpers';
 
@@ -57,7 +42,7 @@ const RAYA: PlotNpcDef = {
 
 registerSideQuest('kv_raya_podozritelnaya', RAYA, [{
   id: FALSE_NEIGHBOR_QUEST_ID,
-  giverId: getPlotNpcNumericId('kv_raya_podozritelnaya')!,
+  giverNpcId: 'kv_raya_podozritelnaya',
   type: QuestType.KILL,
   desc: 'Рая Подозрительная: «Убейте тихого соседа в комнате чужой очереди. Близко не подходите, пока не готовы бежать.»',
   targetMonsterKind: MonsterKind.NELYUD,
@@ -66,10 +51,10 @@ registerSideQuest('kv_raya_podozritelnaya', RAYA, [{
   rewardCount: 1,
   extraRewards: [{ defId: 'fake_pass', count: 1 }],
   relationDelta: 14, xpReward: 85, moneyReward: 45,
-  targetFloorZ: 60,
+  targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.LIVING,
   targetZoneTag: FALSE_NEIGHBOR_TAG,
-  targetRoomDefId: FALSE_NEIGHBOR_ROOM_NAME,
+  targetRoomName: FALSE_NEIGHBOR_ROOM_NAME,
   targetHint: 'Квартиры: комната чужой очереди, экран без отражения и коробка доноса у входа; держите выход свободным.',
   eventSeverity: 4,
   eventPrivacy: 'witnessed',
@@ -149,7 +134,7 @@ function addFalseNeighborEvidenceBox(world: World, poi: SocialPoiRoom, ownerId: 
     id: nextContainerId(world),
     x: pos.x,
     y: pos.y,
-    z: 60,
+    floor: FloorLevel.KVARTIRY,
     roomId: poi.room.id,
     zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
     kind: ContainerKind.FILING_CABINET,
@@ -191,7 +176,7 @@ export function generateFalseNeighborRoom(
 
   const rayaId = nextId.v;
   spawnSocialNpc(entities, nextId, RAYA, 'kv_raya_podozritelnaya', poi.x + 2, poi.y + 2);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_0, 'kv_ambient_0_6omcn', poi.x + 4, poi.y + 5);
+  spawnAmbientNpc(entities, nextId, 'Леня Очередной', Faction.CITIZEN, Occupation.LOCKSMITH, poi.x + 4, poi.y + 5, [{ defId: 'bread', count: 1 }]);
   spawnNelyud(world, entities, nextId, poi.x + poi.w - 3, poi.y + poi.h - 3);
   addFalseNeighborEvidenceBox(world, poi, rayaId);
 

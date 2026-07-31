@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Faction, ItemType, RoomType, type GameState } from '../src/core/types';
+import { Faction, FloorLevel, ItemType, RoomType, type GameState } from '../src/core/types';
 import { ITEM_TAGS, ITEMS, getStack } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { ensureEconomyState } from '../src/systems/economy';
@@ -12,7 +12,7 @@ import { countInventoryItem, makeGameState, makeTestNpc, makeTestPlayer } from '
 
 const ITEM_ID = 'water_reservoir_sample';
 
-function resourceStock(state: GameState, floor: number, resourceId: string): number {
+function resourceStock(state: GameState, floor: FloorLevel, resourceId: string): number {
   const economy = ensureEconomyState(state);
   return economy.floors[floor]?.resources[resourceId]?.stock ?? 0;
 }
@@ -48,7 +48,7 @@ test('water reservoir sample is a save, drop or trade decision', () => {
 });
 
 test('water reservoir sample sale feeds water economy evidence', () => {
-  const state = makeGameState({ currentZ: 0, time: 156 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 156 });
   const player = makeTestPlayer({ inventory: [{ defId: ITEM_ID, count: 1 }], money: 0 });
   const buyer = makeTestNpc({
     id: 2,
@@ -57,14 +57,14 @@ test('water reservoir sample sale feeds water economy evidence', () => {
     inventory: [],
     money: 200,
   });
-  const beforeStock = resourceStock(0, 'drink_water');
+  const beforeStock = resourceStock(state, FloorLevel.LIVING, 'drink_water');
 
   const result = sellToNpc(state, player, buyer, 0, { reason: 'water_safety_evidence' });
 
   assert.equal(result.ok, true);
   assert.equal(result.code, 'sold');
   assert.equal(result.quote?.resourceId, 'drink_water');
-  assert.equal(resourceStock(0, 'drink_water'), beforeStock + 1);
+  assert.equal(resourceStock(state, FloorLevel.LIVING, 'drink_water'), beforeStock + 1);
   assert.equal(countInventoryItem(player, ITEM_ID), 0);
   assert.equal(countInventoryItem(buyer, ITEM_ID), 1);
   assert.ok((player.money ?? 0) > 0);

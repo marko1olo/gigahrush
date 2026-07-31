@@ -21,7 +21,7 @@ function makeMockPayload(overrides: any = {}): SavePayload {
       samosborTimer: 0,
       quests: [],
       nextQuestId: 1,
-      currentZ: 1,
+      currentFloor: 1,
       floorRun: {},
       floorInstances: {},
       liftArachna: {},

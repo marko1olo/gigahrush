@@ -8,19 +8,10 @@ import {
 import { World } from '../../core/world';
 import { PATH_BLOCKER_SUBDIV, PATH_BLOCKER_BYTES_PER_CELL } from '../../core/path_blockers';
 import { getCellHazardMoveMultiplier } from '../cell_hazards';
-
-import { actorContactDoor } from '../door_state';
-import { canActorOccupy, entityIgnoresFineBlockers } from '../movement_collision';
+import { actorOccupyRadius, canActorOccupy, entityIgnoresFineBlockers } from '../movement_collision';
+import { setDoorState } from '../door_state';
 import { aiPathMoveSpeed } from '../rpg';
 import { emitMarkovBark, BARK_CHANCE_ARRIVE } from './barks';
-import { rng } from '../../core/rand';
-import {
-  computeRegionNextRows,
-  computeRegionNextColumn,
-  MIN_REGIONS_FOR_WORKERS,
-  type RegionGraph,
-  type RegionNextSolver,
-} from './region_next';
 
 let _barkMsgs: Msg[] = [];
 let _barkTime = 0;
@@ -34,49 +25,38 @@ export function setPathContext(msgs: Msg[], time: number, _samosborActive = fals
 
 /* ── Baked navigation tree (toroidal, ordinary doors are openable) */
 
+const NAV_UNKNOWN = -3;
+const NAV_BLOCKED = -2;
 const FLOW_UNREACHED = -1;
 const FLOW_BLOCKED = -2;
-const PATH_CHUNK_LIMIT = 1048576;
-
+const PATH_CHUNK_LIMIT = 1024;
+const PATH_DESCEND_SEARCH_LIMIT = 2048;
+const PATH_LOOKAHEAD_CELLS = 6;
+const PATH_DIRECT_GOAL_RANGE = 12;
+const PATH_LINE_SAMPLE_STEP = 0.35;
 const PATH_WAYPOINT_REACH = 0.18;
 const PATH_WAYPOINT_REACH_SQ = PATH_WAYPOINT_REACH * PATH_WAYPOINT_REACH;
+const PATH_WAYPOINT_OFFSET = 0.08;
 const BEHAVIOR_FLOW_FIELD_CACHE_MAX = 16;
 const ROUTINE_WANDER_ATTEMPTS = 4;
 const ROUTINE_FAR_ATTEMPTS = 5;
 const SW = W * PATH_BLOCKER_SUBDIV;
 const SW2 = SW * SW;
-const MACRO_W2 = W * W;
-
-
-/* ── Region-Portal HPA* constants ─────────────────────────────── */
-const CLUSTER_SIZE = 16;
-const CLUSTERS_PER_SIDE = (W / CLUSTER_SIZE) | 0;
-const REGION_NONE = 0;
-const REGION_UNREACHABLE = 65535;
-
+const _navParent = new Int32Array(SW2);
+const _navDepth = new Int32Array(SW2);
+const _navComponent = new Int32Array(SW2);
 const _navQueue = new Int32Array(SW2);
-const NAV_QUEUE_HALF = Math.floor(SW2 / 2);
-let _navHead1 = 0;
-let _navTail1 = 0;
-let _navHead2 = 0;
-let _navTail2 = 0;
-let _navBase1 = 0;
-let _navBase2 = NAV_QUEUE_HALF;
 const _flowSourceScratch: number[] = [];
 let _navWorld: World | null = null;
 let _navCellVersion = -1;
 let _navPathBlockerVersion = -1;
 let _navComponents = 0;
+let _navReachable = 0;
 let _frozenNavWorld: World | null = null;
 let _frozenNavCellVersion = -1;
 let _frozenNavPathBlockerVersion = -1;
 let _frozenNavRoomCount = -1;
 let _frozenNavRefCount = 0;
-// Macro-mask snapshot taken when the cache is frozen. Query-time path
-// reconstruction (localRegionMacroBfs / findBorderSubcells) reads this instead
-// of live geometry, so a wall placed mid-samosbor cannot break an already-baked
-// path — matching the frozen-cache contract. Null when not frozen. 2 MB.
-let _frozenMacroMask: Uint16Array | null = null;
 let _flowFieldTouch = 0;
 let _routinePathUsed = 0;
 let _routinePathDenied = 0;
@@ -87,153 +67,6 @@ let _bfsFound = 0;
 let _bfsMiss = 0;
 let _bfsLimitHits = 0;
 let _bfsVisited = 0;
-
-/* ── Region-Portal HPA* data structures ───────────────────────── */
-const _regionMap = new Int32Array(MACRO_W2);
-let _numRegions = 0;
-
-interface Portal {
-  cx: number; cy: number;
-  ncx: number; ncy: number;
-  regionA: number;
-  regionB: number;
-}
-let _portals: Portal[] = [];
-let _numPortals = 0;
-let _regionPortalIndices: number[][] = [];
-
-/**
- * Region-node next-hop matrix. Nodes are REGIONS (rooms + 16×16 clusters),
- * NOT portals — there are far fewer regions than portals, so the R×R matrix
- * stays small and bake stays O(R·E) instead of Floyd-Warshall's O(P³).
- * `_regionNext[rS * R + rT]` = the next region to step into on a shortest
- * (fewest region hops) route rS→rT, or REGION_UNREACHABLE if disconnected.
- * This is a real graph with cycles (every adjacent-region edge kept), so
- * toroidal loops are preserved and there are no spanning-tree seams.
- */
-let _regionNext: Uint16Array | null = null;
-let _regionN = 0;
-
-/* ── Low-memory (mobile) navigation mode ──────────────────────────
- * The dense R×R `_regionNext` matrix costs R²·2 bytes — a mid floor (R≈11.5k)
- * is 256 MB, a large one (R≈23k) over 1 GB. Desktop heaps swallow that; the
- * iOS/WebKit per-tab ceiling (a few hundred MB, hard and invisible — no
- * `performance.memory`) does not, so the single giant allocation Jetsam-kills
- * the tab. On such devices we skip the matrix entirely and instead keep the
- * (tiny) region-adjacency graph resident and answer `regionPath` from a small
- * LRU of on-demand next-hop COLUMNS (one BFS per unique target region). Peak
- * cost is ~cache-slots · R · 2 bytes (~1 MB) instead of R²·2.
- *
- * Detection is HARDWARE-biased and PC-favouring: lazy mode turns on ONLY when
- * the device advertises no hover AND no fine pointer (a real phone/tablet). Any
- * mouse, trackpad or stylus (hover or fine pointer present) is treated as
- * desktop and keeps the exact dense-matrix path — better to misjudge a phone as
- * a PC than a PC as a phone. Resolved once, lazily, and cached. */
-let _lowMemNav: boolean | null = null;
-
-function useLowMemNav(): boolean {
-  if (_lowMemNav !== null) return _lowMemNav;
-  // Node / no-DOM (tests, generation) → false: keep the deterministic dense
-  // path the parity tests trust.
-  const mm = typeof window !== 'undefined' ? window.matchMedia : undefined;
-  if (!mm) { _lowMemNav = false; return false; }
-  // `any-hover: none` → no pointing device on the whole system can hover;
-  // `any-pointer: fine` present → a mouse/trackpad/stylus exists → desktop.
-  const noHover = mm('(any-hover: none)').matches === true;
-  const noFine = mm('(any-pointer: fine)').matches !== true;
-  const hasTouch = (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0)
-    || 'ontouchstart' in globalThis;
-  _lowMemNav = noHover && noFine && hasTouch;
-  return _lowMemNav;
-}
-
-/** LRU of next-hop columns for the low-mem path. Key = target region rT;
- *  value = Uint16Array(R) where [cur] is the next hop cur→rT.
- *
- * Two knobs keep this both cheap AND playable with hundreds of pathing actors:
- *  - Slot count is sized to the FLOOR at install (`_lowMemColSlots`), not a
- *    fixed handful, so the whole working set of actively-targeted regions stays
- *    resident and repeat queries are O(1) map hits instead of re-running the
- *    O(R+E) BFS every time a goal repeats. Bounded by a byte budget, it is still
- *    a tiny fraction of the dense R²·2 matrix (tens of MB vs 256 MB–1 GB).
- *  - Cold columns (a genuine cache miss) are rationed per AI frame
- *    (`_lowMemColBudget`). A retarget burst — floor load, samosbor, a room full
- *    of NPCs re-goaling the same tick — can ask for hundreds of never-seen
- *    columns at once; without a cap that is hundreds of BFS in one frame = the
- *    freeze the user saw. Throttled callers get null (no path THIS frame) and
- *    retry next frame; cache hits are never throttled. Accept-stale, bounded. */
-const LOWMEM_COLUMN_BUDGET_BYTES = 8 * 1024 * 1024; // ≈8 MB cap for the LRU.
-const LOWMEM_COLUMN_SLOTS_MIN = 64;
-const LOWMEM_COLUMN_SLOTS_MAX = 1024;
-const LOWMEM_COLUMN_BFS_PER_FRAME = 32; // fresh BFS budget per AI frame.
-const _regionColumns = new Map<number, Uint16Array>();
-let _lowMemColSlots = LOWMEM_COLUMN_SLOTS_MIN; // sized to R in installLowMemNav.
-let _lowMemColBudget = LOWMEM_COLUMN_BFS_PER_FRAME; // refilled per AI frame.
-let _regionColScratch = new Int32Array(1024); // BFS queue, grown to R at bake.
-// Immutable region graph kept resident in low-mem mode (replaces the matrix).
-let _lowMemGraph: RegionGraph | null = null;
-
-/** Fetch (or lazily BFS-build + cache) the next-hop column toward target rT.
- *  Returns null if there is no low-mem graph, or if this frame's cold-column
- *  BFS budget is spent (caller retries next frame). LRU: re-insertion refreshes
- *  recency; the coldest column is evicted past `_lowMemColSlots`. */
-function regionColumnFor(rT: number): Uint16Array | null {
-  const g = _lowMemGraph;
-  if (!g) return null;
-  const cached = _regionColumns.get(rT);
-  if (cached) {
-    // Refresh recency (Map preserves insertion order → delete+set = MRU).
-    _regionColumns.delete(rT);
-    _regionColumns.set(rT, cached);
-    return cached;
-  }
-  // Cache miss → one O(R+E) BFS. Ration these so a burst can't stall the tick.
-  if (_lowMemColBudget <= 0) return null;
-  _lowMemColBudget--;
-  const R = g.R;
-  const col = new Uint16Array(R);
-  col.fill(REGION_UNREACHABLE);
-  computeRegionNextColumn(
-    R, g.portalRegionA, g.portalRegionB, g.regOffsets, g.regFlat,
-    rT, col, _regionColScratch,
-  );
-  _regionColumns.set(rT, col);
-  if (_regionColumns.size > _lowMemColSlots) {
-    const oldest = _regionColumns.keys().next().value;
-    if (oldest !== undefined) _regionColumns.delete(oldest);
-  }
-  return col;
-}
-
-/* ── Runtime-edit state (local door toggle / wall break / build) ──
- * Same-world geometry edits are ACCEPT-STALE: the baked region/portal/next-hop
- * graph is NEVER rebuilt mid-game (that O(R²) rebuild froze large floors for
- * 10 s+ on a single hermetic-door toggle — the banned mid-game rebake). The
- * graph is authoritative only at the two PLANNED bakes (floor load, post-
- * samosbor). Live walkability is still exact: the subcell query layer reads
- * live cell + door state, so a closed/opened door is honored by real paths
- * immediately; only the coarse cross-region hint goes briefly stale. See
- * patchNavigationRegions() and optimization.md (Iron Law). */
-const NAV_PATCH_MAX_CELLS = 4096;
-
-// Cells whose passability changed since the last bake/patch, fed by
-// markNavigationCellsDirty() from the runtime edit sites (wall break, build,
-// door lock). `_navDirtyFull` forces a full rebake (too many cells, or an
-// unaccounted invalidation). The set is the authoritative work-list for the
-// incremental patch; it is cleared on every bake and every patch.
-const _navDirtyCells = new Set<number>();
-let _navDirtyFull = false;
-
-const _rBfsQueue = new Int32Array(MACRO_W2);
-const _rBfsDist = new Int32Array(MACRO_W2);
-const _rBfsEpoch = new Int32Array(MACRO_W2);
-let _rBfsEpochId = 0;
-
-// Region-graph BFS scratch (grown to fit region count at bake time). The
-// visited-epoch counter lives inside computeRegionNextRows, not here.
-let _regQueue = new Int32Array(1024);
-let _regFirstStep = new Int32Array(1024);
-let _regEpoch = new Int32Array(1024);
 
 export type BehaviorFlowFieldSourceProvider = (world: World, out: number[]) => void;
 
@@ -271,7 +104,25 @@ interface SteeringPathAssignment {
   pi: number;
 }
 
+interface PathWaypoint {
+  cell: number;
+  index: number;
+  x: number;
+  y: number;
+}
 
+interface PathWaypointCache {
+  world: World;
+  cellVersion: number;
+  pathBlockerVersion: number;
+  path: readonly number[];
+  pathLength: number;
+  pi: number;
+  sourceCell: number;
+  goalCell: number;
+  radius: number;
+  waypoint: PathWaypoint;
+}
 
 export interface PathfindingStats {
   routineUsed: number;
@@ -291,19 +142,11 @@ type AssignPathStatus = 'assigned' | 'same' | 'not_found';
 const _behaviorFlowFields = new Map<string, BehaviorFlowField>();
 const _flowPathAssignments = new WeakMap<Entity, FlowPathAssignment>();
 const _steeringPathAssignments = new WeakMap<Entity, SteeringPathAssignment>();
+const _pathWaypointCache = new WeakMap<Entity, PathWaypointCache>();
 const _roomTypeSourceProviders = new Map<string, BehaviorFlowFieldSourceProvider>();
-
-/** Diagnostic: live count of resident behavior flow fields. Each is a full
- *  Int32Array(SW²) (~64 MiB), so this × 64 MiB is the cache's mobile RAM. The
- *  call graph only ever requests 3 keys (OFFICE / LIVING / {LIVING,HQ,COMMON}),
- *  so this should read ≤3 — surface it on-device to confirm the working set. */
-export function behaviorFlowFieldCount(): number {
-  return _behaviorFlowFields.size;
-}
 
 function beginPathFrame(time: number): void {
   void time;
-  _lowMemColBudget = LOWMEM_COLUMN_BFS_PER_FRAME; // refill cold-column BFS ration (low-mem only).
   _routinePathUsed = 0;
   _routinePathDenied = 0;
   _routinePathDeferred = 0;
@@ -379,11 +222,6 @@ export function freezeNavigationCacheForWorld(world: World): void {
   _frozenNavPathBlockerVersion = frozenPathBlockerVersion;
   _frozenNavRoomCount = world.rooms.length;
   _frozenNavRefCount = 1;
-  // Snapshot macro geometry so path reconstruction stays navigable even if
-  // cells/blockers mutate during the wave. Computed from the just-baked
-  // (== current) live geometry, so it matches the frozen region graph.
-  if (!_frozenMacroMask) _frozenMacroMask = new Uint16Array(MACRO_W2);
-  for (let ci = 0; ci < MACRO_W2; ci++) _frozenMacroMask[ci] = computeMacroMask(world, ci);
 }
 
 export function unfreezeNavigationCacheForWorld(world?: World): void {
@@ -393,7 +231,6 @@ export function unfreezeNavigationCacheForWorld(world?: World): void {
     _frozenNavPathBlockerVersion = -1;
     _frozenNavRoomCount = -1;
     _frozenNavRefCount = 0;
-    _frozenMacroMask = null;
     _navWorld = null;
     _behaviorFlowFields.clear();
     return;
@@ -408,7 +245,6 @@ export function unfreezeNavigationCacheForWorld(world?: World): void {
   _frozenNavPathBlockerVersion = -1;
   _frozenNavRoomCount = -1;
   _frozenNavRefCount = 0;
-  _frozenMacroMask = null;
   _navWorld = null;
   _behaviorFlowFields.clear();
 }
@@ -444,48 +280,59 @@ function isMacroCellPassable(world: World, ci: number, c: number): boolean {
   return true;
 }
 
-/**
- * A subcell is nav-passable if and only if:
- *   1. Its parent macro cell is passable (FLOOR, WATER, or openable DOOR).
- *   2. Its path blocker bit is clear.
- * The BFS diagonal guard (cardinal neighbors must be passable) already
- * prevents corner-cutting.  No clearance margins needed.
- */
+function isClearanceBlocker(world: World, ci: number, c: number): boolean {
+  if (isMacroCellPassable(world, ci, c)) return false;
+  if (c === Cell.DOOR) {
+    const door = world.doors.get(ci);
+    if (door && door.state === DoorState.CLOSED) return false;
+  }
+  return true;
+}
+
 function isSubcellNavPassable(world: World, si: number): boolean {
   const sx = si % SW;
   const sy = (si / SW) | 0;
   const cellX = (sx / PATH_BLOCKER_SUBDIV) | 0;
   const cellY = (sy / PATH_BLOCKER_SUBDIV) | 0;
   const cellI = cellY * W + cellX;
+  const cell = world.cells[cellI];
+
+  if (!isMacroCellPassable(world, cellI, cell)) return false;
+
   const rx = sx % PATH_BLOCKER_SUBDIV;
   const ry = sy % PATH_BLOCKER_SUBDIV;
-  // getMacroMask losslessly encodes cell/door state + per-subcell blockers
-  // (65535 when the macro cell is impassable), and is frozen-cache aware.
-  return (getMacroMask(world, cellI) & (1 << (ry * PATH_BLOCKER_SUBDIV + rx))) === 0;
+
+  if (rx === 0) {
+    const nx = (cellX - 1 + W) & (W - 1);
+    const nci = cellY * W + nx;
+    if (isClearanceBlocker(world, nci, world.cells[nci])) return false;
+  } else if (rx === PATH_BLOCKER_SUBDIV - 1) {
+    const nx = (cellX + 1) & (W - 1);
+    const nci = cellY * W + nx;
+    if (isClearanceBlocker(world, nci, world.cells[nci])) return false;
+  }
+
+  if (ry === 0) {
+    const ny = (cellY - 1 + W) & (W - 1);
+    const nci = ny * W + cellX;
+    if (isClearanceBlocker(world, nci, world.cells[nci])) return false;
+  } else if (ry === PATH_BLOCKER_SUBDIV - 1) {
+    const ny = (cellY + 1) & (W - 1);
+    const nci = ny * W + cellX;
+    if (isClearanceBlocker(world, nci, world.cells[nci])) return false;
+  }
+
+  const mask = world.pathBlockers[cellI * PATH_BLOCKER_BYTES_PER_CELL + ry] ?? 0;
+  return (mask & (1 << rx)) === 0;
 }
 
-function getSubcellNavCost(world: World, cx: number, cy: number): number {
-  const nW = cy * SW + (cx === 0 ? SW - 1 : cx - 1);
-  const nE = cy * SW + (cx === SW - 1 ? 0 : cx + 1);
-  const nN = (cy === 0 ? SW - 1 : cy - 1) * SW + cx;
-  const nS = (cy === SW - 1 ? 0 : cy + 1) * SW + cx;
-  if (!isSubcellNavPassable(world, nW)) return 2;
-  if (!isSubcellNavPassable(world, nE)) return 2;
-  if (!isSubcellNavPassable(world, nN)) return 2;
-  if (!isSubcellNavPassable(world, nS)) return 2;
-  
-  const nNW = (cy === 0 ? SW - 1 : cy - 1) * SW + (cx === 0 ? SW - 1 : cx - 1);
-  const nNE = (cy === 0 ? SW - 1 : cy - 1) * SW + (cx === SW - 1 ? 0 : cx + 1);
-  const nSW = (cy === SW - 1 ? 0 : cy + 1) * SW + (cx === 0 ? SW - 1 : cx - 1);
-  const nSE = (cy === SW - 1 ? 0 : cy + 1) * SW + (cx === SW - 1 ? 0 : cx + 1);
-  if (!isSubcellNavPassable(world, nNW)) return 2;
-  if (!isSubcellNavPassable(world, nNE)) return 2;
-  if (!isSubcellNavPassable(world, nSW)) return 2;
-  if (!isSubcellNavPassable(world, nSE)) return 2;
-  
-  return 1;
+function checkNavPassable(world: World, cell: number): boolean {
+  const p = _navParent[cell];
+  if (p !== NAV_UNKNOWN) return p !== NAV_BLOCKED;
+  const pass = isSubcellNavPassable(world, cell);
+  if (!pass) _navParent[cell] = NAV_BLOCKED;
+  return pass;
 }
-
 
 function checkFlowPassable(world: World, next: Int32Array, cell: number): boolean {
   const n = next[cell];
@@ -495,656 +342,91 @@ function checkFlowPassable(world: World, next: Int32Array, cell: number): boolea
   return pass;
 }
 
-
-const MACRO_LUT = new Uint16Array(65536);
-const LUT_CONN_NE = 1;
-const LUT_CONN_NS = 2;
-const LUT_CONN_NW = 4;
-const LUT_CONN_ES = 8;
-const LUT_CONN_EW = 16;
-const LUT_CONN_SW = 32;
-const LUT_TOUCH_N = 64;
-const LUT_TOUCH_E = 128;
-const LUT_TOUCH_S = 256;
-const LUT_TOUCH_W = 512;
-
-function initMacroLut() {
-  for (let mask = 0; mask < 65536; mask++) {
-    const passable = (x: number, y: number) => (mask & (1 << (y * 4 + x))) === 0;
-    const comp = new Int32Array(16).fill(-1);
-    let compId = 0;
-    for (let y = 0; y < 4; y++) {
-      for (let x = 0; x < 4; x++) {
-        if (passable(x, y) && comp[y * 4 + x] === -1) {
-          const q = [y * 4 + x];
-          comp[y * 4 + x] = compId;
-          let head = 0;
-          while (head < q.length) {
-            const curr = q[head++];
-            const cx = curr % 4;
-            const cy = Math.floor(curr / 4);
-            if (cx > 0 && passable(cx - 1, cy) && comp[cy * 4 + (cx - 1)] === -1) { comp[cy * 4 + (cx - 1)] = compId; q.push(cy * 4 + (cx - 1)); }
-            if (cx < 3 && passable(cx + 1, cy) && comp[cy * 4 + (cx + 1)] === -1) { comp[cy * 4 + (cx + 1)] = compId; q.push(cy * 4 + (cx + 1)); }
-            if (cy > 0 && passable(cx, cy - 1) && comp[(cy - 1) * 4 + cx] === -1) { comp[(cy - 1) * 4 + cx] = compId; q.push((cy - 1) * 4 + cx); }
-            if (cy < 3 && passable(cx, cy + 1) && comp[(cy + 1) * 4 + cx] === -1) { comp[(cy + 1) * 4 + cx] = compId; q.push((cy + 1) * 4 + cx); }
-          }
-          compId++;
-        }
-      }
-    }
-    
-    let lutVal = 0;
-    const touchN = new Set();
-    const touchS = new Set();
-    const touchE = new Set();
-    const touchW = new Set();
-    
-    for (let x = 0; x < 4; x++) {
-      if (comp[0 * 4 + x] !== -1) touchN.add(comp[0 * 4 + x]);
-      if (comp[3 * 4 + x] !== -1) touchS.add(comp[3 * 4 + x]);
-    }
-    for (let y = 0; y < 4; y++) {
-      if (comp[y * 4 + 0] !== -1) touchW.add(comp[y * 4 + 0]);
-      if (comp[y * 4 + 3] !== -1) touchE.add(comp[y * 4 + 3]);
-    }
-    
-    if (touchN.size > 0) lutVal |= LUT_TOUCH_N;
-    if (touchE.size > 0) lutVal |= LUT_TOUCH_E;
-    if (touchS.size > 0) lutVal |= LUT_TOUCH_S;
-    if (touchW.size > 0) lutVal |= LUT_TOUCH_W;
-    
-    for (const c of touchN) {
-      if (touchE.has(c)) lutVal |= LUT_CONN_NE;
-      if (touchS.has(c)) lutVal |= LUT_CONN_NS;
-      if (touchW.has(c)) lutVal |= LUT_CONN_NW;
-    }
-    for (const c of touchE) {
-      if (touchS.has(c)) lutVal |= LUT_CONN_ES;
-      if (touchW.has(c)) lutVal |= LUT_CONN_EW;
-    }
-    for (const c of touchS) {
-      if (touchW.has(c)) lutVal |= LUT_CONN_SW;
-    }
-    MACRO_LUT[mask] = lutVal;
-  }
-}
-initMacroLut();
-
-function getMacroMask(world: World, ci: number): number {
-  // While frozen, read the baked snapshot so query-time path reconstruction
-  // ignores geometry mutated mid-samosbor (frozen-cache contract).
-  if (_frozenMacroMask && _frozenNavWorld === world) return _frozenMacroMask[ci];
-  return computeMacroMask(world, ci);
-}
-
-function computeMacroMask(world: World, ci: number): number {
-  const cellC = world.cells[ci];
-  if (cellC !== Cell.FLOOR && cellC !== Cell.WATER && cellC !== Cell.DOOR) return 65535;
-  if (cellC === Cell.DOOR) {
-    const door = world.doors.get(ci);
-    if (door && (door.state === DoorState.LOCKED || door.state === DoorState.HERMETIC_CLOSED)) return 65535;
-  }
-  const base = ci * PATH_BLOCKER_BYTES_PER_CELL;
-  const pb = world.pathBlockers;
-  const b0 = pb[base + 0] & 15;
-  const b1 = pb[base + 1] & 15;
-  const b2 = pb[base + 2] & 15;
-  const b3 = pb[base + 3] & 15;
-  return b0 | (b1 << 4) | (b2 << 8) | (b3 << 12);
-}
-
-/* ── Region-Portal HPA* helpers ───────────────────────────────── */
-
-function macroCellsConnected(world: World, ci: number, ni: number): boolean {
-  const curMask = getMacroMask(world, ci);
-  if (curMask === 65535) return false;
-  const nMask = getMacroMask(world, ni);
-  if (nMask === 65535) return false;
-  const cx = ci % W, cy = (ci / W) | 0;
-  const nx = ni % W, ny = (ni / W) | 0;
-  if (ny === ((cy - 1 + W) % W) && nx === cx) {
-    for (let x = 0; x < 4; x++) if ((curMask & (1 << x)) === 0 && (nMask & (1 << (12 + x))) === 0) return true;
-  } else if (ny === ((cy + 1) % W) && nx === cx) {
-    for (let x = 0; x < 4; x++) if ((curMask & (1 << (12 + x))) === 0 && (nMask & (1 << x)) === 0) return true;
-  } else if (nx === ((cx + 1) % W) && ny === cy) {
-    for (let y = 0; y < 4; y++) if ((curMask & (1 << (y * 4 + 3))) === 0 && (nMask & (1 << (y * 4))) === 0) return true;
-  } else if (nx === ((cx - 1 + W) % W) && ny === cy) {
-    for (let y = 0; y < 4; y++) if ((curMask & (1 << (y * 4))) === 0 && (nMask & (1 << (y * 4 + 3))) === 0) return true;
-  }
-  return false;
-}
-
-function findBorderSubcells(world: World, cx: number, cy: number, ncx: number, ncy: number): [number, number] | null {
-  if (ncy === ((cy - 1 + W) % W) && ncx === cx) {
-    for (let x = 0; x < 4; x++) {
-      if (isSubcellNavPassable(world, (cy * 4) * SW + cx * 4 + x) && isSubcellNavPassable(world, (ncy * 4 + 3) * SW + ncx * 4 + x))
-        return [(cy * 4) * SW + cx * 4 + x, (ncy * 4 + 3) * SW + ncx * 4 + x];
-    }
-  } else if (ncy === ((cy + 1) % W) && ncx === cx) {
-    for (let x = 0; x < 4; x++) {
-      if (isSubcellNavPassable(world, (cy * 4 + 3) * SW + cx * 4 + x) && isSubcellNavPassable(world, (ncy * 4) * SW + ncx * 4 + x))
-        return [(cy * 4 + 3) * SW + cx * 4 + x, (ncy * 4) * SW + ncx * 4 + x];
-    }
-  } else if (ncx === ((cx + 1) % W) && ncy === cy) {
-    for (let y = 0; y < 4; y++) {
-      if (isSubcellNavPassable(world, (cy * 4 + y) * SW + cx * 4 + 3) && isSubcellNavPassable(world, (ncy * 4 + y) * SW + ncx * 4))
-        return [(cy * 4 + y) * SW + cx * 4 + 3, (ncy * 4 + y) * SW + ncx * 4];
-    }
-  } else if (ncx === ((cx - 1 + W) % W) && ncy === cy) {
-    for (let y = 0; y < 4; y++) {
-      if (isSubcellNavPassable(world, (cy * 4 + y) * SW + cx * 4) && isSubcellNavPassable(world, (ncy * 4 + y) * SW + ncx * 4 + 3))
-        return [(cy * 4 + y) * SW + cx * 4, (ncy * 4 + y) * SW + ncx * 4 + 3];
-    }
-  }
-  return null;
-}
-
-function portalCellInRegion(portalIdx: number, regionId: number): number {
-  const p = _portals[portalIdx];
-  if (p.regionA === regionId) return p.cy * W + p.cx;
-  return p.ncy * W + p.ncx;
-}
-
-function toroidalManhattan(ci: number, cj: number): number {
-  const ax = ci % W, ay = (ci / W) | 0;
-  const bx = cj % W, by = (cj / W) | 0;
-  let dx = Math.abs(ax - bx); if (dx > W / 2) dx = W - dx;
-  let dy = Math.abs(ay - by); if (dy > W / 2) dy = W - dy;
-  return dx + dy;
-}
-
-/* Scan one horizontal border row (between cy and (cy-1+W)%W) for portal runs.
- * Extracted verbatim from bake Step 2 so a local patch re-scans a single row
- * with bit-identical run-grouping. Appends to `_portals`. */
-function scanHorizontalBorderRow(world: World, cy: number): void {
-  const ncy = (cy - 1 + W) % W;
-  let runStart = -1, runRA = 0, runRB = 0;
-  for (let cx = 0; cx < W; cx++) {
-    const ci = cy * W + cx, ni = ncy * W + cx;
-    const rA = _regionMap[ci], rB = _regionMap[ni];
-    const ok = rA !== REGION_NONE && rB !== REGION_NONE && rA !== rB && macroCellsConnected(world, ci, ni);
-    if (ok && (runStart < 0 || rA !== runRA || rB !== runRB)) {
-      if (runStart >= 0) emitPortalFromRun(((runStart + cx - 1) / 2) | 0, true, cy, ncy, 0, 0, runRA, runRB);
-      runStart = cx; runRA = rA; runRB = rB;
-    } else if (!ok && runStart >= 0) {
-      emitPortalFromRun(((runStart + cx - 1) / 2) | 0, true, cy, ncy, 0, 0, runRA, runRB);
-      runStart = -1;
-    }
-  }
-  if (runStart >= 0) emitPortalFromRun(((runStart + W - 1) / 2) | 0, true, cy, ncy, 0, 0, runRA, runRB);
-}
-
-/* Scan one vertical border column (between cx and (cx-1+W)%W) for portal runs. */
-function scanVerticalBorderCol(world: World, cx: number): void {
-  const ncx = (cx - 1 + W) % W;
-  let runStart = -1, runRA = 0, runRB = 0;
-  for (let cy = 0; cy < W; cy++) {
-    const ci = cy * W + cx, ni = cy * W + ncx;
-    const rA = _regionMap[ci], rB = _regionMap[ni];
-    const ok = rA !== REGION_NONE && rB !== REGION_NONE && rA !== rB && macroCellsConnected(world, ci, ni);
-    if (ok && (runStart < 0 || rA !== runRA || rB !== runRB)) {
-      if (runStart >= 0) emitPortalFromRun(((runStart + cy - 1) / 2) | 0, false, 0, 0, cx, ncx, runRA, runRB);
-      runStart = cy; runRA = rA; runRB = rB;
-    } else if (!ok && runStart >= 0) {
-      emitPortalFromRun(((runStart + cy - 1) / 2) | 0, false, 0, 0, cx, ncx, runRA, runRB);
-      runStart = -1;
-    }
-  }
-  if (runStart >= 0) emitPortalFromRun(((runStart + W - 1) / 2) | 0, false, 0, 0, cx, ncx, runRA, runRB);
-}
-
-function emitPortalFromRun(xOrYmid: number, isHorizontal: boolean, cy: number, ncy: number, cx: number, ncx: number, rA: number, rB: number): void {
-  if (isHorizontal) {
-    _portals.push({ cx: xOrYmid, cy, ncx: xOrYmid, ncy, regionA: rA, regionB: rB });
-  } else {
-    _portals.push({ cx, cy: xOrYmid, ncx, ncy: xOrYmid, regionA: rA, regionB: rB });
-  }
-}
-
-function localRegionMacroBfs(world: World, mStart: number, mEnd: number, regionId: number): number[] {
-  if (mStart === mEnd) return [mEnd];
-  _rBfsEpochId++;
-  if (_rBfsEpochId > 2000000000) { _rBfsEpoch.fill(0); _rBfsEpochId = 1; }
-  _rBfsEpoch[mStart] = _rBfsEpochId;
-  _rBfsDist[mStart] = 0;
-  let head = 0, tail = 0;
-  _rBfsQueue[tail++] = mStart;
-  let found = false;
-  while (head < tail && !found) {
-    const cur = _rBfsQueue[head++];
-    const curCx = cur % W, curCy = (cur / W) | 0;
-    const d = _rBfsDist[cur];
-    const nb = [
-      ((curCy - 1 + W) % W) * W + curCx,
-      curCy * W + ((curCx + 1) % W),
-      ((curCy + 1) % W) * W + curCx,
-      curCy * W + ((curCx - 1 + W) % W),
-    ];
-    for (let k = 0; k < 4; k++) {
-      const ni = nb[k];
-      if (_rBfsEpoch[ni] === _rBfsEpochId) continue;
-      if (_regionMap[ni] !== regionId) continue;
-      if (!macroCellsConnected(world, cur, ni)) continue;
-      _rBfsEpoch[ni] = _rBfsEpochId;
-      _rBfsDist[ni] = d + 1;
-      _rBfsQueue[tail++] = ni;
-      if (ni === mEnd) { found = true; break; }
-    }
-  }
-  if (!found && _rBfsEpoch[mEnd] !== _rBfsEpochId) return [];
-  const path: number[] = [];
-  let cur = mEnd;
-  let safety = 0;
-  while (cur !== mStart && safety < MACRO_W2) {
-    path.push(cur);
-    const curCx = cur % W, curCy = (cur / W) | 0;
-    const d = _rBfsDist[cur];
-    const nb = [
-      ((curCy - 1 + W) % W) * W + curCx,
-      curCy * W + ((curCx + 1) % W),
-      ((curCy + 1) % W) * W + curCx,
-      curCy * W + ((curCx - 1 + W) % W),
-    ];
-    let moved = false;
-    for (let k = 0; k < 4; k++) {
-      const ni = nb[k];
-      if (_rBfsEpoch[ni] === _rBfsEpochId && _rBfsDist[ni] === d - 1 && _regionMap[ni] === regionId) {
-        cur = ni; moved = true; break;
-      }
-    }
-    if (!moved) break;
-    safety++;
-  }
-  path.push(mStart);
-  path.reverse();
-  return path;
-}
-
-function macroCellPathToSubcells(world: World, macroPath: number[], endSubcell: number): number[] {
-  if (macroPath.length <= 1) return macroPath.length === 1 ? [endSubcell] : [];
-  const subcellPath: number[] = [];
-  for (let i = 0; i < macroPath.length - 1; i++) {
-    const m = macroPath[i], nextM = macroPath[i + 1];
-    const border = findBorderSubcells(world, m % W, (m / W) | 0, nextM % W, (nextM / W) | 0);
-    if (border) { subcellPath.push(border[0]); subcellPath.push(border[1]); }
-  }
-  if (subcellPath.length > 0) subcellPath[subcellPath.length - 1] = endSubcell;
-  return subcellPath;
-}
-
-export function bakeNavigationTree(
+function bakeNavigationTree(
   world: World,
   cacheCellVersion = world.cellVersion,
   cachePathBlockerVersion = world.pathBlockerVersion,
 ): void {
-  bakeNavigationRegionsAndPortals(world, cacheCellVersion, cachePathBlockerVersion);
-
-  /* ── Step 4: next-hop routing ────────────────────────────────
-   * Low-mem (mobile): install the resident region graph for on-demand column
-   * BFS — no R²·2 allocation. Desktop: build the dense matrix synchronously. */
-  if (useLowMemNav()) installLowMemNav();
-  else buildRegionNext();
-
-  finishNavigationBake();
-}
-
-/**
- * Low-mem step 4: keep the immutable region-adjacency graph resident (kilobytes
- * to a couple hundred KB) and drop the dense matrix. `regionPath` then answers
- * from an LRU of on-demand next-hop columns (see regionColumnFor). Reads the
- * same steps-1–3 state as buildRegionNext; writes `_lowMemGraph`, `_regionN`,
- * clears `_regionNext` and the column cache, grows the BFS scratch to R.
- */
-function installLowMemNav(): void {
-  const R = _numRegions;
-  _regionN = R;
-  _regionNext = null;
-  _regionColumns.clear();
-  if (R <= 1 || _numPortals === 0) { _lowMemGraph = null; return; }
-  _lowMemGraph = extractRegionGraph();
-  if (_regionColScratch.length < R) _regionColScratch = new Int32Array(R);
-  // Size the column LRU to this floor: hold as many R·2-byte columns as fit the
-  // byte budget so the active target working set stays resident (few re-BFS),
-  // clamped to a sane range. Big floor → fewer slots, small floor → more.
-  _lowMemColSlots = Math.max(
-    LOWMEM_COLUMN_SLOTS_MIN,
-    Math.min(LOWMEM_COLUMN_SLOTS_MAX, Math.floor(LOWMEM_COLUMN_BUDGET_BYTES / (R * 2))),
-  );
-}
-
-/**
- * Steps 1–3 of the bake: region assignment, portal detection, region→portal
- * index. Cheap (~1% of bake time) and touches live world geometry, so it always
- * runs on the main thread. Leaves `_regionMap`, `_portals`, `_numRegions`,
- * `_numPortals`, `_regionPortalIndices` ready for step 4 (sync or worker).
- */
-function bakeNavigationRegionsAndPortals(
-  world: World,
-  cacheCellVersion: number,
-  cachePathBlockerVersion: number,
-): void {
   _bfsCalls++;
+  _navParent.fill(NAV_UNKNOWN);
+  _navDepth.fill(0);
+  _navComponent.fill(-1);
   _navWorld = world;
   _navCellVersion = cacheCellVersion;
   _navPathBlockerVersion = cachePathBlockerVersion;
+  _navComponents = 0;
+  _navReachable = 0;
 
-  /* ── Step 1: Region assignment ──────────────────────────────── */
-  _regionMap.fill(REGION_NONE);
-  let nextRegionId = 1;
-
-  // 1a: Room regions
-  for (const room of world.rooms) {
-    if (!room) continue;
-    const rid = nextRegionId++;
-    for (let ry = room.y; ry < room.y + room.h; ry++) {
-      for (let rx = room.x; rx < room.x + room.w; rx++) {
-        const ci = ((ry % W + W) % W) * W + ((rx % W + W) % W);
-        if (world.roomMap[ci] === room.id && isMacroCellPassable(world, ci, world.cells[ci])) {
-          _regionMap[ci] = rid;
-        }
-      }
+  for (let root = 0; root < SW2; root++) {
+    if (_navParent[root] !== NAV_UNKNOWN) continue;
+    if (!isSubcellNavPassable(world, root)) {
+      _navParent[root] = NAV_BLOCKED;
+      continue;
     }
-  }
 
-  // 1b: Cluster flood-fill for non-room passable cells
-  for (let clusterRow = 0; clusterRow < CLUSTERS_PER_SIDE; clusterRow++) {
-    for (let clusterCol = 0; clusterCol < CLUSTERS_PER_SIDE; clusterCol++) {
-      const baseX = clusterCol * CLUSTER_SIZE;
-      const baseY = clusterRow * CLUSTER_SIZE;
-      for (let dy = 0; dy < CLUSTER_SIZE; dy++) {
-        for (let dx = 0; dx < CLUSTER_SIZE; dx++) {
-          const cxl = (baseX + dx) % W;
-          const cyl = (baseY + dy) % W;
-          const ci = cyl * W + cxl;
-          if (_regionMap[ci] !== REGION_NONE) continue;
-          if (!isMacroCellPassable(world, ci, world.cells[ci])) continue;
-          const rid = nextRegionId++;
-          let qH = 0, qT = 0;
-          _rBfsQueue[qT++] = ci;
-          _regionMap[ci] = rid;
-          while (qH < qT) {
-            const cur = _rBfsQueue[qH++];
-            const curX = cur % W, curY = (cur / W) | 0;
-            const nb = [
-              ((curY - 1 + W) % W) * W + curX,
-              curY * W + ((curX + 1) % W),
-              ((curY + 1) % W) * W + curX,
-              curY * W + ((curX - 1 + W) % W),
-            ];
-            for (let k = 0; k < 4; k++) {
-              const ni = nb[k];
-              if (_regionMap[ni] !== REGION_NONE) continue;
-              const nx = ni % W, ny = (ni / W) | 0;
-              if (((nx - baseX + W) % W) >= CLUSTER_SIZE) continue;
-              if (((ny - baseY + W) % W) >= CLUSTER_SIZE) continue;
-              if (!isMacroCellPassable(world, ni, world.cells[ni])) continue;
-              if (!macroCellsConnected(world, cur, ni)) continue;
-              _regionMap[ni] = rid;
-              _rBfsQueue[qT++] = ni;
-            }
-          }
-        }
-      }
+    const componentId = _navComponents++;
+    _navParent[root] = root;
+    _navComponent[root] = componentId;
+    _navDepth[root] = 0;
+    _navQueue[0] = root;
+    let head = 0;
+    let tail = 1;
+
+    while (head < tail) {
+      const cur = _navQueue[head++];
+      const cx = cur % SW;
+      const cy = (cur / SW) | 0;
+
+      const nW = cy * SW + (cx === 0 ? SW - 1 : cx - 1);
+      const nE = cy * SW + (cx === SW - 1 ? 0 : cx + 1);
+      const nN = (cy === 0 ? SW - 1 : cy - 1) * SW + cx;
+      const nS = (cy === SW - 1 ? 0 : cy + 1) * SW + cx;
+      const nNW = (cy === 0 ? SW - 1 : cy - 1) * SW + (cx === 0 ? SW - 1 : cx - 1);
+      const nNE = (cy === 0 ? SW - 1 : cy - 1) * SW + (cx === SW - 1 ? 0 : cx + 1);
+      const nSW = (cy === SW - 1 ? 0 : cy + 1) * SW + (cx === 0 ? SW - 1 : cx - 1);
+      const nSE = (cy === SW - 1 ? 0 : cy + 1) * SW + (cx === SW - 1 ? 0 : cx + 1);
+
+      const passW = checkNavPassable(world, nW);
+      const passE = checkNavPassable(world, nE);
+      const passN = checkNavPassable(world, nN);
+      const passS = checkNavPassable(world, nS);
+
+      if (passW) tail = visitNavNeighbor(world, nW, cur, componentId, tail);
+      if (passE) tail = visitNavNeighbor(world, nE, cur, componentId, tail);
+      if (passN) tail = visitNavNeighbor(world, nN, cur, componentId, tail);
+      if (passS) tail = visitNavNeighbor(world, nS, cur, componentId, tail);
+      
+      if (passW && passN) tail = visitNavNeighbor(world, nNW, cur, componentId, tail);
+      if (passE && passN) tail = visitNavNeighbor(world, nNE, cur, componentId, tail);
+      if (passW && passS) tail = visitNavNeighbor(world, nSW, cur, componentId, tail);
+      if (passE && passS) tail = visitNavNeighbor(world, nSE, cur, componentId, tail);
     }
+    _navReachable += tail;
   }
-  _numRegions = nextRegionId;
-  _navComponents = _numRegions;
 
-  /* ── Step 2: Portal detection (grouped contiguous segments) ─── */
-  _portals = [];
-  for (let cy = 0; cy < W; cy++) scanHorizontalBorderRow(world, cy);
-  for (let cx = 0; cx < W; cx++) scanVerticalBorderCol(world, cx);
-  _numPortals = _portals.length;
-
-  /* ── Step 3: Region → portal index + region adjacency ───────── */
-  _regionPortalIndices = [];
-  for (let i = 0; i < _numRegions; i++) _regionPortalIndices.push([]);
-  for (let pi = 0; pi < _numPortals; pi++) {
-    const p = _portals[pi];
-    _regionPortalIndices[p.regionA].push(pi);
-    _regionPortalIndices[p.regionB].push(pi);
-  }
+  _bfsVisited += _navReachable;
 }
 
-/** Common tail: a full bake supersedes any pending incremental patch work. */
-function finishNavigationBake(): void {
-  _navDirtyCells.clear();
-  _navDirtyFull = false;
-}
-
-/**
- * Parallel bake used behind the loading screen. Runs the exact same steps 1–3
- * on the main thread, then offloads step 4 (`buildRegionNext`, ~98% of bake
- * cost) to a Web Worker pool via the injected `solver`. Falls back to the
- * synchronous kernel when there is no solver (Node/no-Worker), when the floor
- * is too small to be worth the fan-out, or when a worker errors — so the result
- * is always bit-identical to `bakeNavigationTree`. This is a bake-location
- * change only: the graph, matrix and accept-stale runtime contract are
- * unchanged. Callers must keep the loading screen up until the returned promise
- * resolves (the region graph is not ready before then).
- */
-export async function bakeNavigationTreeAsync(
-  world: World,
-  solver: RegionNextSolver | null,
-  cacheCellVersion = world.cellVersion,
-  cachePathBlockerVersion = world.pathBlockerVersion,
-): Promise<void> {
-  bakeNavigationRegionsAndPortals(world, cacheCellVersion, cachePathBlockerVersion);
-
-  const R = _numRegions;
-  _regionN = R;
-
-  // Low-mem (mobile): never allocate the R²·2 matrix — it is the OOM cause on
-  // phones. Install the resident graph + on-demand columns and return; no
-  // worker fan-out needed (there is no dense matrix to parallelize).
-  if (useLowMemNav()) {
-    _regionNext = null;
-    installLowMemNav();
-    finishNavigationBake();
-    return;
-  }
-  _lowMemGraph = null; // Desktop path: ensure no stale low-mem graph lingers.
-
-  // Steps 1–3 already re-pointed _navWorld/_regionMap/_portals at the new floor;
-  // null the stale previous-floor matrix now so a defensive query during the
-  // await can't index a mismatched-size _regionNext. (The loop is dormant behind
-  // the loading screen, so this is belt-and-braces.)
-  _regionNext = null;
-  if (R <= 1 || _numPortals === 0) {
-    _regionNext = null;
-  } else if (!solver || R < MIN_REGIONS_FOR_WORKERS) {
-    buildRegionNext();
-  } else {
-    try {
-      _regionNext = await solver(extractRegionGraph());
-    } catch {
-      // Any worker failure (spawn blocked, message error) → identical sync bake.
-      buildRegionNext();
-    }
-  }
-
-  finishNavigationBake();
-}
-
-/**
- * Rebuild the dense R×R region next-hop matrix from `_regionPortalIndices`.
- * Nodes are regions; portals are edges. One BFS per region over the
- * region-adjacency graph — a real graph (all adjacent-region edges kept,
- * cycles preserved), no spanning-tree seams, no O(P³) Floyd-Warshall, no
- * portal cap. Cost is O(R·E). Reads `_numRegions`, `_numPortals`,
- * `_regionPortalIndices`, `_portals`; writes `_regionNext`, `_regionN`.
- *
- * The inner BFS lives in the pure `computeRegionNextRows` kernel so the
- * synchronous path here and the parallel Web Workers (see bakeNavigationTree's
- * async solver) run BIT-IDENTICAL code — same output regardless of core count.
- */
-function buildRegionNext(): void {
-  const R = _numRegions;
-  _regionN = R;
-  _lowMemGraph = null; // Dense-matrix path owns routing; no low-mem graph.
-  if (R <= 1 || _numPortals === 0) { _regionNext = null; return; }
-
-  const graph = extractRegionGraph();
-  if (_regQueue.length < R) {
-    _regQueue = new Int32Array(R);
-    _regFirstStep = new Int32Array(R);
-    _regEpoch = new Int32Array(R);
-  }
-  const regionNext = new Uint16Array(R * R);
-  regionNext.fill(REGION_UNREACHABLE);
-  computeRegionNextRows(
-    R, graph.portalRegionA, graph.portalRegionB, graph.regOffsets, graph.regFlat,
-    1, R, 0, regionNext, _regQueue, _regFirstStep, _regEpoch,
-  );
-  _regionNext = regionNext;
-}
-
-/**
- * Flatten the current region-adjacency graph into transferable typed arrays
- * (portal region-pairs + CSR region→portal lists). This is the ONLY payload a
- * bake worker needs — kilobytes, not the multi-MB world geometry — so cloning
- * it per worker is cheap. Reads `_numRegions`, `_numPortals`, `_portals`,
- * `_regionPortalIndices`; allocates fresh arrays (safe to transfer/clone).
- */
-function extractRegionGraph(): RegionGraph {
-  const R = _numRegions;
-  const P = _numPortals;
-  const portalRegionA = new Int32Array(P);
-  const portalRegionB = new Int32Array(P);
-  for (let pi = 0; pi < P; pi++) {
-    const p = _portals[pi];
-    portalRegionA[pi] = p.regionA;
-    portalRegionB[pi] = p.regionB;
-  }
-  // CSR: regOffsets[r]..regOffsets[r+1] slices regFlat into region r's portals.
-  const regOffsets = new Int32Array(R + 1);
-  for (let r = 0; r < R; r++) {
-    const list = _regionPortalIndices[r];
-    regOffsets[r + 1] = regOffsets[r] + (list ? list.length : 0);
-  }
-  const regFlat = new Int32Array(regOffsets[R]);
-  for (let r = 0; r < R; r++) {
-    const list = _regionPortalIndices[r];
-    if (!list) continue;
-    let o = regOffsets[r];
-    for (let a = 0; a < list.length; a++) regFlat[o++] = list[a];
-  }
-  return { R, portalRegionA, portalRegionB, regOffsets, regFlat };
-}
-
-/**
- * Mark macro cells whose passability changed, for the incremental nav patch.
- * Runtime edit sites (wall break, block-kit build, door lock/break) call this
- * with the affected cell indices right before/after bumping `world.cellVersion`
- * or `world.pathBlockerVersion`. The next `ensureNavigationTree` refreshes just
- * those cells locally (no full O(W²) rebake). Reporting is optional: unreported
- * mutators are simply absorbed as stale-until-the-next-planned-bake. Overflowing
- * the bounded set drops to that same stale behaviour for this batch.
- */
-export function markNavigationCellsDirty(cells: Iterable<number>): void {
-  if (_navDirtyFull) return;
-  for (const ci of cells) {
-    _navDirtyCells.add(ci);
-    if (_navDirtyCells.size > NAV_PATCH_MAX_CELLS) { _navDirtyFull = true; _navDirtyCells.clear(); return; }
-  }
-}
-
-/**
- * Same-world runtime geometry edits (hermetic/locked door toggle, wall break,
- * block build, beam cell loss) are absorbed as ACCEPT-STALE. We re-sync the
- * cache version so the query path stops re-entering every frame, but we do NOT
- * touch the baked region/portal/next-hop graph. The authoritative graph is
- * rebuilt ONLY at the two PLANNED points — floor generation/load (a new World
- * object) and the post-samosbor stitch (unfreeze nulls `_navWorld`). Never
- * mid-game. This is the Iron Law (optimization.md): no O(W²)/O(R²) recompute
- * during active simulation.
- *
- * Why accept-stale is safe AND sufficient here: actual walkability is enforced
- * LIVE at query time by the subcell layer — `getMacroMask`,
- * `isSubcellNavPassable` and `isMacroCellPassable` all read live cell + door
- * state, independent of the baked region graph. So a closed door / broken wall
- * is honored by the real path immediately. The only thing that goes stale is the
- * coarse cross-region ROUTING HINT (`_regionNext`): for the few edited cells it
- * may suggest a route through a now-closed door (the intra-region/subcell BFS
- * then fails that leg and the caller falls back) or miss a freshly-opened
- * shortcut (same-cluster local BFS may still find it). A briefly sub-optimal or
- * missing path for a few cells is acceptable; a multi-second frame freeze is not.
- *
- * This is why unreported mutators (anomaly wall-snakes, Conway life, section
- * shifts) never needed wiring — and equally why the REPORTED sites don't force a
- * rebuild either: rebuilding the all-pairs region matrix (`buildRegionNext`,
- * O(R²) alloc + one BFS per region) on a single door toggle froze large floors
- * for 10 s+. markNavigationCellsDirty() reports are now advisory: we clear the
- * bounded set so it can't overflow, and keep the hook so a future genuinely-local
- * incremental updater could consume it without re-wiring the edit sites.
- */
-function patchNavigationRegions(_world: World, cellV: number, pbV: number): void {
-  // Accept stale: re-sync versions + clear the report. No region-graph rebuild.
-  _navCellVersion = cellV;
-  _navPathBlockerVersion = pbV;
-  _navDirtyCells.clear();
-  _navDirtyFull = false;
+function visitNavNeighbor(world: World, cell: number, parent: number, componentId: number, tail: number): number {
+  if (_navParent[cell] !== NAV_UNKNOWN) return tail;
+  if (!checkNavPassable(world, cell)) return tail;
+  _navParent[cell] = parent;
+  _navDepth[cell] = _navDepth[parent] + 1;
+  _navComponent[cell] = componentId;
+  _navQueue[tail] = cell;
+  return tail + 1;
 }
 
 function ensureNavigationTree(world: World): void {
-  const cellV = navigationCacheCellVersion(world);
-  const pbV = navigationCachePathBlockerVersion(world);
-  if (_navWorld === world && _navCellVersion === cellV && _navPathBlockerVersion === pbV) {
+  if (_navWorld === world) {
     _pathCacheHits++;
     return;
   }
-  // Same world, versions moved → a runtime geometry edit. Never full-bake here
-  // (that would be the banned mid-game O(W²)); patch locally / accept stale.
-  // Full bakes happen only on a NEW world (floor gen/load) or post-samosbor
-  // unfreeze (which nulls _navWorld), both of which fall through to the bake.
-  if (_navWorld === world) {
-    patchNavigationRegions(world, cellV, pbV);
-    return;
-  }
-  bakeNavigationTree(world, cellV, pbV);
+  bakeNavigationTree(world, world.cellVersion, world.pathBlockerVersion);
 }
 
 function flowFieldValid(field: BehaviorFlowField, world: World): boolean {
   return field.world === world && field.roomCount === navigationCacheRoomCount(world);
-}
-
-/**
- * Warm the navigation cache for a freshly loaded floor. Safe to call from the loading
- * path: it bakes the O(W²) region tree once (the same work `ensureNavigationTree` would
- * do lazily on the first query of frame 1), so the bake happens behind the animated
- * loading screen instead of freezing the first gameplay frame. A no-op when the cache is
- * already valid for this world, and never runs while the cache is frozen (samosbor).
- */
-export function prewarmNavigationTree(world: World): void {
-  if (_frozenNavWorld) return;
-  ensureNavigationTree(world);
-}
-
-/**
- * Async twin of `prewarmNavigationTree` for the loading path: same guards and
- * same cache/version decision as `ensureNavigationTree`, but when a full bake is
- * needed it routes step 4 through the Web Worker pool (`solver`) so the ~10 s
- * next-hop bake runs across cores behind the loading screen instead of freezing
- * the main thread (which trips the mobile watchdog). Identical result to the
- * sync prewarm; used by every scheduleLoading path. Callers MUST keep the
- * loading screen up until this resolves.
- */
-export async function prewarmNavigationTreeAsync(
-  world: World,
-  solver: RegionNextSolver | null,
-): Promise<void> {
-  if (_frozenNavWorld) return;
-  const cellV = navigationCacheCellVersion(world);
-  const pbV = navigationCachePathBlockerVersion(world);
-  if (_navWorld === world && _navCellVersion === cellV && _navPathBlockerVersion === pbV) {
-    _pathCacheHits++;
-    return; // Cache already valid for this world — nothing to bake.
-  }
-  if (_navWorld === world) {
-    patchNavigationRegions(world, cellV, pbV); // Same world, runtime edit → accept-stale.
-    return;
-  }
-  await bakeNavigationTreeAsync(world, solver, cellV, pbV); // New world → full parallel bake.
 }
 
 function ensureBehaviorFlowField(
@@ -1168,30 +450,18 @@ function ensureBehaviorFlowField(
 
   const next = cached?.next ?? new Int32Array(SW2);
   next.fill(FLOW_UNREACHED);
-  _navHead1 = 0;
-  _navTail1 = 0;
-  _navHead2 = 0;
-  _navTail2 = 0;
-
+  let head = 0;
+  let tail = 0;
   for (const source of _flowSourceScratch) {
     if (source < 0 || source >= SW2) continue;
     if (next[source] === source) continue;
       if (!isSubcellNavPassable(world, source)) continue;
     next[source] = source;
-    _navQueue[_navBase1 + _navTail1] = source;
-    _navTail1 = (_navTail1 + 1) % NAV_QUEUE_HALF;
+    _navQueue[tail++] = source;
   }
 
-  let totalReachable = _navTail1;
-
-  while (_navHead1 !== _navTail1 || _navHead2 !== _navTail2) {
-    if (_navHead1 === _navTail1) {
-      let tmpBase = _navBase1; _navBase1 = _navBase2; _navBase2 = tmpBase;
-      let tmpHead = _navHead1; _navHead1 = _navHead2; _navHead2 = tmpHead;
-      let tmpTail = _navTail1; _navTail1 = _navTail2; _navTail2 = tmpTail;
-    }
-    const cur = _navQueue[_navBase1 + _navHead1];
-    _navHead1 = (_navHead1 + 1) % NAV_QUEUE_HALF;
+  while (head < tail) {
+    const cur = _navQueue[head++];
     const cx = cur % SW;
     const cy = (cur / SW) | 0;
 
@@ -1199,20 +469,29 @@ function ensureBehaviorFlowField(
     const nE = cy * SW + (cx === SW - 1 ? 0 : cx + 1);
     const nN = (cy === 0 ? SW - 1 : cy - 1) * SW + cx;
     const nS = (cy === SW - 1 ? 0 : cy + 1) * SW + cx;
+    const nNW = (cy === 0 ? SW - 1 : cy - 1) * SW + (cx === 0 ? SW - 1 : cx - 1);
+    const nNE = (cy === 0 ? SW - 1 : cy - 1) * SW + (cx === SW - 1 ? 0 : cx + 1);
+    const nSW = (cy === SW - 1 ? 0 : cy + 1) * SW + (cx === 0 ? SW - 1 : cx - 1);
+    const nSE = (cy === SW - 1 ? 0 : cy + 1) * SW + (cx === SW - 1 ? 0 : cx + 1);
 
-    if (checkFlowPassable(world, next, nW)) visitFlowNeighbor(world, next, nW, cur);
-    if (checkFlowPassable(world, next, nE)) visitFlowNeighbor(world, next, nE, cur);
-    if (checkFlowPassable(world, next, nN)) visitFlowNeighbor(world, next, nN, cur);
-    if (checkFlowPassable(world, next, nS)) visitFlowNeighbor(world, next, nS, cur);
+    const passW = checkFlowPassable(world, next, nW);
+    const passE = checkFlowPassable(world, next, nE);
+    const passN = checkFlowPassable(world, next, nN);
+    const passS = checkFlowPassable(world, next, nS);
+
+    if (passW) tail = visitFlowNeighbor(world, next, nW, cur, tail);
+    if (passE) tail = visitFlowNeighbor(world, next, nE, cur, tail);
+    if (passN) tail = visitFlowNeighbor(world, next, nN, cur, tail);
+    if (passS) tail = visitFlowNeighbor(world, next, nS, cur, tail);
+    
+    if (passW && passN) tail = visitFlowNeighbor(world, next, nNW, cur, tail);
+    if (passE && passN) tail = visitFlowNeighbor(world, next, nNE, cur, tail);
+    if (passW && passS) tail = visitFlowNeighbor(world, next, nSW, cur, tail);
+    if (passE && passS) tail = visitFlowNeighbor(world, next, nSE, cur, tail);
   }
 
   _bfsCalls++;
-  // Total reachable is computed inside visitFlowNeighbor incrementing totalReachable would need a variable.
-  // Actually, we don't return tail anymore. We can just count reachable by iterating next array?
-  // No, we can just use a module-level variable for flow Reached if needed, or recalculate.
-  // Wait, _bfsVisited is just a stat. 
-  // Let's just estimate it or remove the exact count, or keep it.
-  _bfsVisited += totalReachable; // Not accurate but it's just a stat.
+  _bfsVisited += tail;
   const field: BehaviorFlowField = {
     key,
     world,
@@ -1221,7 +500,7 @@ function ensureBehaviorFlowField(
     roomCount: navigationCacheRoomCount(world),
     next,
     sourceCount: _flowSourceScratch.length,
-    reachable: totalReachable, // This is not exact anymore. Let's fix this in visitFlowNeighbor.
+    reachable: tail,
     lastUsed: ++_flowFieldTouch,
   };
   _behaviorFlowFields.set(key, field);
@@ -1229,22 +508,12 @@ function ensureBehaviorFlowField(
   return field;
 }
 
-function visitFlowNeighbor(world: World, next: Int32Array, cell: number, parent: number): void {
-  if (next[cell] !== FLOW_UNREACHED) return;
-  if (!checkFlowPassable(world, next, cell)) return;
+function visitFlowNeighbor(world: World, next: Int32Array, cell: number, parent: number, tail: number): number {
+  if (next[cell] !== FLOW_UNREACHED) return tail;
+  if (!checkFlowPassable(world, next, cell)) return tail;
   next[cell] = parent;
-  
-  const cx = cell % SW;
-  const cy = (cell / SW) | 0;
-  const cost = getSubcellNavCost(world, cx, cy);
-
-  if (cost === 1) {
-    _navQueue[_navBase1 + _navTail1] = cell;
-    _navTail1 = (_navTail1 + 1) % NAV_QUEUE_HALF;
-  } else {
-    _navQueue[_navBase2 + _navTail2] = cell;
-    _navTail2 = (_navTail2 + 1) % NAV_QUEUE_HALF;
-  }
+  _navQueue[tail] = cell;
+  return tail + 1;
 }
 
 function trimBehaviorFlowFieldCache(): void {
@@ -1261,142 +530,80 @@ function trimBehaviorFlowFieldCache(): void {
   }
 }
 
-
-/** Walk the region-node next-hop matrix from rS to rT. Returns the region
- *  chain [rS, …, rT] or null if unreachable. O(hops), no allocation beyond
- *  the result. Cycles are preserved in the graph so there are no seams. */
-function regionPath(rS: number, rT: number): number[] | null {
-  const R = _regionN;
-  if (R === 0) return null;
-  // Low-mem (mobile): read the on-demand column for rT instead of the dense
-  // matrix. col[cur] = next hop cur→rT; identical walk, ~1 MB instead of R²·2.
-  if (_lowMemGraph) {
-    const col = regionColumnFor(rT);
-    if (!col || col[rS] === REGION_UNREACHABLE) return null;
-    const regions: number[] = [rS];
-    let cur = rS, safety = 0;
-    while (cur !== rT && safety <= R) {
-      const nxt = col[cur];
-      if (nxt === REGION_UNREACHABLE || nxt === cur) return null;
-      regions.push(nxt);
-      cur = nxt;
-      safety++;
-    }
-    return cur === rT ? regions : null;
-  }
-  if (!_regionNext) return null;
-  if (_regionNext[rS * R + rT] === REGION_UNREACHABLE) return null;
-  const regions: number[] = [rS];
-  let cur = rS, safety = 0;
-  while (cur !== rT && safety <= R) {
-    const nxt = _regionNext[cur * R + rT];
-    if (nxt === REGION_UNREACHABLE || nxt === cur) return null;
-    regions.push(nxt);
-    cur = nxt;
-    safety++;
-  }
-  return cur === rT ? regions : null;
-}
-
-/** Pick the portal joining rA→rB whose rA-side cell is nearest to nearCell. */
-function portalBetween(rA: number, rB: number, nearCell: number): number {
-  const portals = _regionPortalIndices[rA];
-  if (!portals) return -1;
-  let best = -1, bestD = Infinity;
-  for (let a = 0; a < portals.length; a++) {
-    const pi = portals[a];
-    const p = _portals[pi];
-    const other = p.regionA === rA ? p.regionB : p.regionA;
-    if (other !== rB) continue;
-    const d = toroidalManhattan(nearCell, portalCellInRegion(pi, rA));
-    if (d < bestD) { bestD = d; best = pi; }
-  }
-  return best;
-}
-
-export function getAcousticDistance(world: World, x0: number, y0: number, x1: number, y1: number): number {
-  const s0 = subcellIdx(x0, y0);
-  const s1 = subcellIdx(x1, y1);
-  if (s0 === s1) return 0;
-  const mStart = Math.floor((s0 % SW) / 4) + Math.floor((s0 / SW) / 4) * W;
-  const mEnd = Math.floor((s1 % SW) / 4) + Math.floor((s1 / SW) / 4) * W;
-  const rS = _regionMap[mStart];
-  const rT = _regionMap[mEnd];
-  if (rS === REGION_NONE || rT === REGION_NONE) return Infinity;
-  if (rS === rT) return world.dist(x0, y0, x1, y1);
-  ensureNavigationTree(world);
-  const regions = regionPath(rS, rT);
-  if (!regions) return Infinity;
-  // Sum toroidal-manhattan legs through the chosen portal chain.
-  let total = 0;
-  let cur = mStart;
-  for (let i = 0; i < regions.length - 1; i++) {
-    const pi = portalBetween(regions[i], regions[i + 1], cur);
-    if (pi < 0) return Infinity;
-    const entry = portalCellInRegion(pi, regions[i]);
-    const exit = portalCellInRegion(pi, regions[i + 1]);
-    total += toroidalManhattan(cur, entry);
-    cur = exit;
-  }
-  total += toroidalManhattan(cur, mEnd);
-  return total;
-}
-
 function buildBakedTreePath(world: World, start: number, end: number): number[] {
   ensureNavigationTree(world);
   if (start === end) return [];
-  const mStart = Math.floor((start % SW) / 4) + Math.floor((start / SW) / 4) * W;
-  const mEnd = Math.floor((end % SW) / 4) + Math.floor((end / SW) / 4) * W;
-  const rS = _regionMap[mStart];
-  const rT = _regionMap[mEnd];
-  if (rS === REGION_NONE || rT === REGION_NONE) { _bfsMiss++; return []; }
-
-  // Same region: local BFS
-  if (rS === rT) {
-    if (mStart === mEnd) { _bfsFound++; return [end]; }
-    const macroPath = localRegionMacroBfs(world, mStart, mEnd, rS);
-    if (macroPath.length === 0) { _bfsMiss++; return []; }
-    const sp = macroCellPathToSubcells(world, macroPath, end);
-    if (sp.length > 0) { _bfsFound++; } else { _bfsMiss++; }
-    return sp;
+  if (_navParent[start] < 0 || _navParent[end] < 0 || _navComponent[start] !== _navComponent[end]) {
+    _bfsMiss++;
+    return [];
   }
 
-  // Cross-region: region-node graph query. Walk the region chain, greedily
-  // picking the nearest portal between consecutive regions, and stitch the
-  // macro-cell path with intra-region BFS. No portal cap, no seams.
-  const regions = regionPath(rS, rT);
-  if (!regions) { _bfsMiss++; return []; }
+  let a = start;
+  let b = end;
+  const forward: number[] = [];
+  const reverse: number[] = [];
 
-  const macroCells: number[] = [mStart];
-  let cur = mStart;
-  for (let i = 0; i < regions.length - 1; i++) {
-    const pi = portalBetween(regions[i], regions[i + 1], cur);
-    if (pi < 0) { _bfsMiss++; return []; }
-    const entry = portalCellInRegion(pi, regions[i]);
-    const exit = portalCellInRegion(pi, regions[i + 1]);
-    // Route from current cell to the portal entry within regions[i].
-    if (cur !== entry) {
-      const seg = localRegionMacroBfs(world, cur, entry, regions[i]);
-      if (seg.length === 0) { _bfsMiss++; return []; }
-      for (let k = 1; k < seg.length; k++) macroCells.push(seg[k]);
+  let descendSearch = 0;
+  while (_navDepth[b] > _navDepth[a] && descendSearch < PATH_DESCEND_SEARCH_LIMIT) {
+    reverse.push(b);
+    b = _navParent[b];
+    descendSearch++;
+  }
+
+  if (_navDepth[b] > _navDepth[a]) {
+    const path = climbFromStart(start);
+    if (path.length > 0) _bfsFound++;
+    else _bfsMiss++;
+    _bfsLimitHits++;
+    return path;
+  }
+
+  if (a === b) {
+    for (let i = reverse.length - 1; i >= 0 && forward.length < PATH_CHUNK_LIMIT; i--) {
+      forward.push(reverse[i]);
     }
-    // Step across the portal.
-    if (macroCells[macroCells.length - 1] !== exit) macroCells.push(exit);
-    cur = exit;
-  }
-  // Final leg: last portal exit → end cell within the target region.
-  if (cur !== mEnd) {
-    const seg = localRegionMacroBfs(world, cur, mEnd, rT);
-    if (seg.length === 0) { _bfsMiss++; return []; }
-    for (let k = 1; k < seg.length; k++) macroCells.push(seg[k]);
+    if (forward.length > 0) _bfsFound++;
+    else _bfsMiss++;
+    if (reverse.length > PATH_CHUNK_LIMIT) _bfsLimitHits++;
+    return forward;
   }
 
-  // Convert macro cell path to subcell waypoints
-  const subcellPath = macroCellPathToSubcells(world, macroCells, end);
-  if (subcellPath.length > 0) { _bfsFound++; }
-  else { _bfsMiss++; }
-  return subcellPath;
+  while (_navDepth[a] > _navDepth[b] && forward.length < PATH_CHUNK_LIMIT) {
+    a = _navParent[a];
+    forward.push(a);
+  }
+  while (a !== b && forward.length < PATH_CHUNK_LIMIT) {
+    a = _navParent[a];
+    forward.push(a);
+    reverse.push(b);
+    b = _navParent[b];
+  }
 
+  let chunked = false;
+  if (a === b) {
+    chunked = forward.length + reverse.length > PATH_CHUNK_LIMIT;
+    for (let i = reverse.length - 1; i >= 0 && forward.length < PATH_CHUNK_LIMIT; i--) {
+      forward.push(reverse[i]);
+    }
+  } else {
+    chunked = true;
+  }
+  if (forward.length > 0) _bfsFound++;
+  else _bfsMiss++;
+  if (chunked) _bfsLimitHits++;
+  return forward;
+}
+
+function climbFromStart(start: number): number[] {
+  const path: number[] = [];
+  let cell = start;
+  while (path.length < PATH_CHUNK_LIMIT) {
+    const parent = _navParent[cell];
+    if (parent < 0 || parent === cell) break;
+    path.push(parent);
+    cell = parent;
+  }
+  return path;
 }
 
 function buildFlowFieldPath(field: BehaviorFlowField, start: number): number[] {
@@ -1421,11 +628,6 @@ export function tryAssignBehaviorFlowPath(
   key: string,
   sourceProvider: BehaviorFlowFieldSourceProvider,
 ): AssignPathStatus {
-  // Low-mem (mobile): behavior flow fields are disabled to avoid the 64 MiB
-  // Int32Array(SW2) alloc + 16.7M-subcell BFS. Callers route through the region
-  // tree instead (see gotoNearestRoomOfTypes); this guard makes the alloc
-  // impossible regardless of caller. Unreachable today on mobile, but future-proof.
-  if (useLowMemNav()) return 'not_found';
   const ai = e.ai!;
   const start = subcellIdx(e.x, e.y);
   const field = ensureBehaviorFlowField(world, key, sourceProvider);
@@ -1464,61 +666,6 @@ function continueBehaviorFlowPath(world: World, e: Entity): AssignPathStatus {
   return tryAssignBehaviorFlowPath(world, e, assignment.key, assignment.sourceProvider);
 }
 
-function hasLineOfSight(world: World, x0: number, y0: number, x1: number, y1: number): boolean {
-  let dx = x1 - x0;
-  let dy = y1 - y0;
-  
-  if (dx > W / 2) dx -= W;
-  else if (dx < -W / 2) dx += W;
-  if (dy > W / 2) dy -= W;
-  else if (dy < -W / 2) dy += W;
-
-  let cx = Math.floor(x0 * PATH_BLOCKER_SUBDIV);
-  let cy = Math.floor(y0 * PATH_BLOCKER_SUBDIV);
-  const ex = Math.floor((x0 + dx) * PATH_BLOCKER_SUBDIV);
-  const ey = Math.floor((y0 + dy) * PATH_BLOCKER_SUBDIV);
-
-  const stepX = dx > 0 ? 1 : (dx < 0 ? -1 : 0);
-  const stepY = dy > 0 ? 1 : (dy < 0 ? -1 : 0);
-
-  let tMaxX = stepX !== 0 ? ((cx + (stepX > 0 ? 1 : 0)) / PATH_BLOCKER_SUBDIV - x0) / dx : Infinity;
-  let tMaxY = stepY !== 0 ? ((cy + (stepY > 0 ? 1 : 0)) / PATH_BLOCKER_SUBDIV - y0) / dy : Infinity;
-
-  const tDeltaX = stepX !== 0 ? Math.abs(1 / (dx * PATH_BLOCKER_SUBDIV)) : Infinity;
-  const tDeltaY = stepY !== 0 ? Math.abs(1 / (dy * PATH_BLOCKER_SUBDIV)) : Infinity;
-
-  const maxSteps = Math.abs(ex - cx) + Math.abs(ey - cy) + 2;
-  let steps = 0;
-
-  while (steps++ < maxSteps) {
-    const wrapCX = ((cx % SW) + SW) % SW;
-    const wrapCY = ((cy % SW) + SW) % SW;
-    if (!isSubcellNavPassable(world, wrapCY * SW + wrapCX)) return false;
-
-    if (cx === ex && cy === ey) break;
-
-    if (tMaxX < tMaxY) {
-      tMaxX += tDeltaX;
-      cx += stepX;
-    } else if (tMaxY < tMaxX) {
-      tMaxY += tDeltaY;
-      cy += stepY;
-    } else {
-      const w1x = ((cx + stepX) % SW + SW) % SW;
-      if (!isSubcellNavPassable(world, wrapCY * SW + w1x)) return false;
-      const w2y = ((cy + stepY) % SW + SW) % SW;
-      if (!isSubcellNavPassable(world, w2y * SW + wrapCX)) return false;
-
-      tMaxX += tDeltaX;
-      tMaxY += tDeltaY;
-      cx += stepX;
-      cy += stepY;
-    }
-  }
-  return true;
-}
-
-
 export function tryAssignPathToCell(world: World, e: Entity, tx: number, ty: number): AssignPathStatus {
   const ai = e.ai!;
   _flowPathAssignments.delete(e);
@@ -1536,11 +683,6 @@ export function tryAssignPathToCell(world: World, e: Entity, tx: number, ty: num
     ai.stuck = 0;
     ai.tx = tx;
     ai.ty = ty;
-    return 'same';
-  }
-
-  const currentTarget = subcellIdx(ai.tx, ai.ty);
-  if (target === currentTarget && ai.path.length > 0 && ai.pi < ai.path.length) {
     return 'same';
   }
 
@@ -1562,19 +704,25 @@ export function tryAssignPathToCell(world: World, e: Entity, tx: number, ty: num
   return 'assigned';
 }
 
-// Universal door contact for a pathing actor at a subcell on its route.
-// People open, monsters bash — the policy lives in actorContactDoor().
-function openPathDoor(world: World, e: Entity, subcell: number): void {
+function openPathDoor(world: World, subcell: number): void {
   const ci = subcellToCell(subcell);
   if (world.cells[ci] !== Cell.DOOR) return;
-  actorContactDoor(world, e, ci);
+  const door = world.doors.get(ci);
+  if (door && door.state === DoorState.CLOSED) {
+    setDoorState(world, door, DoorState.OPEN);
+    door.timer = 5;
+  }
 }
 
-/** Same, addressed by world coordinates (the cell the actor is stepping into). */
-function openPathDoorAtWorld(world: World, e: Entity, wx: number, wy: number): void {
+/** Open a door at world coordinates (not subcell). Used proactively during movement. */
+function openPathDoorAtWorld(world: World, wx: number, wy: number): void {
   const ci = world.idx(Math.floor(wx), Math.floor(wy));
   if (world.cells[ci] !== Cell.DOOR) return;
-  actorContactDoor(world, e, ci);
+  const door = world.doors.get(ci);
+  if (door && door.state === DoorState.CLOSED) {
+    setDoorState(world, door, DoorState.OPEN);
+    door.timer = 5;
+  }
 }
 
 function validSteeringAssignment(assignment: SteeringPathAssignment, world: World, target: number): boolean {
@@ -1637,7 +785,7 @@ export function steerEntityTowardCell(world: World, e: Entity, tx: number, ty: n
   }
 
   const nextCell = assignment.path[assignment.pi];
-  openPathDoor(world, e, nextCell);
+  openPathDoor(world, nextCell);
   const [nextX, nextY] = subcellToWorld(nextCell);
   const dx = world.delta(e.x, nextX);
   const dy = world.delta(e.y, nextY);
@@ -1654,11 +802,121 @@ function wrapFloat(v: number): number {
   return ((v % W) + W) % W;
 }
 
+function pathNoiseUnit(id: number, cell: number, salt: number): number {
+  let h = Math.imul(id | 0, 374761393) ^ Math.imul(cell | 0, 668265263) ^ Math.imul(salt, 2246822519);
+  h = Math.imul(h ^ (h >>> 16), 2246822519);
+  h = Math.imul(h ^ (h >>> 13), 3266489917);
+  return ((h ^ (h >>> 16)) >>> 0) / 0x100000000;
+}
+
+function centeredPathWaypoint(si: number, index: number): PathWaypoint {
+  const [x, y] = subcellToWorld(si);
+  return { cell: si, index, x, y };
+}
+
+function pathWaypointForCell(world: World, e: Entity, si: number, index: number, r: number, ignoreFineBlockers: boolean): PathWaypoint {
+  const center = centeredPathWaypoint(si, index);
+  const dx = world.delta(e.x, center.x);
+  const dy = world.delta(e.y, center.y);
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 0.01) return center;
+  if (world.cells[subcellToCell(si)] === Cell.DOOR) return center;
+
+  const ox = (pathNoiseUnit(e.id, si, 1) - 0.5) * PATH_WAYPOINT_OFFSET * 2;
+  const oy = (pathNoiseUnit(e.id, si, 2) - 0.5) * PATH_WAYPOINT_OFFSET * 2;
+  const x = center.x + ox;
+  const y = center.y + oy;
+  if (canActorOccupy(world, x, y, r, { ignoreFineBlockers })) return { cell: si, index, x, y };
+  return center;
+}
+
+function pathSegmentClear(world: World, x1: number, y1: number, x2: number, y2: number, r: number, ignoreFineBlockers: boolean): boolean {
+  const dx = world.delta(x1, x2);
+  const dy = world.delta(y1, y2);
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 0.01) return true;
+
+  const steps = Math.max(1, Math.ceil(dist / PATH_LINE_SAMPLE_STEP));
+  for (let step = 1; step <= steps; step++) {
+    const t = step / steps;
+    const x = wrapFloat(x1 + dx * t);
+    const y = wrapFloat(y1 + dy * t);
+    if (!canActorOccupy(world, x, y, r, { ignoreFineBlockers })) return false;
+  }
+  return true;
+}
+
+function computePathWaypoint(world: World, e: Entity, r: number, goalCell: number): PathWaypoint {
+  const ai = e.ai!;
+  const ignoreFineBlockers = entityIgnoresFineBlockers(e);
+  let fallback = pathWaypointForCell(world, e, ai.path[ai.pi], ai.pi, r, ignoreFineBlockers);
+  const goal = pathWaypointForCell(world, e, goalCell, ai.path.length - 1, r, ignoreFineBlockers);
+  if (
+    world.dist2(e.x, e.y, goal.x, goal.y) <= PATH_DIRECT_GOAL_RANGE * PATH_DIRECT_GOAL_RANGE &&
+    pathSegmentClear(world, e.x, e.y, goal.x, goal.y, r, ignoreFineBlockers)
+  ) {
+    return goal;
+  }
+  const centeredGoal = centeredPathWaypoint(goalCell, ai.path.length - 1);
+  if (
+    world.dist2(e.x, e.y, centeredGoal.x, centeredGoal.y) <= PATH_DIRECT_GOAL_RANGE * PATH_DIRECT_GOAL_RANGE &&
+    pathSegmentClear(world, e.x, e.y, centeredGoal.x, centeredGoal.y, r, ignoreFineBlockers)
+  ) {
+    return centeredGoal;
+  }
+
+  const last = Math.min(ai.path.length - 1, ai.pi + PATH_LOOKAHEAD_CELLS);
+
+  for (let index = last; index > ai.pi; index--) {
+    const waypoint = pathWaypointForCell(world, e, ai.path[index], index, r, ignoreFineBlockers);
+    if (pathSegmentClear(world, e.x, e.y, waypoint.x, waypoint.y, r, ignoreFineBlockers)) return waypoint;
+    const centered = centeredPathWaypoint(ai.path[index], index);
+    if (pathSegmentClear(world, e.x, e.y, centered.x, centered.y, r, ignoreFineBlockers)) return centered;
+  }
+
+  if (pathSegmentClear(world, e.x, e.y, fallback.x, fallback.y, r, ignoreFineBlockers)) return fallback;
+  return centeredPathWaypoint(ai.path[ai.pi], ai.pi);
+}
+
+function selectPathWaypoint(world: World, e: Entity, r: number): PathWaypoint {
+  const ai = e.ai!;
+  const sourceCell = subcellIdx(e.x, e.y);
+  const goalCell = subcellIdx(ai.tx, ai.ty);
+  const cellVersion = navigationCacheCellVersion(world);
+  const pathBlockerVersion = world.pathBlockerVersion;
+  const cached = _pathWaypointCache.get(e);
+  if (
+    cached &&
+    cached.world === world &&
+    cached.cellVersion === cellVersion &&
+    cached.pathBlockerVersion === pathBlockerVersion &&
+    cached.path === ai.path &&
+    cached.pathLength === ai.path.length &&
+    cached.pi === ai.pi &&
+    cached.sourceCell === sourceCell &&
+    cached.goalCell === goalCell &&
+    cached.radius === r
+  ) {
+    return cached.waypoint;
+  }
+
+  const waypoint = computePathWaypoint(world, e, r, goalCell);
+  _pathWaypointCache.set(e, {
+    world,
+    cellVersion,
+    pathBlockerVersion,
+    path: ai.path,
+    pathLength: ai.path.length,
+    pi: ai.pi,
+    sourceCell,
+    goalCell,
+    radius: r,
+    waypoint,
+  });
+  return waypoint;
+}
+
 /* ── Follow path ──────────────────────────────────────────────── */
-// Pure grid-based follower: entities traverse the BFS path subcell by subcell.
-// Float coordinates are interpolated for visual smoothness only.
-// No radius checks, no line-of-sight sampling, no collision tests.
-// The BFS path guarantees every step is a passable adjacent subcell.
 export function followPath(world: World, e: Entity, dt: number): void {
   const ai = e.ai!;
   if (ai.pi >= ai.path.length) {
@@ -1682,7 +940,7 @@ export function followPath(world: World, e: Entity, dt: number): void {
     if (e.type === EntityType.NPC && ai.goal !== AIGoal.HIDE && ai.goal !== AIGoal.FLEE) {
       ai.stuck += dt;
       // Higher threshold reduces corridor ping-pong: NPCs linger longer before re-wandering
-      if (ai.stuck > 3 + rng() * 2) {
+      if (ai.stuck > 3 + Math.random() * 2) {
         wanderInRoom(world, e);
         // Fallback: if wanderInRoom found nothing (no room or tiny room), try wanderNearby
         if (ai.path.length === 0) wanderNearby(world, e);
@@ -1692,85 +950,65 @@ export function followPath(world: World, e: Entity, dt: number): void {
     return;
   }
 
-  // Advance past already-reached subcells
+  const r = actorOccupyRadius(e);
+
   while (ai.pi < ai.path.length) {
-    const [cx, cy] = subcellToWorld(ai.path[ai.pi]);
+    const cell = ai.path[ai.pi];
+    const [cx, cy] = subcellToWorld(cell);
     if (world.dist2(e.x, e.y, cx, cy) >= PATH_WAYPOINT_REACH_SQ) break;
     ai.pi++;
     ai.stuck = 0;
   }
+
   if (ai.pi >= ai.path.length) return;
 
-  // Lookahead Path Smoothing (String Pulling)
-  let lookaheadIndex = ai.pi;
-  
-  if (ai.path.length > 0) {
-    const [lastX, lastY] = subcellToWorld(ai.path[ai.path.length - 1]);
-    if (hasLineOfSight(world, e.x, e.y, lastX, lastY)) {
-      lookaheadIndex = ai.path.length - 1;
-    } else {
-      const lookaheadLimit = Math.min(ai.path.length - 1, ai.pi + 20);
-      for (let i = lookaheadLimit; i > ai.pi; i--) {
-        const [tx, ty] = subcellToWorld(ai.path[i]);
-        if (hasLineOfSight(world, e.x, e.y, tx, ty)) {
-          lookaheadIndex = i;
-          break;
-        }
-      }
-    }
-  }
-  
-  ai.pi = lookaheadIndex;
+  // Proactively open doors: current cell, next path cell, and waypoint cell
+  openPathDoorAtWorld(world, e.x, e.y);
+  openPathDoor(world, ai.path[ai.pi]);
+  const waypoint = selectPathWaypoint(world, e, r);
 
-  // Open doors: current position, next subcell on path, and one ahead
-  openPathDoorAtWorld(world, e, e.x, e.y);
-  openPathDoor(world, e, ai.path[ai.pi]);
-  if (ai.pi + 1 < ai.path.length) openPathDoor(world, e, ai.path[ai.pi + 1]);
-
-  // Target: center of the next subcell on the smoothed BFS path.
-  // Because of lookahead, this might be a diagonal or arbitrary angle step!
-  const [tx, ty] = subcellToWorld(ai.path[ai.pi]);
-  const dx = world.delta(e.x, tx);
-  const dy = world.delta(e.y, ty);
+  let dx = world.delta(e.x, waypoint.x);
+  let dy = world.delta(e.y, waypoint.y);
   const distSq = dx * dx + dy * dy;
-  if (distSq < 0.0001) { ai.pi++; ai.stuck = 0; return; }
 
-  const speed = aiPathMoveSpeed(e) * getCellHazardMoveMultiplier(world, e) * dt;
-  const prevX = e.x;
-  const prevY = e.y;
-
-  // With string pulling, movement is a direct Euclidean step towards the target.
-  const dist = Math.sqrt(distSq);
-  const nx = dx / dist;
-  const ny = dy / dist;
-
-  // Resolve the door we are physically walking into. String pulling lets ai.pi
-  // skip past the door cell (LOS sees through a CLOSED door, but world.solid
-  // treats it as solid), so the path-waypoint contacts miss it and the actor
-  // jams against the leaf. Probe one cell ahead along the motion vector: people
-  // open it, monsters bash it (actorContactDoor policy).
-  openPathDoorAtWorld(world, e, e.x + nx * 0.7, e.y + ny * 0.7);
-
-  const step = Math.min(speed, dist);
-  const opt = { ignoreFineBlockers: entityIgnoresFineBlockers(e) };
-  
-  const testX = wrapFloat(e.x + nx * step);
-  if (canActorOccupy(world, testX, e.y, 0, opt)) {
-    e.x = testX;
-  }
-  
-  const testY = wrapFloat(e.y + ny * step);
-  if (canActorOccupy(world, e.x, testY, 0, opt)) {
-    e.y = testY;
-  }
-
-  // Stuck: did the entity actually move?
-  const moved = (e.x !== prevX || e.y !== prevY);
-  ai.stuck = moved ? 0 : ai.stuck + dt;
-  if (ai.stuck > 2 && ai.pi < ai.path.length - 1) {
-    ai.pi++;
+  if (distSq < PATH_WAYPOINT_REACH_SQ) {
+    ai.pi = Math.max(ai.pi + 1, waypoint.index + 1);
     ai.stuck = 0;
-  } else if (ai.stuck > 4) {
+    return;
+  }
+  const dist = Math.sqrt(distSq);
+
+  // Open doors in the way (never open hermetic doors — they protect apartments during samosbor)
+  openPathDoor(world, waypoint.cell);
+
+  // Move toward target
+  const speed = aiPathMoveSpeed(e) * getCellHazardMoveMultiplier(world, e) * dt;
+  const beforeCell = world.idx(Math.floor(e.x), Math.floor(e.y));
+  const nx = e.x + (dx / dist) * speed;
+  const ny = e.y + (dy / dist) * speed;
+  let moved = false;
+
+  // Open door ahead of movement if the next position is on a door cell
+  openPathDoorAtWorld(world, nx, ny);
+
+  const ignoreFineBlockers = entityIgnoresFineBlockers(e);
+  if (canActorOccupy(world, nx, e.y, r, { ignoreFineBlockers })) {
+    e.x = ((nx % W) + W) % W;
+    moved = true;
+  }
+  if (canActorOccupy(world, e.x, ny, r, { ignoreFineBlockers })) {
+    e.y = ((ny % W) + W) % W;
+    moved = true;
+  }
+
+  // Stuck detection
+  const afterDx = world.delta(e.x, waypoint.x);
+  const afterDy = world.delta(e.y, waypoint.y);
+  const afterDistSq = afterDx * afterDx + afterDy * afterDy;
+  const afterCell = world.idx(Math.floor(e.x), Math.floor(e.y));
+  const progressed = moved && (afterDistSq < distSq - 0.0001 || afterCell !== beforeCell);
+  ai.stuck = progressed ? Math.max(0, ai.stuck - dt * 2) : ai.stuck + dt;
+  if (ai.stuck > 3) {
     ai.path = [];
     ai.pi = 0;
     ai.stuck = 0;
@@ -1844,53 +1082,12 @@ function roomTypeSourceProvider(types: readonly RoomType[]): BehaviorFlowFieldSo
   return provider;
 }
 
-/** Room-type sets that NPC routine routing requests via gotoNearestRoom*(). Kept
- *  in sync with the literal calls in npc_fsm.ts; a set missing here just bakes
- *  lazily once (a one-time desktop hitch), never a correctness bug. */
-const PREWARM_ROOM_TYPE_SETS: readonly RoomType[][] = [
-  [RoomType.OFFICE],
-  [RoomType.LIVING],
-  [RoomType.LIVING, RoomType.HQ, RoomType.COMMON],
-];
-
-/** Desktop: bake the common behavior flow fields behind the loading screen so
- *  the first NPC to route on a fresh (or post-samosbor) floor doesn't pay the
- *  64 MiB alloc + 16.7M-subcell BFS on a gameplay frame. Mobile skips flow fields
- *  entirely (gotoNearestRoomOfTypes falls back to the region tree), so this is a
- *  no-op there; also a no-op while frozen (mid-samosbor). */
-export function prewarmBehaviorFlowFields(world: World): void {
-  if (_frozenNavWorld) return;
-  if (useLowMemNav()) return;
-  for (const types of PREWARM_ROOM_TYPE_SETS) {
-    ensureBehaviorFlowField(world, roomTypeFieldKey(types), roomTypeSourceProvider(types));
-  }
-}
-
 export function gotoNearestRoomType(world: World, e: Entity, type: RoomType): boolean {
   return gotoNearestRoomOfTypes(world, e, [type]);
 }
 
 export function gotoNearestRoomOfTypes(world: World, e: Entity, types: readonly RoomType[]): boolean {
   if (types.length === 0) return false;
-  // Low-mem (mobile): skip behavior flow fields (64 MiB Int32Array + 16.7M-cell
-  // BFS per key). Pick the nearest room across the requested types by straight-line
-  // distance and route to it through the region tree (~1 MB on-demand column) — an
-  // approximation of the flow field's nearest-reachable pick, but memory-flat.
-  if (useLowMemNav()) {
-    let best = -1, bestD = Infinity;
-    for (const type of types) {
-      const id = findNearest(world, e, type);
-      const room = id >= 0 ? world.rooms[id] : undefined;
-      if (!room) continue;
-      const d = world.dist2(e.x, e.y, room.x + room.w / 2, room.y + room.h / 2);
-      if (d < bestD) { bestD = d; best = id; }
-    }
-    if (best < 0) return false;
-    const room = world.rooms[best]!;
-    const tx = room.x + Math.floor(room.w / 2) + 0.5;
-    const ty = room.y + Math.floor(room.h / 2) + 0.5;
-    return tryAssignPathToCell(world, e, tx, ty) !== 'not_found';
-  }
   const key = roomTypeFieldKey(types);
   const status = tryAssignBehaviorFlowPath(world, e, key, roomTypeSourceProvider(types));
   return status !== 'not_found';
@@ -1926,8 +1123,8 @@ export function gotoRoom(world: World, e: Entity, targetRoomType: RoomType): Ass
 export function wanderNearby(world: World, e: Entity): void {
   const ai = e.ai!;
   for (let attempt = 0; attempt < ROUTINE_WANDER_ATTEMPTS; attempt++) {
-    const wx = Math.floor(e.x) + Math.floor(rng() * 20 - 10);
-    const wy = Math.floor(e.y) + Math.floor(rng() * 20 - 10);
+    const wx = Math.floor(e.x) + Math.floor(Math.random() * 20 - 10);
+    const wy = Math.floor(e.y) + Math.floor(Math.random() * 20 - 10);
     const tx = world.wrap(wx);
     const ty = world.wrap(wy);
     if (world.solid(tx, ty)) continue;
@@ -1945,8 +1142,8 @@ export function wanderInRoom(world: World, e: Entity): void {
   const room = world.roomAt(e.x, e.y);
   if (!room || room.w < 3 || room.h < 3) return;
   for (let attempt = 0; attempt < ROUTINE_WANDER_ATTEMPTS; attempt++) {
-    const rx = room.x + 1 + Math.floor(rng() * (room.w - 2));
-    const ry = room.y + 1 + Math.floor(rng() * (room.h - 2));
+    const rx = room.x + 1 + Math.floor(Math.random() * (room.w - 2));
+    const ry = room.y + 1 + Math.floor(Math.random() * (room.h - 2));
     if (!world.solid(rx, ry)) {
       const status = tryAssignPathToCell(world, e, rx, ry);
       if (status !== 'not_found') return;
@@ -1958,7 +1155,7 @@ export function wanderInRoom(world: World, e: Entity): void {
 export function wanderFar(world: World, e: Entity): void {
   if (world.rooms.length > 0) {
     for (let attempt = 0; attempt < ROUTINE_FAR_ATTEMPTS; attempt++) {
-      const room = world.rooms[Math.floor(rng() * world.rooms.length)];
+      const room = world.rooms[Math.floor(Math.random() * world.rooms.length)];
       if (!room || room.w < 2 || room.h < 2) continue;
       const tx = room.x + Math.floor(room.w / 2);
       const ty = room.y + Math.floor(room.h / 2);

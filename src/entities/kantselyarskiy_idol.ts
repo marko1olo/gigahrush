@@ -1,6 +1,6 @@
 /* ── Kantselyarskiy Idol: office-field PSI hazard ────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -16,6 +16,7 @@ export const DEF: MonsterDef = {
   projSpeed: 7.2,
   projSprite: 0,
   aiFlags: ['officeField'],
+  floors: [FloorLevel.MINISTRY],
   counterplay: 'Офисное поле сильнее у столов, шкафов и бумаг в кармане: прячьтесь за шкафом, сближайтесь в упор после залпа или сбросьте лишние бланки в контейнер.',
   lootHint: 'желтая бумажная пыль, грязный латунный уголок, обломок красной печати',
 };

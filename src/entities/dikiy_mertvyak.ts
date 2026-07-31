@@ -1,6 +1,6 @@
 /* ── Dikiy Mertvyak: fragile crowd-runner ────────────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.05,
   sprite: 0,
   aiFlags: ['crowdShove'],
+  floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING],
   counterplay: 'Хрупкий, но влетает в дверную толпу: бейте до разгона, отходите в широкий проход и не принимайте бой в дверной каше.',
   lootHint: 'рваная одежда, белые костяшки, мелкий бытовой хлам',
 };

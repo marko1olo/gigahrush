@@ -1,10 +1,10 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { EntityType, MonsterKind, ProjType, type Entity } from '../src/core/types';
+import { EntityType, FloorLevel, MonsterKind, ProjType, type Entity } from '../src/core/types';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { DEF, PAUPSINA_WEB_COOLDOWN_SEC, generateSprite } from '../src/entities/paupsina';
+import { MONSTERS, MONSTER_SPRITES, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { S } from '../src/render/pixutil';
 import {
   PAUPSINA_WEB_DURATION_SEC,
@@ -45,6 +45,8 @@ test('paupsina is registered as a distinct web-spitting monster', () => {
   assert.equal(DEF.projType, ProjType.WEB);
   assert.equal(DEF.attackRate, PAUPSINA_WEB_COOLDOWN_SEC);
   assert.deepEqual(DEF.aiFlags, ['webSpitter']);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.MAINTENANCE].includes(MonsterKind.PAUPSINA), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.KVARTIRY].includes(MonsterKind.PAUPSINA), true);
 
   const ecology = getMonsterEcology(MonsterKind.PAUPSINA);
   assert.ok(ecology);

@@ -356,12 +356,7 @@ Materials are simple ids such as `concrete`, `rust_metal`, `wood`,
 
 `src/render/mesh/primitives.ts` builds immutable mesh templates from this data.
 `src/render/mesh/model_cache.ts` caches templates by model id and variant seed
-under a bounded cache size. `VisualModelDef.parts` can also be a procedural generator 
-function `(seed: number) => readonly VisualModelPart[]`. When paired with a defined
-`variantCount` (e.g. `128`), the mesh cache deterministically bins the seed 
-(`seed % variantCount`). This allows generating and caching hundreds of distinct procedural 
-geometry variations of a single model ID (e.g. random meat chunks) for the GPU without 
-per-frame CPU rebuilding or cache thrashing.
+under a bounded cache size.
 
 ## Scene Collection
 

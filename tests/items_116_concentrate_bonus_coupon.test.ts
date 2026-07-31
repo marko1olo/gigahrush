@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { ITEMS } from '../src/data/catalog';
 import { ITEM_TAGS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
@@ -32,7 +32,7 @@ test('concentrate bonus coupon is premium ration paperwork', () => {
 
 test('concentrate bonus coupon redeems into better concentrate rations', () => {
   const player = makeTestPlayer({ inventory: [{ defId: COUPON_ID, count: 1 }] });
-  const state = makeGameState({ currentZ: 0, time: 116 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 116 });
 
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter погасить');
 

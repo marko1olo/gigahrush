@@ -8,7 +8,6 @@ import { ITEM_TAGS, ITEMS, getStack } from '../src/data/items';
 import { resourceForItem } from '../src/data/resources';
 import { addItem, getInventorySlotActionInfo, inventoryItemCategory } from '../src/systems/inventory';
 import { makeTestNpc, makeTestPlayer } from './helpers';
-import { _overrideRng, _restoreRng } from '../src/core/rand';
 
 const ITEM_ID = 'roller_brush';
 
@@ -35,19 +34,21 @@ test('roller brush is a reachable painting and repair trade item', () => {
 test('roller brush can be stolen from storage or bought from storekeepers', () => {
   const toolLocker = CONTAINER_DEFS[ContainerKind.TOOL_LOCKER].itemPool;
   assert.ok(toolLocker.some(item => item.defId === ITEM_ID), 'tool lockers must expose storage-theft rollers');
+
+  const savedRandom = Math.random;
   try {
     let seen = false;
     for (let i = 0; i < 64 && !seen; i++) {
-      _overrideRng((() => {
+      Math.random = (() => {
         const rolls = [0, (i + 0.01) / 64, 0];
         return () => rolls.shift() ?? 0;
-      })());
+      })();
       const storekeeperTrade = generateNpcTradeItems(makeTestNpc({ occupation: Occupation.STOREKEEPER }));
       seen = storekeeperTrade.some(item => item.defId === ITEM_ID);
     }
     assert.ok(seen, 'storekeeper trade must expose automagazine-style rollers');
   } finally {
-    _restoreRng();
+    Math.random = savedRandom;
   }
 });
 

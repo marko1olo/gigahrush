@@ -14,7 +14,7 @@ import {
 test('Самосборный Остов scene has warning, safe options, and a bounded local ambush', () => {
   const world = new World();
   const entities: Entity[] = [];
-  const nextId = { v: getPlotNpcCount() + 1 }
+  const nextId = { v: 1 };
 
   const result = generateSamosbornyyOstov(world, 0, entities, nextId, 160, 160);
   assert.equal(result.nextRoomId, 1);
@@ -48,7 +48,7 @@ test('Самосборный Остов scene has warning, safe options, and a b
   );
   assert.ok(warningNote, 'warning note should be reachable before risky looting');
 
-  const liquidator = entities.find(e => (e as any).npcPackageId === SAMOSBORNYY_OSTOV_LIQUIDATOR_ID);
+  const liquidator = entities.find(e => e.plotNpcId === SAMOSBORNYY_OSTOV_LIQUIDATOR_ID);
   assert.ok(liquidator, 'liquidator report/burn path NPC should be present');
 
   const questIds = new Set(SIDE_QUESTS

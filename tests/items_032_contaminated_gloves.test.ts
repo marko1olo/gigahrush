@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, type Entity } from '../src/core/types';
+import { FloorLevel, ItemType, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { ITEM_TAGS, ITEMS, getStack } from '../src/data/items';
 import { resourceForItem } from '../src/data/resources';
@@ -40,7 +40,7 @@ test('failed Filtronos cache handling generates contaminated gloves', () => {
 
   const player = makeTestPlayer({ id: 9001, x: stash.x + 0.5, y: stash.y + 0.5 });
   const state = makeGameState({
-    currentZ: -26,
+    currentFloor: FloorLevel.MAINTENANCE,
     worldEvents: createWorldEventState(),
   });
 

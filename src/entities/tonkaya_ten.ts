@@ -1,6 +1,6 @@
 /* ── Tonkaya Ten: cowardly bait-and-retreat shadow ───────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.45,
   sprite: 0,
   aiFlags: ['baitLine'],
+  floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.VOID],
   counterplay: 'Не гонитесь за тонкой тенью в темный коридор: держите место, включайте свет или шумите, чтобы она потеряла линию и вернулась слабой.',
   lootHint: 'холодная пыль, узкий темный след, редкий странный сгусток',
 };

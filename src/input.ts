@@ -10,20 +10,6 @@ import {
   mouseButtonCode,
 } from './systems/controls';
 
-
-export const JOYSTICK_CONFIG = {
-  deadZoneRadius: 20,
-  maxRadius: 80,
-  touchMoveThreshold: 5,
-};
-
-export function triggerHapticFeedback(duration: number = 10): void {
-  if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
-    // @ts-ignore
-    navigator.vibrate(duration);
-  }
-}
-
 export function createInput(): InputState {
   return {
     fwd: false, back: false, left: false, right: false,
@@ -47,7 +33,7 @@ export function createInput(): InputState {
     controlEdit: false,
     controlReset: false,
     controlClose: false,
-    mouse: { dx: 0, dy: 0, menuDx: 0, menuDy: 0, locked: false },
+    mouse: { dx: 0, dy: 0, locked: false },
     touch: { moveX: 0, moveY: 0, lookX: 0, lookY: 0, active: false },
   };
 }
@@ -135,7 +121,6 @@ class InputBinder {
     this.onMouseUp = this.onMouseUp.bind(this);
     this.onContextMenu = this.onContextMenu.bind(this);
     this.onWheel = this.onWheel.bind(this);
-    this.onTouchMove = this.onTouchMove.bind(this);
     this.onLockChange = this.onLockChange.bind(this);
     this.onBlur = this.onBlur.bind(this);
     this.onVisibilityChange = this.onVisibilityChange.bind(this);
@@ -163,16 +148,6 @@ class InputBinder {
   private onMouse(e: MouseEvent) {
     if (document.pointerLockElement === this.canvas) {
       this.input.mouse.locked = true;
-      if (this.options.shouldHandleMenuPointer?.() === true) {
-        if (Math.sign(e.movementX) !== Math.sign(this.input.mouse.menuDx) && e.movementX !== 0) {
-          this.input.mouse.menuDx = 0;
-        }
-        if (Math.sign(e.movementY) !== Math.sign(this.input.mouse.menuDy) && e.movementY !== 0) {
-          this.input.mouse.menuDy = 0;
-        }
-        this.input.mouse.menuDx += e.movementX;
-        this.input.mouse.menuDy += e.movementY;
-      }
       if (this.options.shouldHandleGameplayPointer?.() === false) {
         clearMouseGameplayState(this.input);
         return;
@@ -252,18 +227,13 @@ class InputBinder {
 
   private onWheel(e: WheelEvent) {
     const shouldHandle = this.options.shouldHandleMenuWheel ?? this.options.shouldHandleMenuPointer;
-    if (shouldHandle?.() === true) {
-      const dy = Number(e.deltaY);
-      if (Number.isFinite(dy) && dy !== 0) {
-        this.input.menuWheel += dy < 0 ? -1 : 1;
-      }
+    if (shouldHandle?.() !== true) return;
+    const dy = Number(e.deltaY);
+    if (Number.isFinite(dy) && dy !== 0) {
+      this.input.menuWheel += dy < 0 ? -1 : 1;
     }
     e.preventDefault();
     e.stopImmediatePropagation();
-  }
-
-  private onTouchMove(e: TouchEvent) {
-    e.preventDefault();
   }
 
   private onLockChange() {
@@ -299,7 +269,6 @@ class InputBinder {
     this.canvas.addEventListener('mousedown', this.onMouseDown);
     document.addEventListener('mouseup', this.onMouseUp);
     document.addEventListener('wheel', this.onWheel, { capture: true, passive: false });
-    document.addEventListener('touchmove', this.onTouchMove, { capture: true, passive: false });
     this.canvas.addEventListener('contextmenu', this.onContextMenu);
     document.addEventListener('pointerlockchange', this.onLockChange);
     window.addEventListener('blur', this.onBlur);
@@ -315,7 +284,6 @@ class InputBinder {
       this.canvas.removeEventListener('mousedown', this.onMouseDown);
       document.removeEventListener('mouseup', this.onMouseUp);
       document.removeEventListener('wheel', this.onWheel, { capture: true });
-      document.removeEventListener('touchmove', this.onTouchMove, { capture: true });
       this.canvas.removeEventListener('contextmenu', this.onContextMenu);
       document.removeEventListener('pointerlockchange', this.onLockChange);
       window.removeEventListener('blur', this.onBlur);

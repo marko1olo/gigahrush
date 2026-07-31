@@ -55,8 +55,8 @@ test('registry morgue is a monster-heavy bureaucratic horror floor with bounded 
   const route = designFloorById('registry_morgue');
   assert.ok(route);
   const profile = designFloorPopulationProfile(route);
-  assert.ok(profile.npcTarget >= 48 && profile.npcTarget <= 4800, 'npcTarget in bounds');
-  assert.ok(profile.monsterTarget >= 115 && profile.monsterTarget <= 11500, 'monsterTarget in bounds');
+  assert.equal(profile.npcTarget, 480);
+  assert.equal(profile.monsterTarget, 1150);
 
   const gen = generatedRegistryMorgue();
   const npcs = gen.entities.filter(e => e.type === EntityType.NPC);

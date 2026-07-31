@@ -1,8 +1,8 @@
-import { currentFloorRunEntry } from './procedural_floors';
 /* ── Pneumomail interaction: capsules become rumors/contracts ─── */
 
 import {
   Feature,
+  FloorLevel,
   type Entity,
   type GameState,
   type Room,
@@ -23,7 +23,6 @@ import {
 import { addItem, hasItem, removeItem } from './inventory';
 import { spawnContractById } from './contracts';
 import { publishEvent } from './events';
-import { rng } from '../core/rand';
 
 type PneumomailRole = 'intake' | 'intercept' | 'jam' | 'report';
 type PneumomailEventType = 'received' | 'sent' | 'jammed' | 'intercepted' | 'reported' | 'contraband';
@@ -148,7 +147,7 @@ function publishPneumomail(
     data: {
       system: 'pneumomail',
       capsuleEvent: `capsule_${eventType}`,
-      roomDefId: target?.room.name,
+      roomName: target?.room.name,
       rumorIds: rumorId ? [rumorId] : undefined,
       ...data,
     },
@@ -186,7 +185,7 @@ function weightedCapsule(capsules: readonly PneumomailCapsuleDef[], fallbackInde
   for (const capsule of capsules) total += Math.max(0, capsule.weight);
   if (total <= 0) return capsules[Math.max(0, fallbackIndex) % capsules.length];
 
-  let roll = rng() * total;
+  let roll = Math.random() * total;
   for (const capsule of capsules) {
     roll -= Math.max(0, capsule.weight);
     if (roll <= 0) return capsule;
@@ -371,7 +370,7 @@ export function tryUsePneumomailTube(
   const target = targetAt(world, lookX, lookY);
   if (!target) return false;
 
-  if (currentFloorRunEntry(state)!.themeTags.includes('maintenance')) {
+  if (state.currentFloor !== FloorLevel.MAINTENANCE) {
     state.msgs.push(msg('Пневмопочта здесь числится, но не дышит.', state.time, '#888'));
     return true;
   }

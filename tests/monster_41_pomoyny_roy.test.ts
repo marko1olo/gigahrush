@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { DEF, generateSprite } from '../src/entities/pomoynyy_roy';
 import { getMonsterEcology } from '../src/data/monster_ecology';
@@ -93,6 +93,7 @@ test('pomoyny roy is standalone food-swarm data with a readable trash sprite', (
   assert.equal(DEF.kind, MonsterKind.POMOYNY_ROY);
   assert.equal(DEF.name, 'Помойный Рой');
   assert.deepEqual(DEF.aiFlags, ['foodBait', 'garbageSurround']);
+  assert.deepEqual(DEF.floors, [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE]);
   assert.equal('variants' in (ecology ?? {}), false);
   assert.match(ecology?.rule ?? '', /фланг|приман|ед/);
   assert.equal(sprite.length, S * S);
@@ -107,7 +108,7 @@ test('pomoyny roy detects exposed food farther away and chooses a flank slot', (
   const target = player(10, 10, [{ defId: 'rawmeat', count: 1 }]);
   const threat = swarm(2, 32, 10);
   const entities = [target, threat];
-  const state = makeGameState({ worldEvents: createWorldEventState(), currentZ: 0 });
+  const state = makeGameState({ worldEvents: createWorldEventState(), currentFloor: FloorLevel.LIVING });
   const msgs: Msg[] = [];
 
   prime(entities);
@@ -125,9 +126,9 @@ test('pomoyny roy follows dropped bait even while close to the player', () => {
   resetMonsterBaits();
   const world = openWorld();
   const target = player(10, 10);
-  const threat = swarm(2, 25, 10);
+  const threat = swarm(2, 12, 10);
   const entities = [target, threat];
-  const state = makeGameState({ worldEvents: createWorldEventState(), currentZ: 0, time: 1 });
+  const state = makeGameState({ worldEvents: createWorldEventState(), currentFloor: FloorLevel.LIVING, time: 1 });
   const msgs: Msg[] = [];
 
   assert.equal(placeMonsterBait(state, world, target, 20, 15, 'rawmeat', 1, 'drop'), true);

@@ -6,6 +6,7 @@ import {
   Cell,
   EntityType,
   Faction,
+  FloorLevel,
   MonsterKind,
   type Entity,
   type Msg,
@@ -75,6 +76,7 @@ test('shovnik definition, ecology, rumors, and sprite check out', () => {
 
   assert.equal(DEF.kind, MonsterKind.SHOVNIK);
   assert.deepEqual(DEF.aiFlags, ['wallBias']);
+  assert.equal(DEF.floors?.includes(FloorLevel.LIVING), true);
   assert.equal(ecology !== undefined, true, 'Shovnik ecology should be defined');
   assert.match(DEF.counterplay ?? '', /шва/);
   assert.equal(rumorIds.has('ecology_shovnik_seams'), true);
@@ -89,7 +91,7 @@ test('shovnik reacts to wall proximity', () => {
   const player = makeTestPlayer({ id: 1, x: 10.5, y: 15.5, weapon: 'knife', hp: 80, maxHp: 80 });
   const s = shovnik(2, 10.5, 10.5); // near wall
   const entities = [player, s];
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
 
   prime(entities);
   const msgs: Msg[] = [];

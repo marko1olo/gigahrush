@@ -220,11 +220,9 @@ test('greedy meshing reduces or equals exposed-face triangle count for cuboids',
   }
   const exposed = buildExposedVoxelMesh(field, { triangleCap: 10_000 });
   const greedy = buildGreedyVoxelMesh(field, { triangleCap: 10_000 });
-  // Invariant, not exact counts: greedy meshing must strictly reduce triangles for a
-  // merge-able cuboid, and both meshers must produce a non-degenerate surface.
-  assert.ok(exposed.triangleCount > 0, 'exposed-face mesh must produce triangles for a solid cuboid');
-  assert.ok(greedy.triangleCount > 0, 'greedy mesh must produce triangles for a solid cuboid');
-  assert.ok(greedy.triangleCount < exposed.triangleCount, 'greedy meshing must strictly reduce triangle count for a merge-able cuboid');
+  assert.ok(greedy.triangleCount <= exposed.triangleCount);
+  assert.equal(exposed.triangleCount, 108);
+  assert.equal(greedy.triangleCount, 12);
 });
 
 test('collector caps chunks per frame and reports built geometry', () => {

@@ -1,10 +1,10 @@
 /* ── AG18 concentrate press — factory loop without factory sim ── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   Cell,
   ContainerKind,
   Feature,
+  FloorLevel,
   Faction,
   MonsterKind,
   Occupation,
@@ -123,7 +123,7 @@ function contentTags(extra: readonly string[] = []): string[] {
 
 registerSideQuest('ag18_press_master', MASTER_DEF, [{
   id: 'ag18_repair_concentrate_line',
-  giverId: getPlotNpcNumericId('ag18_press_master')!,
+  giverNpcId: 'ag18_press_master',
   type: QuestType.FETCH,
   desc: 'Инна: «Две шестерни на главный вал. Починим линию, пока ее не закрыли как опасный объект.»',
   targetItem: 'gear', targetCount: 2,
@@ -134,7 +134,7 @@ registerSideQuest('ag18_press_master', MASTER_DEF, [{
 
 registerSideQuest('ag18_press_input', INPUT_DEF, [{
   id: 'ag18_deliver_filter_input',
-  giverId: getPlotNpcNumericId('ag18_press_input')!,
+  giverNpcId: 'ag18_press_input',
   type: QuestType.FETCH,
   desc: 'Роман: «Четыре фильтрующих слоя в дозатор. Без них масса расползается как протокол без подписи.»',
   targetItem: 'filter_layer', targetCount: 4,
@@ -145,7 +145,7 @@ registerSideQuest('ag18_press_input', INPUT_DEF, [{
 
 registerSideQuest('ag18_press_guard', GUARD_DEF, [{
   id: 'ag18_defend_press_rebar',
-  giverId: getPlotNpcNumericId('ag18_press_guard')!,
+  giverNpcId: 'ag18_press_guard',
   type: QuestType.KILL,
   desc: 'Клин: «Арматура идет к валам. Одну убери, пока она не стала деталью пресса.»',
   targetMonsterKind: MonsterKind.REBAR,
@@ -157,7 +157,7 @@ registerSideQuest('ag18_press_guard', GUARD_DEF, [{
 
 registerSideQuest('ag18_press_thief', THIEF_DEF, [{
   id: 'ag18_steal_press_output',
-  giverId: getPlotNpcNumericId('ag18_press_thief')!,
+  giverNpcId: 'ag18_press_thief',
   type: QuestType.FETCH,
   desc: 'Лёва: «Четыре серых брикета со склада выхода. Назовем это перераспределением шума.»',
   targetItem: 'grey_briquette', targetCount: 4,
@@ -219,8 +219,7 @@ function addPressContainer(
     id: nextContainerId(ctx),
     x: wx,
     y: wy,
-    // @ts-ignore
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     roomId: room.id,
     zoneId: ctx.world.zoneMap[ci],
     ...container,
@@ -231,7 +230,6 @@ function addPressContainer(
 }
 
 function addPressContainers(ctx: MaintContentCtx, press: Room, waste: Room, masterId: number, guardId: number): void {
-  // @ts-ignore
   addPressContainer(ctx, press, press.x + press.w - 3, press.y + 2, {
     kind: ContainerKind.METAL_CABINET,
     name: 'Выходной шкаф линии концентрата',
@@ -250,7 +248,6 @@ function addPressContainers(ctx: MaintContentCtx, press: Room, waste: Room, mast
     tags: contentTags([OUTPUT_TAG, 'production_output', 'food', 'legal_output', 'theft']),
   });
 
-  // @ts-ignore
   addPressContainer(ctx, waste, waste.x + waste.w - 2, waste.y + 1, {
     kind: ContainerKind.METAL_CABINET,
     name: 'Карантинный шкаф зелёной партии',

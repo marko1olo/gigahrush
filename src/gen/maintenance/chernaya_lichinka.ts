@@ -1,7 +1,7 @@
 /* -- MONSTER_12: Черная Личинка, local black-slime cleanup pressure -- */
 
 import {
-  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, W,
+  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, FloorLevel, W,
   MonsterKind, Occupation, RoomType, Tex, msg,
   type Entity, type GameState, type Item, type Room, type WorldContainer,
   type WorldEvent, type WorldEventSeverity, type WorldEventType,
@@ -13,24 +13,9 @@ import { Spr, monsterSpr } from '../../render/sprite_index';
 import { cleanCellHazardsNear, registerCellHazardSite } from '../../systems/cell_hazards';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
-import { type PlotNpcDef, registerAuthoredNpc } from '../../data/plot';
-import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Безглазый свидетель',
-  isFemale: true,
-  faction: Faction.CULTIST,
-  occupation: Occupation.PILGRIM,
-  sprite: Occupation.PILGRIM,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'psi_dust', count: 1 }, { defId: 'meat_rune', count: 1 }],
-  talkLines: ['...'],
-  talkLinesPost: ['...']
-};
-registerAuthoredNpc({ id: 'maintenance_ambient_0_fyogg', npc: AMBIENT_NPC_0 });
 import {
   type MaintContentCtx, findMaintArea, openTile, setFeature,
-  stampMaintRoom,
+  spawnAmbientNpc, stampMaintRoom,
 } from './content_helpers';
 
 const TAG_SITE = 'chernaya_lichinka';
@@ -125,7 +110,7 @@ function addLichinkaContainer(
     id,
     x: wx,
     y: wy,
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     roomId: room.id,
     zoneId: ctx.world.zoneMap[ctx.world.idx(wx, wy)],
     kind,
@@ -177,7 +162,7 @@ function publishLichinkaEvent(
   const room = ctx.world.rooms[ctx.roomId];
   publishEvent(state, {
     type: `chernaya_lichinka_${phase}` as WorldEventType,
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     zoneId: source.zoneId ?? zoneAt(ctx),
     roomId: ctx.roomId,
     x: source.x ?? ctx.centerX,
@@ -199,7 +184,7 @@ function publishLichinkaEvent(
     tags: [TAG_SITE, 'monster', TAG_SLIME, TAG_UV, TAG_CLEANUP, phase, phase === 'witness_removed' ? TAG_WITNESS : 'maintenance', 'slime'],
     data: {
       sourceEventId: source.id,
-      roomDefId: room?.name,
+      roomName: room?.name,
       hazardId: ctx.hazardId,
       sealed: ctx.sealed,
       burned: ctx.burned,
@@ -641,7 +626,15 @@ export function generateChernayaLichinka(ctx: MaintContentCtx): void {
   );
 
   const witnessId = ctx.nextId.v;
-  requireSpawnedPlotNpcFromPackage(ctx.entities, ctx.nextId, 'maintenance_ambient_0_fyogg', chamber.x + chamber.w - 6 + 0.5, chamber.y + chamber.h - 3 + 0.5, { angle: 0});
+  spawnAmbientNpc(
+    ctx,
+    'Безглазый свидетель',
+    Faction.CULTIST,
+    Occupation.PILGRIM,
+    chamber.x + chamber.w - 6,
+    chamber.y + chamber.h - 3,
+    [{ defId: 'psi_dust', count: 1 }, { defId: 'meat_rune', count: 1 }],
+  );
 
   dropAt(ctx, entry.x + 4, entry.y + entry.h - 2, 'note', 1,
     'Памятка ликвидатора: Черная Личинка не обязана нападать. УФ сушит глазки, огонь оставляет ПСИ-пыль, пломба делает пробу безопасной. Если культовый свидетель поет рядом, сырая банка просыпается.');

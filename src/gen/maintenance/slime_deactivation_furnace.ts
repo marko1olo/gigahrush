@@ -1,11 +1,11 @@
 /* ── AG71 slime deactivation furnace — dirty cleanup production ─ */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
   ContainerKind,
   Faction,
   Feature,
+  FloorLevel,
   MonsterKind,
   Occupation,
   QuestType,
@@ -75,11 +75,11 @@ const CLAIMANT_DEF: PlotNpcDef = {
 registerSideQuest('ag71_furnace_operator', OPERATOR_DEF, [
   {
     id: 'ag84_furnace_burn_brown_sample',
-    giverId: getPlotNpcNumericId('ag71_furnace_operator')!,
+    giverNpcId: 'ag71_furnace_operator',
     type: QuestType.FETCH,
     desc: 'Вера: «Коричневую пробу из сухого обхода в бункер. Я верну гашёный остаток: хуже товара, лучше живого запаха.»',
     targetItem: BROWN_SAMPLE_ITEM, targetCount: 1,
-    targetFloorZ: 140,
+    targetFloor: FloorLevel.MAINTENANCE,
     targetRoomType: RoomType.PRODUCTION,
     targetZoneTag: 'deactivation_furnace',
     targetHint: 'Коллекторы: сухой обход даёт коричневую пробу и щёлочную присыпку; печь деактивации гасит пробу в сухой остаток, а фильтр выдают по акту.',
@@ -95,7 +95,7 @@ registerSideQuest('ag71_furnace_operator', OPERATOR_DEF, [
   },
   {
     id: 'ag71_furnace_fuel_account',
-    giverId: getPlotNpcNumericId('ag71_furnace_operator')!,
+    giverNpcId: 'ag71_furnace_operator',
     type: QuestType.FETCH,
     desc: 'Вера: «Канистру бензина в расход печи. За топливо выдам сухой остаток и фильтр, без красивых слов про чистоту.»',
     targetItem: 'ammo_fuel', targetCount: 1,
@@ -107,11 +107,11 @@ registerSideQuest('ag71_furnace_operator', OPERATOR_DEF, [
 
 registerSideQuest('ag71_furnace_claimant', CLAIMANT_DEF, [{
   id: 'ag71_sell_hot_clot',
-  giverId: getPlotNpcNumericId('ag71_furnace_claimant')!,
+  giverNpcId: 'ag71_furnace_claimant',
   type: QuestType.FETCH,
   desc: 'Сенька: «Не жги коричневую пробу. Принеси её мне целой — рынок любит то, что официально должно исчезнуть.»',
   targetItem: BROWN_SAMPLE_ITEM, targetCount: 1,
-  targetFloorZ: 140,
+  targetFloor: FloorLevel.MAINTENANCE,
   targetRoomType: RoomType.PRODUCTION,
   targetZoneTag: 'deactivation_furnace',
   targetHint: 'Коллекторы: после сухого обхода Сенька у печи перекупает коричневую пробу до прожига.',
@@ -142,8 +142,7 @@ function addContainer(
     id: nextContainerId(ctx),
     x: wx,
     y: wy,
-    // @ts-ignore
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     roomId: room.id,
     zoneId: ctx.world.zoneMap[ci],
     ...container,
@@ -180,7 +179,6 @@ function scorchFurnace(ctx: MaintContentCtx, room: Room): void {
 }
 
 function addFurnaceContainers(ctx: MaintContentCtx, intake: Room, furnace: Room, fuel: Room, operatorId: number): void {
-  // @ts-ignore
   addContainer(ctx, furnace, furnace.x + furnace.w - 3, furnace.y + 2, {
     kind: ContainerKind.METAL_CABINET,
     name: 'Приёмный бункер печи гашения',
@@ -200,7 +198,6 @@ function addFurnaceContainers(ctx: MaintContentCtx, intake: Room, furnace: Room,
     factoryId: FACTORY_ID,
     tags: [CONTENT_TAG, 'production_output', 'cleanup', 'slime', 'sample', 'deactivation_furnace'],
   });
-  // @ts-ignore
   addContainer(ctx, fuel, fuel.x + fuel.w - 2, fuel.y + 2, {
     kind: ContainerKind.TOOL_LOCKER,
     name: 'Опломбированный шкаф топлива печи',
@@ -219,7 +216,6 @@ function addFurnaceContainers(ctx: MaintContentCtx, intake: Room, furnace: Room,
     discovered: true,
     tags: [CONTENT_TAG, 'fuel', 'locked', 'liquidator', 'theft', 'slime'],
   });
-  // @ts-ignore
   addContainer(ctx, intake, intake.x + 2, intake.y + intake.h - 2, {
     kind: ContainerKind.METAL_CABINET,
     name: 'Мокрая тара до гашения',

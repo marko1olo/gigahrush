@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { Cell, ContainerKind, Feature } from '../src/core/types';
+import { Cell, ContainerKind, Feature, FloorLevel } from '../src/core/types';
 import { World } from '../src/core/world';
 import {
   PATH_BLOCKER_ROWS_PER_CELL,
@@ -113,7 +113,7 @@ test('rebuild stamps feature and bulky container blockers without reading visual
     id: 1,
     x: 36,
     y: 30,
-    z: -6,
+    floor: FloorLevel.LIVING,
     roomId: -1,
     zoneId: 0,
     kind: ContainerKind.METAL_CABINET,
@@ -128,7 +128,7 @@ test('rebuild stamps feature and bulky container blockers without reading visual
     id: 2,
     x: 37,
     y: 30,
-    z: -6,
+    floor: FloorLevel.LIVING,
     roomId: -1,
     zoneId: 0,
     kind: ContainerKind.CASHBOX,

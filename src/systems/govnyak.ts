@@ -12,7 +12,6 @@ import { ITEMS } from '../data/items';
 import { publishEvent } from './events';
 import { monsterBaitPreviewForItem } from './monster_bait';
 import { isPlayerEntity } from './player_actor';
-import { rng } from '../core/rand';
 
 export const GOVNYAK_ITEM_IDS = [
   'govnyak_roll',
@@ -198,7 +197,7 @@ export function useGovnyakItem(actor: Entity, defId: string, state?: GameState):
   const def = GOVNYAK_USE[defId];
   const now = state?.time ?? 0;
   const source = defId as PlayerStatusSource;
-  const badBatch = def.badChance >= 1 || rng() < def.badChance;
+  const badBatch = def.badChance >= 1 || Math.random() < def.badChance;
   const baitPreview = monsterBaitPreviewForItem(defId, 'use', 1);
 
   if (actor.rpg) actor.rpg.psi = Math.min(actor.rpg.maxPsi, actor.rpg.psi + def.psiRelief);

@@ -16,7 +16,6 @@ import { currentProceduralFloorSpec } from '../procedural_floors';
 import { floorRunZAllowsNpcs } from '../../data/procedural_floors';
 import { ENTITY_MASK_ACTOR, getEntityIndex } from '../entity_index';
 import { isPlayerEntity } from '../player_actor';
-import { rng } from '../../core/rand';
 
 interface ZombieApocalypseRuntime {
   infections: number;
@@ -156,9 +155,9 @@ export function tryZombieApocalypseInfection(
   target.name = oldName ? `Мертвяк ${oldName}` : 'Мертвяк';
   target.hp = hp;
   target.maxHp = hp;
-  target.speed = MONSTERS[MonsterKind.ZOMBIE].speed * (0.92 + rng() * 0.2);
-  target.attackCd = 0.25 + rng() * 0.35;
-  target.ai = { goal: AIGoal.HUNT, tx: Math.floor(zombie.x), ty: Math.floor(zombie.y), path: [], pi: 0, stuck: 0, timer: 0, combatScanCd: rng() * 0.5 };
+  target.speed = MONSTERS[MonsterKind.ZOMBIE].speed * (0.92 + Math.random() * 0.2);
+  target.attackCd = 0.25 + Math.random() * 0.35;
+  target.ai = { goal: AIGoal.HUNT, tx: Math.floor(zombie.x), ty: Math.floor(zombie.y), path: [], pi: 0, stuck: 0, timer: 0, combatScanCd: Math.random() * 0.5 };
   target.rpg = target.rpg ?? randomRPG(1);
   target.needs = undefined;
   target.faction = undefined;

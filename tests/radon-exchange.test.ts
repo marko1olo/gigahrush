@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, DoorState, EntityType, Faction, MonsterKind, Occupation, RoomType, W, ZoneFaction } from '../src/core/types';
+import { Cell, DoorState, EntityType, Faction, FloorLevel, MonsterKind, Occupation, RoomType, W, ZoneFaction } from '../src/core/types';
 import { designFloorAtZ, designFloorById } from '../src/data/design_floors';
 import { designFloorPopulationProfile } from '../src/data/design_floor_population';
 import { PROCEDURAL_FLOOR_ZS } from '../src/data/procedural_floors';
@@ -13,7 +13,7 @@ import {
   RADON_EXCHANGE_ROUTE_ID,
   RADON_EXCHANGE_Z,
   measureRadonExchangeMetrics,
-} from '../src/gen/radon_exchange';
+} from '../src/gen/design_floors/radon_exchange';
 import { getRouteCueMarkers, routeCueCount } from '../src/systems/route_cues';
 import { countTerritoryCells, territoryHqAnchors } from '../src/systems/territory';
 
@@ -29,15 +29,17 @@ function radon(): RadonGeneration {
 test('radon_exchange is registered as a high Ministry route floor', () => {
   const route = designFloorById(RADON_EXCHANGE_ROUTE_ID);
   assert.equal(route?.z, RADON_EXCHANGE_Z);
-      assert.equal(route?.displayName, 'Радоновый обменник');
+  assert.equal(route?.baseFloor, RADON_EXCHANGE_BASE_FLOOR);
+  assert.equal(route?.baseFloor, FloorLevel.MINISTRY);
+  assert.equal(route?.displayName, 'Радоновый обменник');
   assert.equal(route?.danger, 4);
   assert.equal(designFloorAtZ(RADON_EXCHANGE_Z)?.id, RADON_EXCHANGE_ROUTE_ID);
   assert.equal(PROCEDURAL_FLOOR_ZS.includes(RADON_EXCHANGE_Z), false);
 
   assert.ok(route);
   const profile = designFloorPopulationProfile(route);
-  assert.ok(profile.npcTarget >= 4 && profile.npcTarget <= 480, 'npcTarget in bounds');
-  assert.ok(profile.monsterTarget >= 380 && profile.monsterTarget <= 38000, 'monsterTarget in bounds');
+  assert.equal(profile.npcTarget, 48);
+  assert.equal(profile.monsterTarget, 3800);
   assert.equal(profile.npcNoun, 'оператор заслонок');
   assert.equal(profile.npcFactions.some(entry => entry.value === Faction.SCIENTIST), true);
   assert.equal(profile.npcFactions.some(entry => entry.value === Faction.LIQUIDATOR), true);

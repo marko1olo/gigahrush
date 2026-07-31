@@ -1,4 +1,3 @@
-import { getPlotNpcNumericId } from '../data/npc_packages';
 import {
   AIGoal,
   EntityType,
@@ -6,14 +5,10 @@ import {
   type Entity,
   type Item,
   type Needs,
-  type Room,
 } from '../core/types';
-import { type World } from '../core/world';
 import { freshNeeds } from '../data/catalog';
-import { getNpcPackageByPlotNpcId, npcPackageDisplayName, type NpcPackageDef, allNpcPackages } from '../data/npc_packages';
+import { getNpcPackageByPlotNpcId, npcPackageDisplayName, type NpcPackageDef } from '../data/npc_packages';
 import { freshRPG } from '../systems/rpg';
-import { findRandomFloorCell, pickRandomRoom } from './shared';
-import { rng } from '../core/rand';
 
 export interface PlotNpcSpawnOptions {
   angle?: number;
@@ -45,21 +40,19 @@ function packageSpeed(pack: NpcPackageDef): number {
 }
 
 export function plotNpcEntityFromPackage(
+  id: number,
   plotNpcId: string,
   x: number,
   y: number,
   options: PlotNpcSpawnOptions = {},
 ): (Entity & { npcPackageId: string }) | undefined {
-  const numericId = getPlotNpcNumericId(plotNpcId)!;
-  const pack = getNpcPackageByPlotNpcId(numericId);
-  const packPlotId = pack?.content?.plotNpcId ? getPlotNpcNumericId(pack.content.plotNpcId) : undefined;
-  if (!pack || packPlotId !== numericId) return undefined;
+  const pack = getNpcPackageByPlotNpcId(plotNpcId);
+  if (!pack || pack.content?.plotNpcId !== plotNpcId) return undefined;
   const target = options.aiTarget ?? { x: 0, y: 0 };
   const visualSpriteScale = pack.visual.spriteScale
     ?? (pack.affiliation.occupation === Occupation.CHILD ? 0.6 : undefined);
   return {
-    id: getPlotNpcNumericId(plotNpcId)!,
-    alifeId: getPlotNpcNumericId(plotNpcId)!,
+    id,
     type: EntityType.NPC,
     x,
     y,
@@ -87,6 +80,7 @@ export function plotNpcEntityFromPackage(
     tool: options.tool ?? pack.loadout.tool,
     faction: pack.affiliation.faction,
     occupation: pack.affiliation.occupation,
+    plotNpcId,
     npcPackageId: pack.id,
     canGiveQuest: options.canGiveQuest ?? pack.runtime?.canGiveQuest ?? true,
     questId: -1,
@@ -103,8 +97,7 @@ export function spawnPlotNpcFromPackage(
   y: number,
   options: PlotNpcSpawnOptions = {},
 ): Entity | undefined {
-  nextId.v++;
-  const entity = plotNpcEntityFromPackage(plotNpcId, x, y, options);
+  const entity = plotNpcEntityFromPackage(nextId.v, plotNpcId, x, y, options);
   if (!entity) return undefined;
   nextId.v++;
   entities.push(entity);
@@ -122,46 +115,4 @@ export function requireSpawnedPlotNpcFromPackage(
   const entity = spawnPlotNpcFromPackage(entities, nextId, plotNpcId, x, y, options);
   if (!entity) throw new Error(`[PLOT_NPC_SPAWN] missing NPC package for "${plotNpcId}"`);
   return entity as Entity & { npcPackageId: string };
-}
-
-export function spawnPendingPlotNpcsForFloor(
-  world: World,
-  entities: Entity[],
-  nextId: { v: number },
-  floorKey: string,
-  namedRooms?: Record<string, Room>,
-): void {
-  for (const pack of allNpcPackages()) {
-    if (pack.placement.homeFloorKey !== floorKey) continue;
-    if (pack.content?.plotNpcId == null) continue;
-
-    // Check if already alive to avoid duplicates (just in case, though A-Life usually handles this)
-    if (entities.some(e => e.id === getPlotNpcNumericId(pack.content?.plotNpcId!) && e.alive)) continue;
-
-    let x = 0, y = 0;
-    if (pack.placement.roomId && namedRooms?.[pack.placement.roomId]) {
-      const room = namedRooms[pack.placement.roomId];
-      x = room.x + Math.floor(room.w / 2) + 0.5;
-      y = room.y + Math.floor(room.h / 2) + 0.5;
-    } else {
-      const room = pickRandomRoom(world);
-      if (room) {
-        x = room.x + Math.floor(room.w / 2) + 0.5;
-        y = room.y + Math.floor(room.h / 2) + 0.5;
-      } else {
-        const pos = findRandomFloorCell(world);
-        if (pos) {
-          x = pos.x + 0.5;
-          y = pos.y + 0.5;
-        }
-      }
-    }
-
-    if (x > 0 || y > 0) {
-      requireSpawnedPlotNpcFromPackage(entities, nextId, pack.content.plotNpcId, x, y, {
-        angle: rng() * Math.PI * 2,
-        canGiveQuest: true,
-      });
-    }
-  }
 }

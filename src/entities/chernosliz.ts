@@ -1,6 +1,6 @@
 /* ── Chernosliz: black-water ambush turret ───────────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -16,6 +16,7 @@ export const DEF: MonsterDef = {
   projSpeed: 9,
   projSprite: 0,
   aiFlags: ['blackWaterWake'],
+  floors: [FloorLevel.MAINTENANCE],
   counterplay: 'Не входите лицом в черную воду: подсветите лоток, киньте шумовую банку или дайте пробный выстрел, потом тяните чернослиз на сухую кромку.',
   lootHint: 'проба черной слизи, стеклянная пыль, редкий мутный зрачок из коллектора',
 };

@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ContainerKind, ItemType, RoomType } from '../src/core/types';
+import { ContainerKind, FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { CONTAINER_DEFS } from '../src/data/container_defs';
 import { ITEMS } from '../src/data/catalog';
 import { ITEM_TAGS } from '../src/data/items';
 import { RESOURCES } from '../src/data/resources';
-import { BLACK_MARKET_88_STOCK } from '../src/gen/black_market_88';
+import { BLACK_MARKET_88_STOCK } from '../src/gen/design_floors/black_market_88';
 import { getRecentEvents } from '../src/systems/events';
 import { addItem, getInventorySlotActionInfo, inventoryItemCategory, useItem } from '../src/systems/inventory';
 import { countInventoryItem, makeGameState, makeTestPlayer } from './helpers';
@@ -46,7 +46,7 @@ test('stolen terminal stamp is reachable through office theft and Black Market 8
 
 test('stolen terminal stamp can be sold as black market document risk', () => {
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 200 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 200 });
 
   assert.equal(addItem(player, ITEM_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter проверить');

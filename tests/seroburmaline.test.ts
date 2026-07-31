@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { RoomType, Cell } from '../src/core/types';
+import { FloorLevel, RoomType, Cell } from '../src/core/types';
 import { World } from '../src/core/world';
 import { makeGameState, makeTestPlayer } from './helpers';
 import { createWorldEventState } from '../src/systems/events';
@@ -56,7 +56,7 @@ function setupWorld() {
 
 test('seroburmaline exposure increases when looking at source', () => {
   const { world } = setupWorld();
-  const state = makeGameState({ worldEvents: createWorldEventState(), currentZ: -26, time: 100 });
+  const state = makeGameState({ worldEvents: createWorldEventState(), currentFloor: FloorLevel.MAINTENANCE, time: 100 });
   const player = makeTestPlayer({
     x: 1,
     y: 2,
@@ -76,7 +76,7 @@ test('seroburmaline exposure increases when looking at source', () => {
 
 test('seroburmaline fades when not on MAINTENANCE floor', () => {
   const { world } = setupWorld();
-  const state = makeGameState({ worldEvents: createWorldEventState(), currentZ: 0, time: 100 });
+  const state = makeGameState({ worldEvents: createWorldEventState(), currentFloor: FloorLevel.LIVING, time: 100 });
   const player = makeTestPlayer({ x: 1, y: 2, angle: 0, pitch: 0, alive: true });
 
   updateSeroburmalineExposure(world, player, state, 1);
@@ -85,7 +85,7 @@ test('seroburmaline fades when not on MAINTENANCE floor', () => {
 
 test('seroburmaline is avoided when near but looking down', () => {
   const { world } = setupWorld();
-  const state = makeGameState({ worldEvents: createWorldEventState(), currentZ: -26, time: 100 });
+  const state = makeGameState({ worldEvents: createWorldEventState(), currentFloor: FloorLevel.MAINTENANCE, time: 100 });
   const player = makeTestPlayer({
     x: 1,
     y: 2,
@@ -107,7 +107,7 @@ test('seroburmaline is avoided when near but looking down', () => {
 
 test('seroburmaline is avoided when near but facing away', () => {
   const { world } = setupWorld();
-  const state = makeGameState({ worldEvents: createWorldEventState(), currentZ: -26, time: 100 });
+  const state = makeGameState({ worldEvents: createWorldEventState(), currentFloor: FloorLevel.MAINTENANCE, time: 100 });
   const player = makeTestPlayer({
     x: 1,
     y: 2,

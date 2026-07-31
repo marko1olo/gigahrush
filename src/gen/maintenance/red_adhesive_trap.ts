@@ -6,27 +6,9 @@ import {
 import { registerCellHazardSite } from '../../systems/cell_hazards';
 import { stampMark, MarkType } from '../../systems/surface_marks';
 import { Spr } from '../../render/sprite_index';
-import { type PlotNpcDef, registerAuthoredNpc } from '../../data/plot';
-import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Семён Прилипло',
-  isFemale: false,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.LOCKSMITH,
-  sprite: Occupation.LOCKSMITH,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [
-    { defId: 'sealant_tube', count: 1 },
-    { defId: 'rubber_strip', count: 1 },
-  ],
-  talkLines: ['...'],
-  talkLinesPost: ['...']
-};
-registerAuthoredNpc({ id: 'maintenance_ambient_0_fb1ov', npc: AMBIENT_NPC_0 });
 import {
   type MaintContentCtx, dropItems, findMaintArea, setFeature,
-  spawnMonstersNear, stampMaintRoom,
+  spawnAmbientNpc, spawnMonstersNear, stampMaintRoom,
 } from './content_helpers';
 
 const TRAP_ID = 'maintenance_red_adhesive_trap';
@@ -109,6 +91,9 @@ export function generateRedAdhesiveTrap(ctx: MaintContentCtx): void {
   dropAt(ctx, room.x + room.w - 5, room.y + room.h - 3, 'rubber_strip', 2);
   dropItems(ctx, room, ['alcohol_bottle', 'filter_layer', 'note']);
 
-  requireSpawnedPlotNpcFromPackage(ctx.entities, ctx.nextId, 'maintenance_ambient_0_fb1ov', room.x + room.w - 3 + 0.5, room.y + 6 + 0.5, { angle: 0});
+  spawnAmbientNpc(ctx, 'Семён Прилипло', Faction.CITIZEN, Occupation.LOCKSMITH, room.x + room.w - 3, room.y + 6, [
+    { defId: 'sealant_tube', count: 1 },
+    { defId: 'rubber_strip', count: 1 },
+  ]);
   spawnMonstersNear(ctx, room.x + 10, room.y + 5, [MonsterKind.POLZUN, MonsterKind.EYE], 5, 9);
 }

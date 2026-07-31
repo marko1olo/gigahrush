@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, ContainerKind, DoorState, EntityType, Tex } from '../src/core/types';
+import { Cell, ContainerKind, DoorState, EntityType, FloorLevel, Tex } from '../src/core/types';
 import { World } from '../src/core/world';
 import {
   applyMapEditorOp,
@@ -25,7 +25,7 @@ function makeEditorFixture(): {
 } {
   const world = new World();
   addTestRoom(world, { id: 0, x: 8, y: 8, w: 8, h: 8, zoneId: 0 });
-  const state = makeGameState({ currentZ: 0, time: 10 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 10 });
   const player = makeTestPlayer({ id: 1, x: 9.5, y: 9.5 });
   return { world, state, player, entities: [player], nextEntityId: { v: 2 } };
 }
@@ -130,7 +130,7 @@ test('map editor patch replay sanitizes malformed ops and commits restored edits
     patches: {
       [key]: {
         floorKey: key,
-        baseFloor: 'living',
+        baseFloor: FloorLevel.LIVING,
         createdAt: 1,
         opCount: 5,
         ops: [
@@ -155,7 +155,7 @@ test('map editor patch replay sanitizes malformed ops and commits restored edits
 });
 
 test('ensureMapEditorPatchState initializes and returns valid patch state', () => {
-  const state = makeGameState({ currentZ: 0, time: 10 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 10 });
   const patchState = ensureMapEditorPatchState(state);
   assert.ok(patchState);
   assert.ok(patchState.patches);

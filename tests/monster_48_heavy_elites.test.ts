@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, MonsterKind, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, FloorLevel, MonsterKind, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { DEF as CREATOR_DEF } from '../src/entities/creator';
 import { DEF as MANCOBUS_DEF } from '../src/entities/mancobus';
@@ -29,7 +29,6 @@ function openWorld(): World {
     hqRoomId: -1,
   };
   setListenerPos(512, 512, world.dist2.bind(world));
-  world.cellVersion++;
   return world;
 }
 
@@ -86,7 +85,7 @@ test('heavy ranged bosses use their own readable range, windup and counterplay d
   const target = player(27.5, 10.5);
   const threat = monster(MonsterKind.CREATOR, 10.5, 10.5);
   const entities = [target, threat];
-  const state = makeGameState({ currentZ: -36, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.VOID, worldEvents: createWorldEventState() });
   const msgs: Msg[] = [];
 
   prepare(entities);
@@ -109,7 +108,7 @@ test('heavy ranged boss windup is interrupted by cover and reports the boss line
   const target = player(24.5, 10.5);
   const threat = monster(MonsterKind.CREATOR, 10.5, 10.5);
   const entities = [target, threat];
-  const state = makeGameState({ currentZ: -36, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.VOID, worldEvents: createWorldEventState() });
   const msgs: Msg[] = [];
 
   prepare(entities);
@@ -133,7 +132,7 @@ test('heavy ranged boss phase cues are actor-local and progress one threshold at
   const threat = monster(MonsterKind.MANCOBUS, 10.5, 10.5);
   threat.hp = Math.floor(MANCOBUS_DEF.hp * 0.62);
   const entities = [target, threat];
-  const state = makeGameState({ currentZ: -14, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, worldEvents: createWorldEventState() });
   const msgs: Msg[] = [];
 
   prepare(entities);
@@ -161,11 +160,7 @@ test('nightmare pressure is capped and breaks when the target leaves the room-sc
     updateMonster(world, entities, threat, 1, i + 1, msgs, target.id, { v: 10 }, state);
   }
 
-  console.log('threat.x:', threat.x, 'threat.y:', threat.y, 'dist:', Math.sqrt(world.dist2(threat.x, threat.y, target.x, target.y)));
-  console.log('threat.monsterDmgMult:', threat.monsterDmgMult, 'threat.ai.path.length:', threat.ai?.path?.length);
-  // Pressure accumulated: exact value depends on movement trajectory
-  assert.equal(threat.monsterDmgMult! > 1, true, 'pressure accumulated');
-  assert.equal(threat.monsterDmgMult! <= 1 + 4 * 0.1, true, 'pressure capped');
+  assert.equal(threat.monsterDmgMult, 1 + 4 * 0.1);
   assert.equal((threat.spriteScale ?? 1) <= 1.141, true);
   assert.equal(getRecentEvents(state, { type: 'monster_sighted', tags: ['nightmare', 'pressure'], limit: 1 }).length, 1);
 
@@ -204,7 +199,7 @@ test('kostorez windup misses if the target leaves range', () => {
   const target = player(12.4, 10.5);
   const threat = monster(MonsterKind.KOSTOREZ, 10.5, 10.5);
   const entities = [target, threat];
-  const state = makeGameState({ currentZ: -14, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, worldEvents: createWorldEventState() });
   const msgs: Msg[] = [];
 
   prepare(entities);
@@ -230,7 +225,7 @@ test('safeguard windup is shotgun-interruptible without any online dependency', 
   const target = player(12.1, 10.5);
   const threat = monster(MonsterKind.SAFEGUARD, 10.5, 10.5);
   const entities = [target, threat];
-  const state = makeGameState({ currentZ: -36, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.VOID, worldEvents: createWorldEventState() });
   const msgs: Msg[] = [];
 
   prepare(entities);

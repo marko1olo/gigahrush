@@ -1,6 +1,6 @@
 /* ── Ложный Дух — local door phaser ─────────────────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.65,
   sprite: 0,
   aiFlags: ['falsePhase'],
+  floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.VOID],
   counterplay: 'Холодный сквозняк предупреждает один проход через закрытую дверь: выходите в открытое место или сбивайте фазу точным выстрелом/УФ.',
   lootHint: 'пустая записка, холодный сквозняк, редкая ПСИ-пыль из второго лица',
 };

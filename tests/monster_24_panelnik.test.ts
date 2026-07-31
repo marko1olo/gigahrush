@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, MonsterKind, type Entity } from '../src/core/types';
+import { AIGoal, Cell, EntityType, FloorLevel, MonsterKind, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { RUMORS, type RumorReveal } from '../src/data/rumors';
 import { getMonsterEcology } from '../src/data/monster_ecology';
@@ -80,6 +80,7 @@ test('panelnik is standalone wall-brace monster data, not old panel variant data
   const oldRumorId = ['variant', oldVariantId].join('_');
 
   assert.equal(DEF.kind, MonsterKind.PANELNIK);
+  assert.deepEqual(DEF.floors, [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE]);
   assert.deepEqual(DEF.aiFlags, ['wallBrace']);
   assert.equal(ecology?.rumorIds.includes('ecology_panelnik_wall'), true);
   const rumor = RUMORS.find(r => r.id === 'ecology_panelnik_wall');
@@ -128,7 +129,7 @@ test('wall brace uses toroidal wall adjacency and bounded open-floor scan', () =
 
 test('wall brace reduces incoming damage and publishes a visible cue', () => {
   const world = openWorld();
-  const state = makeGameState({ currentZ: 0 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
   const actor = player(12.5, 10.5);
   const threat = panelnik(10.5, 10.5);
   world.cells[world.idx(9, 10)] = Cell.WALL;
@@ -154,7 +155,7 @@ test('wall brace reduces incoming damage and publishes a visible cue', () => {
 
 test('braced panelnik reaches farther, then slows when pulled into open floor', () => {
   const world = openWorld();
-  const state = makeGameState({ currentZ: 0 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
   setListenerPos(512, 512, world.dist2.bind(world));
   const target = player(12.05, 10.5);
   const threat = panelnik(10.5, 10.5);

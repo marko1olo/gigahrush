@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { MonsterKind } from '../src/core/types';
+import { FloorLevel, MonsterKind } from '../src/core/types';
 import { MONSTER_ECOLOGY, getMonsterEcology } from '../src/data/monster_ecology';
 import { generateSprite as generateEyeSprite } from '../src/entities/eye';
 import { DEF, generateSprite } from '../src/entities/slepoglaz';
@@ -32,6 +32,7 @@ test('Slepoglaz is a standalone last-sound beam monster', () => {
   assert.equal(DEF.kind, MonsterKind.SLEPOGLAZ);
   assert.equal(DEF.name, 'Слепоглаз');
   assert.deepEqual(DEF.aiFlags, ['lastSoundBeam']);
+  assert.deepEqual(DEF.floors, [FloorLevel.MAINTENANCE, FloorLevel.HELL]);
   assert.equal(DEF.hp >= 40 && DEF.hp <= 70, true, 'Slepoglaz should stay medium durability');
   assert.equal(DEF.speed <= 0.8, true, 'Slepoglaz should stay slow enough to rush after a miss');
   assert.equal(DEF.dmg >= 20, true, 'Slepoglaz beam should stay lethal at range');
@@ -42,6 +43,7 @@ test('Slepoglaz is a standalone last-sound beam monster', () => {
 test('Slepoglaz ecology has no old blind Eye variant dependency', () => {
   const ecology = getMonsterEcology(MonsterKind.SLEPOGLAZ);
   assert.ok(ecology, 'Slepoglaz needs ecology data');
+  assert.deepEqual(ecology.floors, [FloorLevel.MAINTENANCE, FloorLevel.HELL]);
   assert.equal(ecology.rare, false);
   assert.equal(ecology.rumorIds.includes('ecology_slepoglaz_last_sound'), true);
   assert.match(ecology.counterplay, /Шумните|шаг|После|упор/);

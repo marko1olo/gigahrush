@@ -1,15 +1,14 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { test } from 'node:test';
-import { getPlotNpcCount } from '../src/data/npc_packages';
 import * as assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { AIGoal, Cell, EntityType, Feature, MonsterKind, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Feature, FloorLevel, MonsterKind, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
 import { DEF, generateSprite } from '../src/entities/lampoglaz';
+import { MONSTERS, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { S } from '../src/render/pixutil';
 import { setListenerPos } from '../src/systems/audio';
 import { rebuildEntityIndex } from '../src/systems/entity_index';
@@ -88,8 +87,11 @@ test('Lampoglaz is standalone light-lock monster content', () => {
   assert.equal(DEF.kind, MonsterKind.LAMPOGLAZ);
   assert.equal(MONSTERS[MonsterKind.LAMPOGLAZ], DEF);
   assert.deepEqual(DEF.aiFlags, ['lightLock']);
+  assert.deepEqual(DEF.floors, [FloorLevel.LIVING, FloorLevel.MINISTRY]);
   assert.equal(DEF.isRanged, true);
   assert.equal((DEF.projSpeed ?? 0) > 10, true, 'Lampoglaz shot should be fast enough to punish lit lanes');
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.LIVING]?.includes(MonsterKind.LAMPOGLAZ), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.MINISTRY]?.includes(MonsterKind.LAMPOGLAZ), true);
   assert.deepEqual(ecology?.rumorIds, ['monster_lampoglaz_hum', 'ecology_lampoglaz_light_lock']);
   assert.equal(sprite.length, S * S);
   assert.equal(opaque > 900, true, 'Lampoglaz sprite should read as a halo eye fixture');
@@ -111,7 +113,7 @@ test('Lampoglaz winds up on lit targets and drops lock in darkness', () => {
   const threat = lampoglaz(6.5, 10.5);
   const entities = [target, threat];
   const msgs: Msg[] = [];
-  const nextId = { v: getPlotNpcCount() + 3 }
+  const nextId = { v: 3 };
 
   world.features[world.idx(14, 10)] = Feature.LAMP;
   prepare(entities);

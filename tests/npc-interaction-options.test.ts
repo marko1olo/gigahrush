@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType } from '../src/core/types';
+import { FloorLevel, ItemType } from '../src/core/types';
 import { ITEMS } from '../src/data/catalog';
 import { designFloorProfile } from '../src/data/design_floor_profiles';
 import {
@@ -199,7 +199,7 @@ test('domino option opens a playable NPC interface without charging money until 
 });
 
 test('floor 69 entertainment option is route and worker gated', () => {
-  const state = makeGameState({ currentZ: -26 });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE });
   (state as unknown as { floorRun: { runSeed: number; currentZ: number; specs: Record<string, never>; visited: Record<string, boolean> } }).floorRun = {
     runSeed: 69,
     currentZ: -4,

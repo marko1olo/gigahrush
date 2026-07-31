@@ -1,6 +1,7 @@
 import {
   EntityType,
   Faction,
+  FloorLevel,
   Occupation,
   type Entity,
   type GameState,
@@ -264,8 +265,8 @@ function questTraitId(snapshot: AlifeNpcSnapshot): string {
 
 function fourthTraitId(seed: number, snapshot: AlifeNpcSnapshot): string {
   if (snapshot.canGiveQuest) return questTraitId(snapshot);
-  const h = hash32(seed, snapshot.id, snapshot.z + 7, 41) % 4;
-  if (h === 0) return snapshot.z === 180 || snapshot.z === 200 ? 'fear_monster' : 'fear_samosbor';
+  const h = hash32(seed, snapshot.id, snapshot.floor + 7, 41) % 4;
+  if (h === 0) return snapshot.floor === FloorLevel.HELL || snapshot.floor === FloorLevel.VOID ? 'fear_monster' : 'fear_samosbor';
   if (h === 1) return snapshot.accountRubles < 40 ? 'fear_debt' : 'fear_hunger';
   return tasteTraitId(snapshot);
 }
@@ -686,7 +687,7 @@ function eventSummary(event: WorldEvent): string {
   const parts = [event.actorName, event.targetName, event.itemName].filter((part): part is string => !!part);
   const place = event.roomId !== undefined ? `комната ${Math.floor(event.roomId)}`
     : event.zoneId !== undefined ? `зона ${Math.floor(event.zoneId)}`
-      : `этаж ${event.z}`;
+      : `этаж ${event.floor}`;
   return parts.length > 0 ? `${parts.join(' -> ')}; ${place}` : `${event.type}; ${place}`;
 }
 

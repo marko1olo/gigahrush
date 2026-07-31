@@ -36,7 +36,6 @@ import {
   roomCenter,
   type ProceduralAnomalyGenContext,
 } from './common';
-import { rng } from '../../core/rand';
 
 const CROWD_OCCUPATIONS = [
   Occupation.HOUSEWIFE,
@@ -95,7 +94,7 @@ function chooseOutbreakRoom(ctx: ProceduralAnomalyGenContext, rooms: readonly Ro
     .filter(item => item.d2 > 42 * 42)
     .sort((a, b) => b.d2 - a.d2);
   if (candidates.length === 0) return rooms[0] ?? null;
-  return candidates[Math.floor(rng() * Math.min(candidates.length, 18))].room;
+  return candidates[Math.floor(Math.random() * Math.min(candidates.length, 18))].room;
 }
 
 function chooseMedicalSlugRoom(rooms: readonly Room[]): Room | null {
@@ -194,8 +193,7 @@ function addMedicalCounterplayContainer(ctx: ProceduralAnomalyGenContext, room: 
     id: nextContainerId(ctx),
     x: pos.x,
     y: pos.y,
-    // @ts-ignore
-    z: ctx.spec.themeTags,
+    floor: ctx.spec.baseFloor,
     roomId: room.id,
     zoneId: ctx.world.zoneMap[ctx.world.idx(pos.x, pos.y)],
     kind: ContainerKind.MEDICAL_CABINET,
@@ -586,8 +584,7 @@ function registerZombieApocalypseCues(
       y: ctx.spawnY,
       targetX: c.x + 0.5,
       targetY: c.y + 0.5,
-      // @ts-ignore
-      z: ctx.spec.themeTags,
+      floor: ctx.spec.baseFloor,
       label: 'КАРАНТИННЫЙ ОЧАГ',
       hint: 'металл, толпа, заражение',
       targetName: outbreak.name,
@@ -616,8 +613,7 @@ function registerZombieApocalypseCues(
       y: ctx.spawnY,
       targetX: c.x + 0.5,
       targetY: c.y + 0.5,
-      // @ts-ignore
-      z: ctx.spec.themeTags,
+      floor: ctx.spec.baseFloor,
       label: 'МЕДПУНКТ КАРАНТИНА',
       hint: 'перевязка, фильтр, справка',
       targetName: room.name,
@@ -682,7 +678,7 @@ function spawnCrowdNpc(cfg: SpawnCrowdNpcConfig): boolean {
   const ci = ctx.world.idx(pos.x, pos.y);
   const zoneLevel = ctx.world.zones[ctx.world.zoneMap[ci]]?.level ?? ctx.spec.danger;
   const rpg = active ? randomRPG(gaussianLevel(zoneLevel, 2)) : undefined;
-  const hp = rpg ? getMaxHp(rpg) : 38 + Math.floor(rng() * 24);
+  const hp = rpg ? getMaxHp(rpg) : 38 + Math.floor(Math.random() * 24);
   const nm = randomName(Faction.CITIZEN);
   const occupation = pick(CROWD_OCCUPATIONS);
   const child = occupation === Occupation.CHILD;
@@ -692,10 +688,10 @@ function spawnCrowdNpc(cfg: SpawnCrowdNpcConfig): boolean {
     type: EntityType.NPC,
     x: pos.x + 0.5,
     y: pos.y + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
-    speed: child ? 0.82 : 1.05 + rng() * 0.18,
+    speed: child ? 0.82 : 1.05 + Math.random() * 0.18,
     sprite: occupation,
     spriteSeed: (ctx.spec.seed ^ Math.imul(order + 1, 0x45d9f3b)) >>> 0,
     name: nm.name,
@@ -704,12 +700,12 @@ function spawnCrowdNpc(cfg: SpawnCrowdNpcConfig): boolean {
     isFemale: nm.female,
     hp,
     maxHp: hp,
-    money: Math.floor(rng() * 35),
+    money: Math.floor(Math.random() * 35),
     faction: Faction.CITIZEN,
     occupation,
     questId: -1,
-    inventory: rng() < 0.16
-      ? generateContainerLoot(['food', 'trash'], 15, zoneLevel, [rng()])
+    inventory: Math.random() < 0.16
+      ? generateContainerLoot(['food', 'trash'], 15, zoneLevel, [Math.random()])
       : [],
   };
 
@@ -722,8 +718,8 @@ function spawnCrowdNpc(cfg: SpawnCrowdNpcConfig): boolean {
       path: [],
       pi: 0,
       stuck: 0,
-      timer: rng() * 2,
-      combatScanCd: rng() * 1.5,
+      timer: Math.random() * 2,
+      combatScanCd: Math.random() * 1.5,
     };
     npc.rpg = rpg;
   }
@@ -744,7 +740,7 @@ function markOutbreakRoom(ctx: ProceduralAnomalyGenContext, room: Room): void {
         ctx.world.floorTex[ci] = Tex.F_TILE;
         stampSurfaceSplat(ctx.world, x, y, 0.5, 0.5, 0.36, 0.54, ctx.spec.seed + dx * 101 + dy * 37, 92, 24, 20, false);
       }
-      if (ctx.world.features[ci] === Feature.LAMP && rng() < 0.55) ctx.world.features[ci] = Feature.NONE;
+      if (ctx.world.features[ci] === Feature.LAMP && Math.random() < 0.55) ctx.world.features[ci] = Feature.NONE;
       ctx.world.fog[ci] = Math.max(ctx.world.fog[ci], 18 + ctx.spec.danger * 6);
     }
   }
@@ -762,7 +758,7 @@ function tunePatientZero(ctx: ProceduralAnomalyGenContext, entity: Entity, room:
   entity.type = EntityType.MONSTER;
   entity.x = pos.x + 0.5;
   entity.y = pos.y + 0.5;
-  entity.angle = rng() * Math.PI * 2;
+  entity.angle = Math.random() * Math.PI * 2;
   entity.pitch = 0;
   entity.alive = true;
   entity.speed = def.speed * 1.08;
@@ -815,7 +811,7 @@ function spawnHeadSlugPatient(ctx: ProceduralAnomalyGenContext, room: Room): voi
     type: EntityType.MONSTER,
     x: pos.x + 0.5,
     y: pos.y + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: def.speed * skill,
@@ -885,7 +881,7 @@ export function applyZombieApocalypse(ctx: ProceduralAnomalyGenContext): void {
   const distributionRooms = crowdDistributionRooms(ctx, rooms, outbreak, medicalPockets);
   let spawned = 0;
   for (let i = 0; i < target * 12 && spawned < target; i++) {
-    const room = rng() < 0.22 && outbreak ? outbreak : pick(distributionRooms);
+    const room = Math.random() < 0.22 && outbreak ? outbreak : pick(distributionRooms);
     if (spawnCrowdNpc({ ctx, room, occupied, bucketCounts, order: spawned, active: true })) spawned++;
   }
 

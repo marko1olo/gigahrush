@@ -1,11 +1,10 @@
-import { currentFloorRunEntry } from './procedural_floors';
 /* ── Inventory system: items, pickup, use ─────────────────────── */
 
-import { calculateReloadTime } from './combat';
 import {
-  type Entity, type InventoryHolder, type GameState, type Item, type ItemDef, type Msg,
+  type Entity, type GameState, type Item, type ItemDef, type Msg,
   type WorldEventPrivacy, type WorldEventSeverity, ItemType,
-  EntityType, Faction, msg,
+  EntityType, Faction, FloorLevel,
+  msg,
 } from '../core/types';
 import { ITEMS, WEAPON_ROLE_LABELS, WEAPON_ROLE_TIERS, WEAPON_STATS, type WeaponStats } from '../data/catalog';
 import { GOVNYAK_COURIER_CONTRACT_IDS, GOVNYAK_COURIER_PACKAGE_ITEM } from '../data/contracts';
@@ -90,7 +89,6 @@ import {
   type CraftRecipeLearnResult,
 } from './crafting';
 import { controlBindingLabel } from './controls';
-import { rng } from '../core/rand';
 
 const GOVNYAK_COURIER_ROUTE_SET = new Set<string>(GOVNYAK_COURIER_CONTRACT_IDS);
 const DIRECT_DOCUMENT_ACTION_ITEMS = new Set(['ammo_coupon_9mm', 'ammo_coupon_shells', 'fuel_issue_stamp', 'foam_grenade_act', 'water_reservoir_quota', 'shelter_seat_card', 'shelter_seat_forgery', 'concentrate_bonus_coupon']);
@@ -292,19 +290,6 @@ var inventoryUseHandlers: InventoryUseHandler[] | undefined;
 function getInventoryUseHandlers(): InventoryUseHandler[] {
   if (!inventoryUseHandlers) inventoryUseHandlers = [];
   return inventoryUseHandlers;
-}
-
-
-export function transferMoney(from: import('../core/types').Entity | null, to: import('../core/types').Entity | null, amount: number): boolean {
-  if (amount <= 0) return false;
-  if (from) {
-    if ((from.money ?? 0) < amount) return false;
-    from.money = (from.money ?? 0) - amount;
-  }
-  if (to) {
-    to.money = (to.money ?? 0) + amount;
-  }
-  return true;
 }
 
 export function registerInventoryUseHandler(handler: InventoryUseHandler): void {
@@ -555,7 +540,6 @@ function handleVeretarSandUse(e: Entity, slotIdx: number, msgs: Msg[], time: num
       publishVeretarSandEvent(state, e, 'seal_blocked', VERETAR_UNSEALED_SAND, 1, 2);
       return true;
     }
-    removeItem(e, sealItemId, 1);
     if (slot.count <= 1) {
       slot.defId = VERETAR_SEALED_SAND;
       slot.count = 1;
@@ -564,6 +548,7 @@ function handleVeretarSandUse(e: Entity, slotIdx: number, msgs: Msg[], time: num
       slot.count--;
       addItem(e, VERETAR_SEALED_SAND, 1);
     }
+    removeItem(e, sealItemId, 1);
     msgs.push(msg(`Белый песок запечатан. Потрачен ${ITEMS[sealItemId]?.name ?? sealItemId}.`, time, '#f4e7b0'));
     publishVeretarSandEvent(state, e, 'sealed', VERETAR_SEALED_SAND, 1, 3, undefined, sealItemId);
     return true;
@@ -586,9 +571,9 @@ export function publishPlayerItemEvent(
 ): void {
   if (!state || !isPlayerEntity(actor)) return;
   const def = ITEMS[defId];
-  const tagsSet = new Set<string>(['player', 'inventory', def?.type !== undefined ? `item_type_${def.type}` : 'item']);
-  for (const tag of ITEM_TAGS[defId] ?? []) tagsSet.add(tag);
-  for (const tag of def?.tags ?? []) tagsSet.add(tag);
+  const tags = ['player', 'inventory', def?.type !== undefined ? `item_type_${def.type}` : 'item'];
+  for (const tag of ITEM_TAGS[defId] ?? []) if (!tags.includes(tag)) tags.push(tag);
+  for (const tag of def?.tags ?? []) if (!tags.includes(tag)) tags.push(tag);
   const eventSeverity = defId === 'maronary_shaving' && type === 'player_pick_item' && severity < 3 ? 3 : severity;
   publishEvent(state, {
     type,
@@ -602,7 +587,7 @@ export function publishPlayerItemEvent(
     itemValue: def?.value ?? 0,
     severity: eventSeverity,
     privacy: defId === 'maronary_shaving' ? 'local' : 'private',
-    tags: Array.from(tagsSet),
+    tags,
   });
 }
 
@@ -870,12 +855,10 @@ export function publishItemTradeEvent(
   });
 }
 
-export function consumeInventorySlot(e: InventoryHolder, slotIdx: number, count?: number): void {
+function consumeInventorySlot(e: Entity, slotIdx: number): void {
   const slot = e.inventory?.[slotIdx];
   if (!slot) return;
-  const toRemove = count ?? 1;
-  if (toRemove <= 0 || slot.count < toRemove) return;
-  slot.count -= toRemove;
+  slot.count--;
   if (slot.count <= 0) e.inventory?.splice(slotIdx, 1);
 }
 
@@ -981,7 +964,7 @@ function handleSilverSlimeUse(
   return false;
 }
 
-export function itemAddCapacity(e: InventoryHolder, defId: string, count: number, data: unknown): number {
+function itemAddCapacity(e: Entity, defId: string, count: number, data: unknown): number {
   if (count <= 0) return 0;
   const def = ITEMS[defId];
   if (!def) return 0;
@@ -997,7 +980,7 @@ export function itemAddCapacity(e: InventoryHolder, defId: string, count: number
   return capacity;
 }
 
-export function canAddItem(e: InventoryHolder, defId: string, count = 1, data?: unknown): boolean {
+export function canAddItem(e: Entity, defId: string, count = 1, data?: unknown): boolean {
   if (!ITEMS[defId]) return false;
   if (count <= 0) return true;
   return itemAddCapacity(e, defId, count, data) >= count;
@@ -1012,7 +995,7 @@ function defaultSlotData(defId: string, def: ItemDef, data: unknown): unknown {
   return undefined;
 }
 
-export function addItemMovedCount(e: InventoryHolder, defId: string, count = 1, data?: unknown): number {
+function addItemMovedCount(e: Entity, defId: string, count = 1, data?: unknown): number {
   const def = ITEMS[defId];
   if (!def || count <= 0) return 0;
   count = Math.min(count, itemAddCapacity(e, defId, count, data));
@@ -1043,13 +1026,13 @@ export function addItemMovedCount(e: InventoryHolder, defId: string, count = 1, 
 }
 
 /* ── Add item to entity inventory ─────────────────────────────── */
-export function addItem(e: InventoryHolder, defId: string, count = 1, data?: unknown): boolean {
+export function addItem(e: Entity, defId: string, count = 1, data?: unknown): boolean {
   if (!canAddItem(e, defId, count, data)) return false;
   return addItemMovedCount(e, defId, count, data) === Math.max(0, count);
 }
 
 /* ── Remove item from inventory ───────────────────────────────── */
-export function removeItem(e: InventoryHolder, defId: string, count = 1): boolean {
+export function removeItem(e: Entity, defId: string, count = 1): boolean {
   if (!e.inventory) return false;
   for (let i = e.inventory.length - 1; i >= 0; i--) {
     const slot = e.inventory[i];
@@ -1065,11 +1048,11 @@ export function removeItem(e: InventoryHolder, defId: string, count = 1): boolea
 }
 
 /* ── Check if entity has item ─────────────────────────────────── */
-export function hasItem(e: InventoryHolder, defId: string): boolean {
+export function hasItem(e: Entity, defId: string): boolean {
   return (e.inventory ?? []).some(i => i.defId === defId);
 }
 
-function inventoryCount(e: InventoryHolder, defId: string): number {
+function inventoryCount(e: Entity, defId: string): number {
   let total = 0;
   for (const slot of e.inventory ?? []) if (slot.defId === defId) total += slot.count;
   return total;
@@ -1150,14 +1133,12 @@ export function getInventorySlotActionInfo(e: Entity, slotIdx: number): Inventor
   const category = inventoryItemCategory(def.id);
   const isEquippedWeapon = equipSlot === 'weapon' && e.weapon === def.id;
   const isEquippedTool = equipSlot === 'tool' && e.tool === def.id;
-  const isEquippedArmor = equipSlot === 'armor' && e.armorDefId === def.id;
   let useLabel = '';
   let canUse = true;
 
   const accept = controlBindingLabel('gameMenu');
   if (equipSlot === 'weapon') useLabel = isEquippedWeapon ? `${accept} снять` : `${accept} экипировать`;
   else if (equipSlot === 'tool') useLabel = isEquippedTool ? `${accept} снять` : `${accept} в инструмент`;
-  else if (equipSlot === 'armor') useLabel = isEquippedArmor ? `${accept} снять` : `${accept} надеть`;
   else if (itemHasUseAction(def)) useLabel = `${accept} применить`;
   else useLabel = inventorySpecialUseLabel(def.id, def, slot);
 
@@ -1174,7 +1155,7 @@ export function getInventorySlotActionInfo(e: Entity, slotIdx: number): Inventor
     stackMax: getStack(def),
     category,
     categoryLabel: inventoryCategoryLabel(category),
-    equippedLabel: isEquippedWeapon ? 'оружие выбрано' : isEquippedTool ? 'инструмент выбран' : isEquippedArmor ? 'броня надета' : inventoryCategoryLabel(category),
+    equippedLabel: isEquippedWeapon ? 'оружие выбрано' : isEquippedTool ? 'инструмент выбран' : inventoryCategoryLabel(category),
     useLabel,
     dropLabel: def.type === ItemType.TOOL
       ? 'X выкинуть: сломать'
@@ -1319,30 +1300,11 @@ function documentRoomName(e: Entity, world: World | undefined): string | undefin
 }
 
 function documentActionTags(defId: string, extra: readonly string[]): string[] {
-  const out = new Set(['player', 'inventory', 'document']);
-  for (const tag of extra) {
-    out.add(tag);
-    if (out.size >= 8) break;
-  }
-  if (out.size < 8) {
-    const tags1 = ITEM_TAGS[defId];
-    if (tags1) {
-      for (const tag of tags1) {
-        out.add(tag);
-        if (out.size >= 8) break;
-      }
-    }
-  }
-  if (out.size < 8) {
-    const tags2 = ITEMS[defId]?.tags;
-    if (tags2) {
-      for (const tag of tags2) {
-        out.add(tag);
-        if (out.size >= 8) break;
-      }
-    }
-  }
-  return Array.from(out);
+  const out = ['player', 'inventory', 'document'];
+  for (const tag of extra) if (!out.includes(tag)) out.push(tag);
+  for (const tag of ITEM_TAGS[defId] ?? []) if (!out.includes(tag)) out.push(tag);
+  for (const tag of ITEMS[defId]?.tags ?? []) if (!out.includes(tag)) out.push(tag);
+  return out.slice(0, 8);
 }
 
 function publishDocumentActionEvent(
@@ -1394,7 +1356,7 @@ function handleDirectDocumentActionUse(
   if (!DIRECT_DOCUMENT_ACTION_ITEMS.has(defId)) return false;
   const action = DOCUMENT_ACCESS_ACTIONS[defId];
   if (!action) return false;
-  if (action.floors && state && !action.floors.includes(state.currentZ)) {
+  if (action.floors && state && !action.floors.includes(state.currentFloor)) {
     msgs.push(msg(`${ITEMS[defId]?.name ?? defId}: здесь нет нужного окна выдачи.`, time, '#aa8'));
     return true;
   }
@@ -1410,7 +1372,7 @@ function handleDirectDocumentActionUse(
 
   if (state) {
     for (const delta of action.resourceDeltas ?? []) {
-      changeResourceStock(state, delta.resourceId, delta.delta, delta.z ?? state.currentZ);
+      changeResourceStock(state, delta.resourceId, delta.delta, delta.floor ?? state.currentFloor);
     }
     for (const delta of action.relationDeltas ?? []) {
       addFactionRelMutual(Faction.PLAYER, delta.faction, delta.delta);
@@ -1434,7 +1396,7 @@ function handleDirectDocumentActionUse(
       resourceDeltas: action.resourceDeltas?.map(delta => ({
         resourceId: delta.resourceId,
         delta: delta.delta,
-        z: delta.z ?? state?.currentZ,
+        floor: delta.floor ?? state?.currentFloor,
       })),
     },
     zoneId,
@@ -1480,18 +1442,18 @@ function useDocumentAtMinistryGate(
   const forged = permit?.method === 'forged' || itemHasTag(defId, 'forged') || itemHasTag(defId, 'forgery');
   const official = accessDef?.legal ?? permit?.official ?? (itemHasTag(defId, 'official') && !stolen && !forged);
   const method = accessDef?.method ?? permit?.method ?? (official ? 'legal' : stolen ? 'stolen' : 'forged');
-  const roomDefId = documentRoomName(e, world) ?? (outputId === 'key' ? 'Проверочный коридор N3' : 'архивное окно');
+  const roomName = documentRoomName(e, world) ?? (outputId === 'key' ? 'Проверочный коридор N3' : 'архивное окно');
   if (official) {
-    changeResourceStock(state, 'documents', 1, 30);
+    changeResourceStock(state, 'documents', 1, FloorLevel.MINISTRY);
     addFactionRelMutual(Faction.PLAYER, Faction.CITIZEN, 1);
     msgs.push(msg(accessDef?.line ?? 'Официальная бумага принята. Доступ выдан.', time, '#8f8'));
   } else if (stolen) {
-    changeResourceStock(state, 'documents', 1, 30);
+    changeResourceStock(state, 'documents', 1, FloorLevel.MINISTRY);
     addFactionRelMutual(Faction.PLAYER, Faction.LIQUIDATOR, 2);
     addFactionRelMutual(Faction.PLAYER, Faction.WILD, -1);
     msgs.push(msg('Краденая архивная карточка сдана как улика. Выдан архивный допуск.', time, '#8cf'));
   } else {
-    changeResourceStock(state, 'documents', -1, 30);
+    changeResourceStock(state, 'documents', -1, FloorLevel.MINISTRY);
     addFactionRelMutual(Faction.PLAYER, Faction.LIQUIDATOR, -2);
     addFactionRelMutual(Faction.PLAYER, Faction.WILD, 1);
     msgs.push(msg(`${ITEMS[defId]?.name ?? defId} принят. Доступ выдан. Риск проверки.`, time, '#fa6'));
@@ -1516,19 +1478,19 @@ function useDocumentAtMinistryGate(
       outcome: outputId === 'key' ? 'gate_key_granted' : 'archive_access_granted',
       outputItemId: outputId,
       outputItemName: ITEMS[outputId]?.name ?? outputId,
-      roomDefId,
+      roomName,
       ministryDocumentDelta: official || stolen ? 1 : -1,
       line: accessDef?.line ?? permit?.successLine,
       rumorIds: forged ? ['player_forged_stamp_risk', 'rare_forged_permit_slip'] : ['lead_ministry_permit_office_slip'],
     },
     zoneId,
     world,
-    roomDefId,
+    roomName,
   );
   if (permit) {
     const tag = outputId === 'archive_access_permit' ? 'archive' : 'ministry_n3';
-    recordPermitAccess(state, e, world, permit, roomDefId, tag, zoneId);
-    if (stolen) recordPermitExposure(state, e, world, permit, roomDefId, 'stolen_card_reported', zoneId);
+    recordPermitAccess(state, e, world, permit, roomName, tag, zoneId);
+    if (stolen) recordPermitExposure(state, e, world, permit, roomName, 'stolen_card_reported', zoneId);
   }
   return true;
 }
@@ -1555,7 +1517,7 @@ function forgePermitFromStampSheet(
   if (!consumeDocumentItems(e, inputs)) return true;
   addItem(e, 'forged_permit_slip', 1);
   if (state) {
-    changeResourceStock(state, 'documents', -1, 30);
+    changeResourceStock(state, 'documents', -1, FloorLevel.MINISTRY);
     addFactionRelMutual(Faction.PLAYER, Faction.LIQUIDATOR, -1);
     addFactionRelMutual(Faction.PLAYER, Faction.WILD, 1);
   }
@@ -1596,8 +1558,8 @@ function sellDocumentToBlackMarket(
   if (!price) return false;
   removeItem(e, defId, 1);
   e.money = (e.money ?? 0) + price;
-  changeResourceStock(state, 'documents', -1, 30);
-  changeResourceStock(state, 'contraband', 1, state.currentZ);
+  changeResourceStock(state, 'documents', -1, FloorLevel.MINISTRY);
+  changeResourceStock(state, 'contraband', 1, state.currentFloor);
   addFactionRelMutual(Faction.PLAYER, Faction.WILD, 2);
   addFactionRelMutual(Faction.PLAYER, Faction.LIQUIDATOR, -1);
   msgs.push(msg(`${ITEMS[defId]?.name ?? defId} продан на рынке за ${price}₽. Доступ потерян.`, time, '#ee4'));
@@ -1640,8 +1602,8 @@ function handleContaminatedSwabUse(
     return true;
   }
 
-  const report = currentFloorRunEntry(state).themeTags.includes('ministry');
-  const market = currentFloorRunEntry(state).themeTags.includes('living') || currentFloorRunEntry(state).themeTags.includes('kvartiry');
+  const report = state.currentFloor === FloorLevel.MINISTRY;
+  const market = state.currentFloor === FloorLevel.LIVING || state.currentFloor === FloorLevel.KVARTIRY;
   if (!report && !market) {
     msgs.push(msg('Мазок ждёт адресата: отчёт в Министерстве или скупщик в жилом блоке.', time, '#aa8'));
     return true;
@@ -1651,11 +1613,11 @@ function handleContaminatedSwabUse(
   decrementInventorySlot(e.inventory ?? [], slotIdx);
   e.money = (e.money ?? 0) + reward;
   if (report) {
-    changeResourceStock(state, 'slime_samples', 1, 30, { reason: 'contaminated_swab_report', tags: ['sample', 'evidence', 'nii'] });
+    changeResourceStock(state, 'slime_samples', 1, FloorLevel.MINISTRY, { reason: 'contaminated_swab_report', tags: ['sample', 'evidence', 'nii'] });
     addFactionRelMutual(Faction.PLAYER, Faction.SCIENTIST, 1);
   } else {
-    changeResourceStock(state, 'slime_samples', -1, state.currentZ, { reason: 'contaminated_swab_black_market', tags: ['sample', 'black_market'] });
-    changeResourceStock(state, 'contraband', 1, state.currentZ, { reason: 'contaminated_swab_black_market', tags: ['sample', 'black_market'] });
+    changeResourceStock(state, 'slime_samples', -1, state.currentFloor, { reason: 'contaminated_swab_black_market', tags: ['sample', 'black_market'] });
+    changeResourceStock(state, 'contraband', 1, state.currentFloor, { reason: 'contaminated_swab_black_market', tags: ['sample', 'black_market'] });
     addFactionRelMutual(Faction.PLAYER, Faction.WILD, 1);
     addFactionRelMutual(Faction.PLAYER, Faction.SCIENTIST, -1);
   }
@@ -1717,8 +1679,8 @@ function handleAuditProofUse(
     return true;
   }
 
-  const report = currentFloorRunEntry(state).themeTags.includes('ministry');
-  const market = currentFloorRunEntry(state).themeTags.includes('living') || currentFloorRunEntry(state).themeTags.includes('kvartiry');
+  const report = state.currentFloor === FloorLevel.MINISTRY;
+  const market = state.currentFloor === FloorLevel.LIVING || state.currentFloor === FloorLevel.KVARTIRY;
   if (!report && !market) {
     msgs.push(msg('Номерную планку примут в Министерстве как улику или в жилом блоке как рыночный риск.', time, '#aa8'));
     return true;
@@ -1730,11 +1692,11 @@ function handleAuditProofUse(
   const def = ITEMS[defId];
 
   if (report) {
-    changeResourceStock(state, 'contraband', -1, state.currentZ, { zoneId, roomId: world?.roomAt(e.x, e.y)?.id, reason: 'weapon_serial_plate_reported', tags: ['weapon', 'audit', 'evidence'] });
+    changeResourceStock(state, 'contraband', -1, state.currentFloor, { zoneId, roomId: world?.roomAt(e.x, e.y)?.id, reason: 'weapon_serial_plate_reported', tags: ['weapon', 'audit', 'evidence'] });
     addFactionRelMutual(Faction.PLAYER, Faction.LIQUIDATOR, 1);
     addFactionRelMutual(Faction.PLAYER, Faction.WILD, -1);
   } else {
-    changeResourceStock(state, 'contraband', 1, state.currentZ, { zoneId, roomId: world?.roomAt(e.x, e.y)?.id, reason: 'weapon_serial_plate_sold', tags: ['weapon', 'black_market', 'audit_risk'] });
+    changeResourceStock(state, 'contraband', 1, state.currentFloor, { zoneId, roomId: world?.roomAt(e.x, e.y)?.id, reason: 'weapon_serial_plate_sold', tags: ['weapon', 'black_market', 'audit_risk'] });
     addFactionRelMutual(Faction.PLAYER, Faction.WILD, 1);
     addFactionRelMutual(Faction.PLAYER, Faction.LIQUIDATOR, -1);
   }
@@ -1792,10 +1754,10 @@ function handleDocumentPaperUse(
     return true;
   }
 
-  if (currentFloorRunEntry(state).themeTags.includes('ministry') && DOCUMENT_GATE_ITEMS.has(defId)) {
+  if (state.currentFloor === FloorLevel.MINISTRY && DOCUMENT_GATE_ITEMS.has(defId)) {
     return useDocumentAtMinistryGate(e, defId, msgs, time, state, zoneId, world);
   }
-  if ((currentFloorRunEntry(state).themeTags.includes('living') || currentFloorRunEntry(state).themeTags.includes('kvartiry')) && DOCUMENT_MARKET_VALUES[defId] !== undefined) {
+  if ((state.currentFloor === FloorLevel.LIVING || state.currentFloor === FloorLevel.KVARTIRY) && DOCUMENT_MARKET_VALUES[defId] !== undefined) {
     return sellDocumentToBlackMarket(e, defId, msgs, time, state, zoneId, world);
   }
 
@@ -1820,7 +1782,7 @@ function handleShelterTallyUse(e: Entity, defId: string, msgs: Msg[], time: numb
     return true;
   }
 
-  if (currentFloorRunEntry(state).themeTags.includes('ministry')) {
+  if (state.currentFloor === FloorLevel.MINISTRY) {
     removeItem(e, defId, 1);
     if (!forged) {
       e.money = (e.money ?? 0) + 45;
@@ -1833,7 +1795,7 @@ function handleShelterTallyUse(e: Entity, defId: string, msgs: Msg[], time: numb
     return true;
   }
 
-  if (currentFloorRunEntry(state).themeTags.includes('living') || currentFloorRunEntry(state).themeTags.includes('kvartiry')) {
+  if (state.currentFloor === FloorLevel.LIVING || state.currentFloor === FloorLevel.KVARTIRY) {
     removeItem(e, defId, 1);
     if (forged) {
       msgs.push(msg('Жильцы нашли лишние строки в липовом списке.', time, '#f84'));
@@ -1889,7 +1851,7 @@ function handleCraftRecipeItemSourceUse(
   if (
     state &&
     isPlayerEntity(e) &&
-    (currentFloorRunEntry(state).themeTags.includes('living') || currentFloorRunEntry(state).themeTags.includes('kvartiry')) &&
+    (state.currentFloor === FloorLevel.LIVING || state.currentFloor === FloorLevel.KVARTIRY) &&
     DOCUMENT_MARKET_VALUES[defId] !== undefined
   ) {
     return false;
@@ -2000,20 +1962,6 @@ export function useItem(e: Entity, slotIdx: number, msgs: Msg[], time: number, s
     return;
   }
 
-  // Armor: equip
-  if (equipSlot === 'armor') {
-    if (e.armorDefId === def.id) {
-      e.armorDefId = undefined;
-      msgs.push(msg(`Броня снята: ${def.name}`, time, '#9d9'));
-      publishPlayerItemEvent(state, e, 'player_use_item', def.id, 1, 2, zoneId);
-      return;
-    }
-    e.armorDefId = def.id;
-    msgs.push(msg(`Надета броня: ${def.name}`, time, '#9d9'));
-    publishPlayerItemEvent(state, e, 'player_use_item', def.id, 1, 2, zoneId);
-    return;
-  }
-
   if (handleRationCouponUse(e, slotIdx, msgs, time, state, zoneId, world)) return;
 
   const govnyakUse = useGovnyakItem(e, def.id, state);
@@ -2109,9 +2057,6 @@ export function dropItem(
   if (equipSlot === 'tool' && player.tool === def.id) {
     player.tool = '';
   }
-  if (equipSlot === 'armor' && player.armorDefId === def.id) {
-    player.armorDefId = undefined;
-  }
 
   // Place drop 3 cells in front of player (far enough to avoid auto-pickup)
   const dx = Math.cos(player.angle);
@@ -2200,23 +2145,11 @@ function pickupDropItems(
         msgs.push(msg('Взята проба зелёной кислотной слизи.', time, '#9f4'));
         publishGreenAcidItemEvent(state, player, 'sample', item.defId, moved, zoneId, drop.x, drop.y);
       }
-      if (isPlayerEntity(player)) {
-        msgs.push(msg(`Подобрано: ${def?.name ?? item.defId}`, time, '#dd4'));
-      } else {
-        // Filter out non-player item pickup messages from entering msgs/stenosvodka until NPC Markov pickup barks are ready
-        // msgs.push(msg(`Подобрано: ${def?.name ?? item.defId}`, time, '#dd4'));
-      }
+      msgs.push(msg(`Подобрано: ${def?.name ?? item.defId}`, time, '#dd4'));
       publishPlayerItemEvent(state, player, 'player_pick_item', item.defId, moved, 2, zoneId);
 
       if (state && state.tutorialMode && item.defId === 'tut_cafe_key' && state.tutorialStep === TutorialStep.TOILET) {
         logTutorialMsg(state, '-должно быть это ключ от двери', time + 15);
-      }
-
-      if (state && state.tutorialMode && item.defId === 'key_tutorial_apartment' && state.tutorialStep === TutorialStep.FIND_KEY) {
-        import('./tutorial').then(({ advanceTutorial }) => {
-          advanceTutorial(state, TutorialStep.UNLOCK_DOOR);
-        });
-        logTutorialMsg(state, 'Ключ найден. Откройте входную дверь.', time + 15);
       }
 
       pickedItems.push({ defId: item.defId, count: moved, data: acid ? undefined : item.data });
@@ -2295,8 +2228,9 @@ export function equippedCombatItemId(e: Entity): string {
 /* ── Get full weapon stats ────────────────────────────────────── */
 export function getWeaponStats(e: Entity, itemId = equippedCombatItemId(e)): WeaponStats {
   const ws = WEAPON_STATS[itemId] ?? WEAPON_STATS[''];
-  if (!e.rpg && (!e.statuses || e.statuses.length === 0)) return ws;
-
+  const govnyakSpread = govnyakAimSpreadMult(e);
+  const sporeSpread = sporeHazeAimSpreadMult(e);
+  if (!e.rpg && govnyakSpread === 1 && sporeSpread === 1) return ws;
   let speed = ws.speed;
   let spread = ws.spread;
   let psiCost = ws.psiCost;
@@ -2307,8 +2241,6 @@ export function getWeaponStats(e: Entity, itemId = equippedCombatItemId(e)): Wea
     if (nextSpeed !== ws.speed) { speed = nextSpeed; changed = true; }
   }
   if (ws.isRanged && ws.spread !== undefined && ws.spread > 0) {
-    const govnyakSpread = e.statuses ? govnyakAimSpreadMult(e) : 1;
-    const sporeSpread = e.statuses ? sporeHazeAimSpreadMult(e) : 1;
     const nextSpread = ws.spread * (e.rpg ? agiRangedSpreadMult(e.rpg) : 1) * govnyakSpread * sporeSpread;
     if (nextSpread !== ws.spread) { spread = nextSpread; changed = true; }
   }
@@ -2360,7 +2292,7 @@ export function consumeDurability(e: Entity, msgs: Msg[], time: number, state?: 
     if (e.tool === itemId) e.tool = '';
     if (e.type === EntityType.NPC && e.name) {
       const pool = e.isFemale ? BREAK_EXCLAIM_F : BREAK_EXCLAIM;
-      const excl = pool[Math.floor(rng() * pool.length)];
+      const excl = pool[Math.floor(Math.random() * pool.length)];
       pushNpcLogMessage(e, msgs, time, `${e.name}: ${excl} ${name} ${e.isFemale ? 'сломалась' : 'сломался'}!`, '#f84');
     } else {
       msgs.push(msg(`${name} сломался!`, time, '#f84'));
@@ -2496,11 +2428,6 @@ function weaponStatLabel(e: Entity, base: WeaponStats, effective: WeaponStats): 
     if (base.isRanged && (base.spread ?? 0) > 0 && effective.spread !== undefined) {
       parts.push(`разброс -${statReductionPercent(agiRangedSpreadMult(rpg))}%`);
     }
-    const baseReload = base.reloadTime ?? base.speed;
-    const actualReload = calculateReloadTime(baseReload, rpg.agi);
-    if (actualReload < baseReload) {
-      parts.push(`ЛОВ ПЕРЕЗ -${Math.round((1 - actualReload / baseReload) * 100)}%`);
-    }
   }
   if (base.psiCost && effective.psiCost !== undefined && effective.psiCost < base.psiCost) {
     parts.push(`ИНТ ПСИ -${statReductionPercent(effective.psiCost / base.psiCost)}%`);
@@ -2546,8 +2473,7 @@ export function getWeaponReadiness(e: Entity, itemId = equippedCombatItemId(e)):
   let resourceLabel = 'без расхода';
   let cannotFireReason = '';
   let lowResource = false;
-  const actualReloadTime = calculateReloadTime(ws.reloadTime || 1, e.rpg?.agi ?? 0);
-  let reloadPct = e.reloading ? (1 - Math.max(0, e.reloadTimer ?? 0) / actualReloadTime) : 0;
+  let reloadPct = e.reloading ? (1 - Math.max(0, e.reloadTimer ?? 0) / (ws.reloadTime || 1)) : 0;
 
   if (ws.psiCost) {
     const cost = ws.psiCost;
@@ -2628,4 +2554,39 @@ export function getWeaponReadiness(e: Entity, itemId = equippedCombatItemId(e)):
     lowResource,
     warning: cannotFireReason !== '' || lowResource,
   };
+}
+
+
+export function equipArmor(state: GameState, e: Entity, defId: string): Msg | undefined {
+  if (!e.inventory) return;
+  const itemIdx = e.inventory.findIndex(i => i.defId === defId);
+  if (itemIdx === -1) return;
+
+  if (e.armorDefId) {
+    if (e.inventory.length >= MAX_INVENTORY_SLOTS) {
+      return msg('Инвентарь полон, некуда снять текущую броню', state.time, '#f84');
+    }
+    e.inventory.push({ defId: e.armorDefId, count: 1 });
+  }
+
+  e.armorDefId = defId;
+  const it = e.inventory[itemIdx];
+  if (it.count > 1) {
+    it.count--;
+  } else {
+    e.inventory.splice(itemIdx, 1);
+  }
+  return msg(`Надета броня: ${ITEMS[defId]?.name || defId}`, state.time, '#9d9');
+}
+
+export function unequipArmor(state: GameState, e: Entity): Msg | undefined {
+  if (!e.armorDefId) return;
+  if (!e.inventory) e.inventory = [];
+  if (e.inventory.length >= MAX_INVENTORY_SLOTS) {
+    return msg('Инвентарь полон, некуда снять броню', state.time, '#f84');
+  }
+  e.inventory.push({ defId: e.armorDefId, count: 1 });
+  const name = ITEMS[e.armorDefId]?.name || e.armorDefId;
+  e.armorDefId = undefined;
+  return msg(`Броня снята: ${name}`, state.time, '#9d9');
 }

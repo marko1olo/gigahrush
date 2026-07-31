@@ -1,12 +1,12 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, ProjType, RoomType, type Entity } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, ProjType, RoomType, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
 import { DEF, generateSprite, put, line, ellipse, triangle } from '../src/entities/fog_shark';
+import { MONSTERS, MONSTER_SPRITES, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { S } from '../src/render/pixutil';
 import {
   FOG_SHARK_PACK_CAP,
@@ -150,6 +150,8 @@ test('fog shark is standalone fog-pack content with sprite, ecology, and rumors'
   assert.equal(MONSTERS[MonsterKind.FOG_SHARK], DEF);
   assert.equal(MONSTER_SPRITES[MonsterKind.FOG_SHARK], generateSprite);
   assert.deepEqual(DEF.aiFlags, ['fogSwimmer']);
+  assert.deepEqual(DEF.floors, [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL]);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.MAINTENANCE].includes(MonsterKind.FOG_SHARK), true);
   assert.match(DEF.counterplay ?? '', /туман|двер|огонь|взрыв/i);
   assert.equal(ecology?.rumorIds.includes('monster_fog_shark_fog'), true);
   assert.equal(ecology?.rumorIds.includes('ecology_fog_shark_fire'), true);
@@ -182,7 +184,7 @@ test('fog shark flame kill is lethal and ignition burst is bounded to one event'
   const shark = fogShark(3, 10.5, 10.5);
   const pack = Array.from({ length: 12 }, (_, i) => fogShark(10 + i, 10.65 + i * 0.03, 10.9, 6));
   const entities = [player, npc, shark, ...pack];
-  const state = makeGameState({ currentZ: -14, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, worldEvents: createWorldEventState() });
   const projectile = {
     id: 80,
     type: EntityType.PROJECTILE,
@@ -235,7 +237,7 @@ test('fog shark shares target only through a bounded pack radius query', () => {
   const packmate = fogShark(3, 22, 10);
   packmate.ai!.combatScanCd = 99;
   const entities = [target, caller, packmate];
-  const state = makeGameState({ currentZ: -14, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, worldEvents: createWorldEventState() });
   const msgs: Msg[] = [];
 
   prime(entities);
@@ -259,7 +261,7 @@ test('fog shark pack share is capped and cooldown-gated', () => {
     return shark;
   });
   const entities = [target, caller, ...pack];
-  const state = makeGameState({ currentZ: -14, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, worldEvents: createWorldEventState() });
   const msgs: Msg[] = [];
 
   prime(entities);

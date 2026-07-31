@@ -5,6 +5,7 @@ import {
   Cell,
   EntityType,
   Faction,
+  FloorLevel,
   LiftDirection,
   MonsterKind,
   Occupation,
@@ -36,7 +37,7 @@ import {
   BANK_VAULT_RISK_RADIUS,
   bankVaultRiskSources,
   bankVaultRiskTierAt,
-} from '../src/gen/bank_floor';
+} from '../src/gen/design_floors/bank_floor';
 import {
   countTerritoryCells,
   territoryHqAnchors,
@@ -69,15 +70,16 @@ function countEntitiesNear(
 test('bank_floor is registered as an authored Ministry-band route', () => {
   const route = designFloorById(BANK_FLOOR_ROUTE_ID);
   assert.equal(route?.z, BANK_FLOOR_Z);
-    assert.equal(route?.displayName, 'Банковский этаж');
+  assert.equal(route?.baseFloor, BANK_FLOOR_BASE_FLOOR);
+  assert.equal(route?.displayName, 'Банковский этаж');
   assert.equal(designFloorAtZ(BANK_FLOOR_Z)?.id, BANK_FLOOR_ROUTE_ID);
   assert.equal(PROCEDURAL_FLOOR_ZS.includes(BANK_FLOOR_Z), false);
   assert.equal(DESIGN_FLOOR_ROUTES.some(def => def.id === BANK_FLOOR_ROUTE_ID), true);
 });
 
 test('normal lift route reaches bank_floor between Ministry and Raionsovet archive', () => {
-  const state = makeGameState({ currentZ: 34 });
-  setFloorRunState(state, { runSeed: 2214, currentZ: 34, specs: {}, visited: {} }.MINISTRY);
+  const state = makeGameState({ currentFloor: FloorLevel.MINISTRY });
+  setFloorRunState(state, { runSeed: 2214, currentZ: 30, specs: {}, visited: {} }, FloorLevel.MINISTRY);
 
   const upperGap = resolveFloorRunRoute(state, LiftDirection.DOWN);
   assert.equal(upperGap?.z, 29);
@@ -110,7 +112,7 @@ test('normal lift route reaches bank_floor between Ministry and Raionsovet archi
   const leakArchive = resolveFloorRunRoute(state, LiftDirection.DOWN);
   assert.equal(leakArchive?.z, 24);
   assert.equal(leakArchive?.designFloorId, 'critical_leak_archive');
-  assert.equal(leakArchive?.themeTags?.includes('ministry'), true);
+  assert.equal(leakArchive?.baseFloor, FloorLevel.MINISTRY);
   commitFloorRunEntry(state, leakArchive!);
 
   for (const expectedZ of [23]) {
@@ -130,8 +132,8 @@ test('bank_floor population profile targets bank crowds, guards and paper monste
   assert.ok(route);
   const profile = designFloorPopulationProfile(route);
 
-  assert.ok(profile.npcTarget >= 140 && profile.npcTarget <= 14000, 'npcTarget in bounds');
-  assert.ok(profile.monsterTarget >= 65 && profile.monsterTarget <= 6500, 'monsterTarget in bounds');
+  assert.equal(profile.npcTarget, 1400);
+  assert.equal(profile.monsterTarget, 650);
   assert.equal(profile.npcFactions.some(v => v.value === Faction.LIQUIDATOR && v.weight >= 20), true);
   assert.equal(profile.npcFactions.some(v => v.value === Faction.WILD && v.weight >= 10), true);
   assert.equal(profile.npcOccupations.some(v => v.value === Occupation.SECRETARY && v.weight >= 25), true);
@@ -180,8 +182,8 @@ test('bank_floor generator creates named banking rooms, NPCs, containers and pas
   assert.equal(gen.world.rooms.length >= 96, true);
   assert.equal(gen.world.doors.size >= 96, true);
   assert.equal(npcs.length >= 5, true);
-  assert.equal(npcs.some(e => (e as any).npcPackageId === 'bank_cashier_lyuba'), true);
-  assert.equal(npcs.some(e => (e as any).npcPackageId === 'bank_credit_prokhor'), true);
+  assert.equal(npcs.some(e => e.plotNpcId === 'bank_cashier_lyuba'), true);
+  assert.equal(npcs.some(e => e.plotNpcId === 'bank_credit_prokhor'), true);
   assert.equal(gen.world.containers.some(c => c.tags.includes('banking') && c.tags.includes('deposit')), true);
   assert.equal(gen.world.containers.some(c => c.tags.includes('banking') && c.tags.includes('vault')), true);
   assert.equal(gen.world.containers.some(c => c.tags.includes('banking') && c.tags.includes('bribe') && c.tags.includes('buyable')), true);
@@ -264,7 +266,7 @@ test('bank_floor marks vault risk SDF around high-value rooms and escape pressur
 
 test('bank_floor exposes legal deposit and risky vault interactions through existing systems', () => {
   const gen = generateDesignFloor(BANK_FLOOR_ROUTE_ID);
-  const state = makeGameState({ currentZ: BANK_FLOOR_BASE_FLOOR, time: 12 });
+  const state = makeGameState({ currentFloor: BANK_FLOOR_BASE_FLOOR, time: 12 });
   const player = makeTestPlayer({
     id: 9999,
     x: gen.spawnX,

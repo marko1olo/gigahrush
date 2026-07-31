@@ -133,8 +133,7 @@ function paintLine(t: Uint32Array, x0: number, y0: number, x1: number, y1: numbe
   }
 }
 
-function inferOccupation(occupation: Occupation | undefined, spriteHint: number | undefined, age?: number): Occupation {
-  if (age !== undefined && age < 16) return Occupation.CHILD;
+function inferOccupation(occupation: Occupation | undefined, spriteHint: number | undefined): Occupation {
   if (occupation !== undefined) return occupation;
   if (isOccupationSpriteHint(spriteHint)) return spriteHint;
   return Occupation.TRAVELER;
@@ -424,9 +423,8 @@ function generateDetailedNpcSprite(
   faction: Faction | undefined,
   isFemale: boolean | undefined,
   spriteHint: number | undefined,
-  age?: number,
 ): Uint32Array {
-  const occ = inferOccupation(occupation, spriteHint, age);
+  const occ = inferOccupation(occupation, spriteHint);
   const female = isFemale ?? rnd(seed, 1) > 0.56;
   const child = occ === Occupation.CHILD;
   const cult = faction === Faction.CULTIST || occ === Occupation.PILGRIM || occ === Occupation.PRIEST;
@@ -482,11 +480,10 @@ export function generateProceduralNpcSprite(
   faction: Faction | undefined,
   isFemale: boolean | undefined,
   spriteHint: number | undefined,
-  age?: number,
 ): Uint32Array {
-  const occ = inferOccupation(occupation, spriteHint, age);
+  const occ = inferOccupation(occupation, spriteHint);
   return isCultVisualOccupation(occ)
-    ? generateDetailedNpcSprite(seed, occupation, faction, isFemale, spriteHint, age)
+    ? generateDetailedNpcSprite(seed, occupation, faction, isFemale, spriteHint)
     : generateOccupationNpcSprite(seed, occ, faction, isFemale);
 }
 
@@ -508,12 +505,12 @@ export function generateNpcProfileSprite(
   }
   if (spriteHint !== undefined && isFloor69FemaleSprite(spriteHint)) {
     return generateNpcVisualSprite(NPC_VISUAL_FLOOR69_FEMALE, { seed, occupation, faction, isFemale, age, sprite: spriteHint })
-      ?? generateProceduralNpcSprite(seed, occupation, faction, isFemale, spriteHint, age);
+      ?? generateProceduralNpcSprite(seed, occupation, faction, isFemale, spriteHint);
   }
   const artVisualId = resolveNpcArtVisualId({ faction, occupation, isFemale, age });
   const art = generateNpcVisualSprite(artVisualId, { seed, occupation, faction, isFemale, age, sprite: spriteHint });
   if (art) return art;
-  return generateProceduralNpcSprite(seed, occupation, faction, isFemale, spriteHint, age);
+  return generateProceduralNpcSprite(seed, occupation, faction, isFemale, spriteHint);
 }
 
 function component(c: number, shift: number): number {
@@ -547,15 +544,14 @@ function monsterTint(kind: MonsterKind, seed: number): RGB {
 }
 
 function mutateMonsterSprite(base: Uint32Array, kind: MonsterKind, seed: number): Uint32Array {
-  const srcS = Math.sqrt(base.length) | 0;
-  const out = new Uint32Array(srcS * srcS).fill(CLEAR);
+  const out = new Uint32Array(S * S).fill(CLEAR);
   const tint = monsterTint(kind, seed);
   const strength = 0.18 + rnd(seed, 401) * 0.28;
   const alphaMul = kind === MonsterKind.SPIRIT ? 0.62 + rnd(seed, 402) * 0.22 : 1;
   const dark = kind === MonsterKind.SHADOW ? 0.48 : 1;
 
-  for (let y = 0; y < srcS; y++) for (let x = 0; x < srcS; x++) {
-    const c = base[y * srcS + x];
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const c = base[y * S + x];
     const a = c >>> 24;
     if (a === 0) continue;
     const pock = noise(x * 2, y * 2, seed + 31);
@@ -565,7 +561,7 @@ function mutateMonsterSprite(base: Uint32Array, kind: MonsterKind, seed: number)
     const r = component(c, 0);
     const g = component(c, 8);
     const b = component(c, 16);
-    out[y * srcS + x] = rgba(
+    out[y * S + x] = rgba(
       clamp((r * (1 - strength) + tint[0] * strength + n + vein) * dark),
       clamp((g * (1 - strength) + tint[1] * strength + n - vein * 0.35) * dark),
       clamp((b * (1 - strength) + tint[2] * strength + n - vein * 0.45) * dark),
@@ -664,7 +660,7 @@ function deriveEntitySpriteSeed(e: Entity): number {
   if (h === 0) {
     h = mix32(e.id ^ Math.imul(Math.floor(e.x * 16), 0x45d9f3b) ^ Math.imul(Math.floor(e.y * 16), 0x119de1f3));
     if (e.name) h = hashText(e.name, h);
-    if (e.id) h = hashText(String(e.id), h);
+    if (e.plotNpcId) h = hashText(e.plotNpcId, h);
   }
   return h || 1;
 }
@@ -680,7 +676,7 @@ export function ensureProceduralSpriteSeeds(entities: Entity[]): void {
 export function proceduralEntitySpriteKey(e: Entity): number {
   ensureProceduralSpriteSeed(e);
   const kind = e.monsterKind ?? 0;
-  const occ = inferOccupation(e.occupation, e.sprite, e.age);
+  const occ = e.occupation ?? inferOccupation(undefined, e.sprite);
   let h = deriveEntitySpriteSeed(e);
   if (e.type === EntityType.NPC) {
     const visualId = e.npcVisualId ?? resolveNpcArtVisualId({
@@ -688,7 +684,6 @@ export function proceduralEntitySpriteKey(e: Entity): number {
       occupation: e.occupation,
       isFemale: e.isFemale,
       age: e.age,
-      plotNpcId: e.id,
     });
     const key = npcVisualTextureKey(visualId, {
       seed: h,
@@ -716,7 +711,6 @@ function npcEntityVisualId(e: Entity): string | undefined {
     occupation: e.occupation,
     isFemale: e.isFemale,
     age: e.age,
-    plotNpcId: e.id,
   });
 }
 
@@ -743,7 +737,6 @@ export function generateProceduralEntitySprite(e: Entity): Uint32Array | null {
       occupation: e.occupation,
       isFemale: e.isFemale,
       age: e.age,
-      plotNpcId: e.id,
     });
     const visualSeed = npcVisualTextureKey(visualId, {
       seed: deriveEntitySpriteSeed(e),
@@ -751,7 +744,6 @@ export function generateProceduralEntitySprite(e: Entity): Uint32Array | null {
       faction: e.faction,
       isFemale: e.isFemale,
       age: e.age,
-      plotNpcId: e.id,
       sprite: e.sprite,
     })
       ? deriveEntitySpriteSeed(e)
@@ -762,11 +754,10 @@ export function generateProceduralEntitySprite(e: Entity): Uint32Array | null {
       faction: e.faction,
       isFemale: e.isFemale,
       age: e.age,
-      plotNpcId: e.id,
       sprite: e.sprite,
     });
     if (special) return special;
-    return generateProceduralNpcSprite(seed, e.occupation, e.faction, e.isFemale, e.sprite, e.age);
+    return generateProceduralNpcSprite(seed, e.occupation, e.faction, e.isFemale, e.sprite);
   }
   if (e.type === EntityType.MONSTER) {
     if (e.monsterKind === MonsterKind.HEAD_SLUG && e.monsterStage === HEAD_SLUG_DETACHED_STAGE) {

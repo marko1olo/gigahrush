@@ -25,7 +25,7 @@ test('getEconomyQuote calculates correct prices considering item value, demand, 
   const quoteCanned = getEconomyQuote(state, 'canned');
 
   assert.equal(quoteCanned.basePrice, 10);
-  assert.equal(quoteCanned.buyPrice, 12);
+  assert.equal(quoteCanned.buyPrice, 13);
   assert.equal(quoteCanned.sellPrice, 9);
   assert.equal(quoteCanned.scarcityMultiplier, 1);
   assert.equal(typeof quoteCanned.demandMultiplier, 'number');

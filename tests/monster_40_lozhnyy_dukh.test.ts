@@ -1,4 +1,3 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
@@ -7,6 +6,7 @@ import {
   Cell,
   DoorState,
   EntityType,
+  FloorLevel,
   MonsterKind,
   ProjType,
   RoomType,
@@ -17,6 +17,7 @@ import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
 import { DEF, generateSprite } from '../src/entities/lozhnyy_dukh';
+import { MONSTERS, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { S } from '../src/render/pixutil';
 import { Spr } from '../src/render/sprite_index';
 import { setListenerPos } from '../src/systems/audio';
@@ -154,8 +155,12 @@ test('Lozhnyy Dukh is standalone door-phase content', () => {
   assert.equal(DEF.kind, MonsterKind.LOZHNYY_DUKH);
   assert.equal(MONSTERS[MonsterKind.LOZHNYY_DUKH], DEF);
   assert.deepEqual(DEF.aiFlags, ['falsePhase']);
+  assert.deepEqual(DEF.floors, [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.VOID]);
   assert.equal(DEF.hp < MONSTERS[MonsterKind.SPIRIT].hp, true, 'false spirit should be lower HP than the full wall-phasing spirit');
   assert.match(DEF.counterplay ?? '', /двер|сквозняк|УФ|выход/);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.MINISTRY]?.includes(MonsterKind.LOZHNYY_DUKH), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.LIVING]?.includes(MonsterKind.LOZHNYY_DUKH), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.VOID]?.includes(MonsterKind.LOZHNYY_DUKH), true);
   assert.ok(ecology);
   assert.equal(ecology?.rooms.includes(RoomType.OFFICE), true);
   assert.equal(ecology?.rumorIds.includes('ecology_lozhnyy_dukh_door'), true);

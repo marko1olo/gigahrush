@@ -1,9 +1,8 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
-import { currentFloorRunEntry } from '../../systems/procedural_floors';
 /* ── Проверочный коридор документов — Ministry document gate ─── */
 
 import {
-  W, Cell, ContainerKind, DoorState, Faction, Feature, MonsterKind, Occupation, QuestType, RoomType, Tex,
+  W, Cell, ContainerKind, DoorState, Faction, Feature, FloorLevel,
+  MonsterKind, Occupation, QuestType, RoomType, Tex,
   msg,
   type Door, type Entity, type GameState, type ItemDef, type Room, type WorldContainer, type WorldEvent,
   type WorldEventPrivacy, type WorldEventType,
@@ -27,9 +26,8 @@ import { genLog } from '../log';
 import { spawnChernobogDocketHandlers } from './chernobog_archive_docket';
 import { isPlayerEntity } from '../../systems/player_actor';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng } from '../../core/rand';
 
-const GATE_ROOM_DEF_ID = 'Проверочный коридор N3';
+const GATE_ROOM_NAME = 'Проверочный коридор N3';
 const GATE_W = 19;
 const GATE_H = 9;
 const CONTENT_TAG = 'document_gate';
@@ -348,7 +346,7 @@ const GATE_WITNESS_DEF: PlotNpcDef = {
 registerSideQuest('galina_okoshechnaya', GALINA_DEF, [
   {
     id: 'document_gate_official_slip',
-    giverId: getPlotNpcNumericId('galina_okoshechnaya')!,
+    giverNpcId: 'galina_okoshechnaya',
     type: QuestType.FETCH,
     desc: 'Галина Окошечная: «Официальный корешок пропуска - и проверочный коридор N3 откроется без записи в журнале.»',
     targetItem: 'official_permit_slip', targetCount: 1,
@@ -361,7 +359,7 @@ registerSideQuest('galina_okoshechnaya', GALINA_DEF, [
 registerSideQuest('arkadiy_podlozhny', ARKADIY_DEF, [
   {
     id: 'document_gate_forged_slip',
-    giverId: getPlotNpcNumericId('arkadiy_podlozhny')!,
+    giverNpcId: 'arkadiy_podlozhny',
     type: QuestType.FETCH,
     desc: 'Аркадий Подложный: «Кованый корешок пропуска проведет через N3, если не кормить им печатееда.»',
     targetItem: 'forged_permit_slip', targetCount: 1,
@@ -374,7 +372,7 @@ registerSideQuest('arkadiy_podlozhny', ARKADIY_DEF, [
 registerSideQuest('boris_bezchekovy', BORIS_DEF, [
   {
     id: 'document_gate_quiet_bribe',
-    giverId: getPlotNpcNumericId('boris_bezchekovy')!,
+    giverNpcId: 'boris_bezchekovy',
     type: QuestType.FETCH,
     desc: 'Борис Безчековый: «Сто двадцать рублей ускорительного сбора - и получите расписку, которую N3 постесняется читать вслух.»',
     targetItem: 'money', targetCount: 120,
@@ -397,14 +395,14 @@ registerSideQuest('boris_bezchekovy', BORIS_DEF, [
 registerAuthoredNpc({
   id: GATE_GUARD_ID,
   npc: GATE_GUARD_DEF,
-  homeFloorKey: storyNpcFloorKey(30),
+  homeFloorKey: storyNpcFloorKey(FloorLevel.MINISTRY),
   tags: ['ministry', 'document_gate', 'guard'],
 });
 
 registerAuthoredNpc({
   id: GATE_WITNESS_ID,
   npc: GATE_WITNESS_DEF,
-  homeFloorKey: storyNpcFloorKey(30),
+  homeFloorKey: storyNpcFloorKey(FloorLevel.MINISTRY),
   tags: ['ministry', 'document_gate', 'witness'],
 });
 
@@ -444,7 +442,7 @@ function contextByGuard(targetId: number | undefined): DocumentGateContext | und
 }
 
 function isGateRoom(room: Room | null | undefined): room is Room {
-  return !!room && room.name === GATE_ROOM_DEF_ID;
+  return !!room && room.name === GATE_ROOM_NAME;
 }
 
 function gateRoomForDoor(world: World, door: Door): Room | null {
@@ -507,10 +505,10 @@ function openDocumentGateDoor(target: DocumentGateTarget): boolean {
 }
 
 function itemTags(defId: string, def?: ItemDef): string[] {
-  const tagsSet = new Set<string>();
-  for (const tag of ITEM_TAGS[defId] ?? []) tagsSet.add(tag);
-  for (const tag of def?.tags ?? []) tagsSet.add(tag);
-  return Array.from(tagsSet);
+  const tags: string[] = [];
+  for (const tag of ITEM_TAGS[defId] ?? []) if (!tags.includes(tag)) tags.push(tag);
+  for (const tag of def?.tags ?? []) if (!tags.includes(tag)) tags.push(tag);
+  return tags;
 }
 
 function isRelevantRejectedDocument(defId: string, def: ItemDef): boolean {
@@ -579,7 +577,7 @@ function publishDocumentGateAccessEvent(
   const auditRisk = data.auditRisk ?? auditRiskForMethod(method);
   publishEvent(state, {
     type: `document_gate_access_${outcome}` as WorldEventType,
-    z: 30,
+    floor: FloorLevel.MINISTRY,
     zoneId: target.world.zoneMap[target.doorIdx],
     roomId: target.room.id,
     x: doorX(target.doorIdx) + 0.5,
@@ -603,7 +601,7 @@ function publishDocumentGateAccessEvent(
       ...tagsForMethod(method),
     ],
     data: {
-      roomDefId: GATE_ROOM_DEF_ID,
+      roomName: GATE_ROOM_NAME,
       gateDoorIdx: target.doorIdx,
       method,
       legal: methodIsLegal(method),
@@ -619,7 +617,7 @@ function publishDocumentGateAccessEvent(
 
 function handleDocumentGateUse(ctx: InventoryUseHandlerContext): boolean {
   if (!ctx.state || !ctx.world || !isPlayerEntity(ctx.actor)) return false;
-  if (currentFloorRunEntry(ctx.state)!.themeTags.includes('ministry')) return false;
+  if (ctx.state.currentFloor !== FloorLevel.MINISTRY) return false;
   const target = findDocumentGateTarget(ctx.world, ctx.actor);
   if (!target) return false;
 
@@ -627,7 +625,7 @@ function handleDocumentGateUse(ctx: InventoryUseHandlerContext): boolean {
   if (!access) {
     if (!isRelevantRejectedDocument(ctx.def.id, ctx.def)) return false;
     ctx.msgs.push(msg(
-      `${GATE_ROOM_DEF_ID} отверг ${ctx.def.name}: нужен корешок, допуск, подделка, краденая карточка, расписка, акт разоблачения или контрольный ключ.`,
+      `${GATE_ROOM_NAME} отверг ${ctx.def.name}: нужен корешок, допуск, подделка, краденая карточка, расписка, акт разоблачения или контрольный ключ.`,
       ctx.time,
       '#f84',
     ));
@@ -640,7 +638,7 @@ function handleDocumentGateUse(ctx: InventoryUseHandlerContext): boolean {
   }
 
   if (target.door.state === DoorState.OPEN) {
-    ctx.msgs.push(msg(`${GATE_ROOM_DEF_ID} уже пропустил вас. Бумага может отдохнуть.`, ctx.time, '#aaa'));
+    ctx.msgs.push(msg(`${GATE_ROOM_NAME} уже пропустил вас. Бумага может отдохнуть.`, ctx.time, '#aaa'));
     return true;
   }
 
@@ -660,16 +658,16 @@ function handleDocumentGateUse(ctx: InventoryUseHandlerContext): boolean {
   );
   const permit = getPermitDef(access.itemId);
   if (permit) {
-    recordPermitAccess(ctx.state, ctx.actor, ctx.world, permit, GATE_ROOM_DEF_ID, permitAccessTagForGate(access.itemId, access.method), undefined);
+    recordPermitAccess(ctx.state, ctx.actor, ctx.world, permit, GATE_ROOM_NAME, permitAccessTagForGate(access.itemId, access.method), undefined);
     if (access.method === 'expose') {
-      recordPermitExposure(ctx.state, ctx.actor, ctx.world, permit, GATE_ROOM_DEF_ID, 'document_gate_exposure', undefined);
+      recordPermitExposure(ctx.state, ctx.actor, ctx.world, permit, GATE_ROOM_NAME, 'document_gate_exposure', undefined);
     }
   }
   return true;
 }
 
 function handleDocumentGateTheftEvent(state: GameState, event: WorldEvent): void {
-  if (event.type !== 'item_stolen' || currentFloorRunEntry(state)!.themeTags.includes('ministry')) return;
+  if (event.type !== 'item_stolen' || state.currentFloor !== FloorLevel.MINISTRY) return;
   if (!event.itemId || !DOCUMENT_GATE_ACCESS_BY_ITEM.has(event.itemId)) return;
   const ctx = contextByContainer(event.containerId);
   if (!ctx || ctx.theftEventIds.includes(event.id)) return;
@@ -688,7 +686,7 @@ function handleDocumentGateTheftEvent(state: GameState, event: WorldEvent): void
 }
 
 function handleDocumentGateGuardKill(state: GameState, event: WorldEvent): void {
-  if (event.type !== 'player_kill_npc' || currentFloorRunEntry(state)!.themeTags.includes('ministry')) return;
+  if (event.type !== 'player_kill_npc' || state.currentFloor !== FloorLevel.MINISTRY) return;
   const ctx = contextByGuard(event.targetId);
   if (!ctx || ctx.violentHandled) return;
   const door = ctx.world.doors.get(ctx.gateDoorIdx);
@@ -719,7 +717,7 @@ function createGateRoom(world: World, nextRoomId: number, spawnX: number, spawnY
   const pos = findClearArea(world, cx, cy, GATE_W, GATE_H, 35, 130)
     ?? findClearArea(world, cx, cy, GATE_W, GATE_H, 0, Math.floor(W / 4));
   if (!pos) {
-    genLog(`[DOCUMENT_GATE] failed to place ${GATE_ROOM_DEF_ID}`);
+    console.warn(`[DOCUMENT_GATE] failed to place ${GATE_ROOM_NAME}`);
     return null;
   }
 
@@ -729,7 +727,7 @@ function createGateRoom(world: World, nextRoomId: number, spawnX: number, spawnY
   }
 
   const room = stampRoom(world, nextRoomId, RoomType.OFFICE, pos.x, pos.y, GATE_W, GATE_H, -1);
-  room.name = GATE_ROOM_DEF_ID;
+  room.name = GATE_ROOM_NAME;
   room.wallTex = Tex.MARBLE;
   room.floorTex = Tex.F_MARBLE_TILE;
   protectRoom(world, room.x, room.y, room.w, room.h, Tex.MARBLE, Tex.F_MARBLE_TILE);
@@ -827,7 +825,7 @@ function addGateContainer(
     id,
     x,
     y,
-    z: 30,
+    floor: FloorLevel.MINISTRY,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(x, y)],
     kind: ContainerKind.CASHBOX,
@@ -855,7 +853,7 @@ function addGateContainer(
 function spawnGateGuard(entities: Entity[], nextId: NextId, x: number, y: number): number {
   const guardId = nextId.v;
   requireSpawnedPlotNpcFromPackage(entities, nextId, GATE_GUARD_ID, x + 0.5, y + 0.5, {
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     weapon: 'makarov',
     canGiveQuest: false,
   });

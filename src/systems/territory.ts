@@ -25,7 +25,6 @@ import {
 import { setDoorState } from './door_state';
 import { ENTITY_MASK_NPC, ensureEntityIndex, getEntityIndex } from './entity_index';
 import { publishEvent } from './events';
-import { rng } from '../core/rand';
 
 const OWNER_BUCKETS = 8;
 const HQ_PATCH_RADIUS = 5;
@@ -414,7 +413,7 @@ export function paintTerritoryDisc(
   const cap = Math.max(0, Math.floor(options.cellCap ?? Number.MAX_SAFE_INTEGER));
   const preserveSamosbor = options.preserveSamosbor !== false;
   const probability = Math.max(0, Math.min(1, options.probability ?? 1));
-  const random = options.random ?? rng;
+  const random = options.random ?? Math.random;
   let changed = 0;
   for (let dy = -r; dy <= r; dy++) {
     for (let dx = -r; dx <= r; dx++) {

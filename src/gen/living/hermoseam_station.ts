@@ -12,7 +12,6 @@ import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg'
 import { connectProtectedRoom, protectRoom } from '../shared';
 import { genLog } from '../log';
 import { registerZoneContent } from './zone_content';
-import { rng } from '../../core/rand';
 
 const ROOM_W = 15;
 const ROOM_H = 10;
@@ -109,7 +108,7 @@ function spawnMonster(world: World, entities: Entity[], nextId: { v: number }, k
   const monster: Entity = {
     id: nextId.v++, type: EntityType.MONSTER,
     x: x + 0.5, y: y + 0.5,
-    angle: rng() * Math.PI * 2, pitch: 0,
+    angle: Math.random() * Math.PI * 2, pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, zoneLevel),
     sprite: monsterSpr(kind),

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Feature, W, type Room, type World } from '../src/core/types';
+import { Feature, FloorLevel, W, type Room, type World } from '../src/core/types';
 import {
   FALSE_SAFE_BLOCK_DISCOVERED,
   FALSE_SAFE_BLOCK_RESOLVED,
@@ -27,7 +27,7 @@ function forcedFalseSafeSpec(seed = 55_028, anomalyId: FloorAnomalyId = 'false_s
     ...base,
     seed,
     geometryId: 'communal_knots',
-    baseFloor: 'kvartiry',
+    baseFloor: FloorLevel.KVARTIRY,
     majorityId: 'citizens',
     anomalyId,
     danger: 4,
@@ -54,7 +54,7 @@ function findFalseSafeFeature(world: World, feature: Feature): { x: number; y: n
 }
 
 function installCurrentProceduralSpec(spec: ProceduralFloorSpec) {
-  const state = makeGameState({ currentZ: spec.baseFloor, samosborTimer: 120 });
+  const state = makeGameState({ currentFloor: spec.baseFloor, samosborTimer: 120 });
   setFloorRunState(state, {
     runSeed: spec.seed,
     currentZ: spec.z,

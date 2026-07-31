@@ -1,6 +1,6 @@
 /* ── Olgoy-Khorkhoy: collector meat worm ─────────────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 2.25,
   sprite: 0,
   aiFlags: ['foodBait', 'meatWorm'],
+  floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL],
   counterplay: 'Не деритесь у воды, трубы или провала: Олгой медленен на сухом полу, но у коллектора кусает тяжелее и подтягивает к пасти. Сырое мясо отвлекает его лучше хлеба.',
   lootHint: 'бледная шкура, кровяная слизь, редкая мясная руна из пасти коллектора',
 };

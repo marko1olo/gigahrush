@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType, type Entity } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { CONTRACTS } from '../src/data/contracts';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
@@ -36,7 +36,7 @@ test('hermodoor_service_log is deduped into the existing hermodoor journal', () 
 test('hermodoor journal has theft and black-market document decisions', () => {
   const contract = CONTRACTS.find(item => item.id === 'hospital_hermodoor_journal_theft');
   assert.equal(contract?.targetItem, SERVICE_LOG_ID);
-  assert.equal(contract?.target.z, 2);
+  assert.equal(contract?.target.floor, FloorLevel.LIVING);
   assert.equal(contract?.target.roomType, RoomType.MEDICAL);
 
   const world = new World();
@@ -53,7 +53,7 @@ test('hermodoor journal has theft and black-market document decisions', () => {
   assert.ok(source.tags.includes('violation'));
 
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 110 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 110 });
   assert.equal(addItem(player, SERVICE_LOG_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter проверить');
 

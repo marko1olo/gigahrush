@@ -1,6 +1,5 @@
-import { RoomType, Tex } from '../core/types';
+import { FloorLevel, RoomType, Tex } from '../core/types';
 import { hashSeed } from '../core/rand';
-import { DESIGN_FLOOR_ROUTES } from './design_floors';
 import type { FloorThemeProfile } from './floor_theme_profiles';
 
 export const VISUAL_DETAIL_MAX_ACTIVE_FAMILIES = 8;
@@ -47,6 +46,7 @@ export interface VisualDetailProfileRow {
   detailId: VisualDetailId;
   density: number;
   kinds?: readonly FloorThemeProfile['kind'][];
+  baseFloors?: readonly FloorLevel[];
   routeIds?: readonly string[];
   requiredTags?: readonly string[];
   blockedTags?: readonly string[];
@@ -324,28 +324,28 @@ export const VISUAL_DETAIL_PROFILE_ROWS: readonly VisualDetailProfileRow[] = [
   { id: 'global_chipped_concrete', detailId: 'chipped_concrete', density: 3 },
   { id: 'global_light_dust', detailId: 'light_dust', density: 3 },
 
-  { id: 'design_living_papers', detailId: 'paper_scraps', density: 12 },
-  { id: 'design_living_crumbs', detailId: 'crumbs', density: 10 },
-  { id: 'design_living_cobweb', detailId: 'cobweb_corner', density: 5 },
+  { id: 'story_living_papers', detailId: 'paper_scraps', density: 12, baseFloors: [FloorLevel.LIVING] },
+  { id: 'story_living_crumbs', detailId: 'crumbs', density: 10, baseFloors: [FloorLevel.LIVING] },
+  { id: 'story_living_cobweb', detailId: 'cobweb_corner', density: 5, baseFloors: [FloorLevel.LIVING] },
 
-  { id: 'design_kvartiry_papers', detailId: 'paper_scraps', density: 12 },
-  { id: 'design_kvartiry_crumbs', detailId: 'crumbs', density: 11 },
-  { id: 'design_kvartiry_cobweb', detailId: 'cobweb_corner', density: 6 },
+  { id: 'story_kvartiry_papers', detailId: 'paper_scraps', density: 12, baseFloors: [FloorLevel.KVARTIRY] },
+  { id: 'story_kvartiry_crumbs', detailId: 'crumbs', density: 11, baseFloors: [FloorLevel.KVARTIRY] },
+  { id: 'story_kvartiry_cobweb', detailId: 'cobweb_corner', density: 6, baseFloors: [FloorLevel.KVARTIRY] },
 
-  { id: 'design_ministry_papers', detailId: 'paper_scraps', density: 14 },
-  { id: 'design_ministry_newsprint', detailId: 'newspaper_bits', density: 10, requiredTags: ['documents'] },
-  { id: 'design_ministry_cracks', detailId: 'wall_cracks', density: 7 },
+  { id: 'story_ministry_papers', detailId: 'paper_scraps', density: 14, baseFloors: [FloorLevel.MINISTRY] },
+  { id: 'story_ministry_newsprint', detailId: 'newspaper_bits', density: 10, baseFloors: [FloorLevel.MINISTRY], requiredTags: ['documents'] },
+  { id: 'story_ministry_cracks', detailId: 'wall_cracks', density: 7, baseFloors: [FloorLevel.MINISTRY] },
 
-  { id: 'design_maintenance_rust', detailId: 'rust_grit', density: 15, requiredTags: ['industrial'] },
-  { id: 'design_maintenance_wet', detailId: 'wet_dirt', density: 12, requiredTags: ['water'] },
-  { id: 'design_maintenance_light_dust', detailId: 'light_dust', density: 5 },
+  { id: 'story_maintenance_rust', detailId: 'rust_grit', density: 15, baseFloors: [FloorLevel.MAINTENANCE], requiredTags: ['industrial'] },
+  { id: 'story_maintenance_wet', detailId: 'wet_dirt', density: 12, baseFloors: [FloorLevel.MAINTENANCE], requiredTags: ['water'] },
+  { id: 'story_maintenance_light_dust', detailId: 'light_dust', density: 5, baseFloors: [FloorLevel.MAINTENANCE] },
 
-  { id: 'design_hell_bone', detailId: 'bone_crumbs', density: 15, requiredTags: ['meat'] },
-  { id: 'design_hell_gut', detailId: 'gut_threads', density: 12, requiredTags: ['meat'] },
-  { id: 'design_hell_wet', detailId: 'wet_dirt', density: 5, blockedTags: ['void'] },
+  { id: 'story_hell_bone', detailId: 'bone_crumbs', density: 15, baseFloors: [FloorLevel.HELL], requiredTags: ['meat'] },
+  { id: 'story_hell_gut', detailId: 'gut_threads', density: 12, baseFloors: [FloorLevel.HELL], requiredTags: ['meat'] },
+  { id: 'story_hell_wet', detailId: 'wet_dirt', density: 5, baseFloors: [FloorLevel.HELL], blockedTags: ['void'] },
 
-  { id: 'design_void_proof', detailId: 'proof_specks', density: 17, requiredTags: ['void'] },
-  { id: 'design_void_light_dust', detailId: 'light_dust', density: 6 },
+  { id: 'story_void_proof', detailId: 'proof_specks', density: 17, baseFloors: [FloorLevel.VOID], requiredTags: ['void'] },
+  { id: 'story_void_light_dust', detailId: 'light_dust', density: 6, baseFloors: [FloorLevel.VOID] },
 
   { id: 'tag_residential_papers', detailId: 'paper_scraps', density: 6, requiredTags: ['residential'] },
   { id: 'tag_civil_crumbs', detailId: 'crumbs', density: 5, requiredTags: ['civil'] },
@@ -386,18 +386,15 @@ function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
-function floorTag(z: number): string {
-  const floor = DESIGN_FLOOR_ROUTES.find(r => r.z === z);
-  return (floor ? floor.id : 'floor').toLowerCase();
+function floorTag(floor: FloorLevel): string {
+  return (FloorLevel[floor] ?? 'floor').toLowerCase();
 }
 
 function themeTags(theme: FloorThemeProfile): Set<string> {
   const tags = new Set<string>();
   tags.add(theme.kind);
   tags.add(`kind_${theme.kind}`);
-  // @ts-ignore
   tags.add(floorTag(theme.themeClass));
-  // @ts-ignore
   tags.add(`floor_${floorTag(theme.themeClass)}`);
   tags.add(`danger_${theme.danger}`);
   if (theme.routeId) tags.add(String(theme.routeId));
@@ -411,13 +408,13 @@ function themeTags(theme: FloorThemeProfile): Set<string> {
   for (const tag of theme.monsterPressureTags) tags.add(tag);
   for (const tag of theme.economyTags) tags.add(tag);
   for (const tag of theme.specialContentTags) tags.add(tag);
-  if (theme.themeTags.includes('hell')) tags.add('meat');
-  if (theme.themeTags.includes('ministry')) tags.add('documents');
-  if (theme.themeTags.includes('void')) {
+  if (theme.themeClass === FloorLevel.HELL) tags.add('meat');
+  if (theme.themeClass === FloorLevel.MINISTRY) tags.add('documents');
+  if (theme.themeClass === FloorLevel.VOID) {
     tags.add('void');
     tags.add('proof');
   }
-  if (theme.themeTags.includes('maintenance')) {
+  if (theme.themeClass === FloorLevel.MAINTENANCE) {
     tags.add('industrial');
     tags.add('water');
   }
@@ -443,8 +440,7 @@ function hasBlockedTag(tags: ReadonlySet<string>, blocked: readonly string[] | u
 
 function rowMatches(row: VisualDetailProfileRow, theme: FloorThemeProfile, tags: ReadonlySet<string>): boolean {
   if (row.kinds && !row.kinds.includes(theme.kind)) return false;
-  // @ts-ignore
-  if (row.themeTagss && !row.themeTagss.includes(theme.themeClass)) return false;
+  if (row.baseFloors && !row.baseFloors.includes(theme.themeClass)) return false;
   if (row.routeIds && (!theme.routeId || !row.routeIds.includes(String(theme.routeId)))) return false;
   if (row.minDanger !== undefined && theme.danger < row.minDanger) return false;
   if (row.maxDanger !== undefined && theme.danger > row.maxDanger) return false;

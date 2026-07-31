@@ -2,7 +2,7 @@
 /*   Tall listening mast with voice horns, dangling eyes and      */
 /*   a meat-root base. It reads as a guard, not a boss.           */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -17,6 +17,7 @@ export const DEF: MonsterDef = {
   isRanged: true,
   projSpeed: 7,
   projSprite: 0,
+  floors: [FloorLevel.HELL],
   counterplay: 'Держите дверь, угол или колонну между залпами: Вестник сторожит открытую линию, а не охотится за героем.',
   lootHint: 'осколок сирены, бирка порога, запечатанный голос',
   boss: {

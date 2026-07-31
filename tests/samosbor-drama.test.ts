@@ -1,14 +1,14 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Faction } from '../src/core/types';
+import { Faction, FloorLevel } from '../src/core/types';
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
 import { publishShelterTallyEvent, SHELTER_TALLY_ID } from '../src/systems/shelter_tally';
 import { makeGameState, makeTestContainer, makeTestPlayer } from './helpers';
 
 test('istotit shelter tally aftermath is visible in world log and HUD', () => {
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
   const actor = makeTestPlayer({ id: 1, name: 'Вы', faction: Faction.PLAYER });

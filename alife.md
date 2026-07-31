@@ -70,7 +70,7 @@ These are current implementation limits, not new design goals:
 - Death is permanent in memory, but save/load persistence for procedural A-Life deaths is capped at `65_536` ids. A player can depopulate active floors, but "depopulate the whole run-sized A-Life pool and preserve every death through save/load" is not fully true yet.
 - Contract/assignment quest conversion can still use a live giver id or a synthetic fallback id; it does not consistently bind generated quest givers to `persistentNpcId`.
 - Some authored plot NPC generators still use `plotNpcId` as the live identity path; reserved A-Life plot identities exist inside the fixed pool budget, and Hell holdout Major Grom now binds to his reserved record, but not every authored plot actor has been converted to materialize directly from that reserved record.
-- Off-floor macro life is represented by cold migration, caravans, contracts, economy/faction state, compact events, bounded Demos social consequences, and lazy procedural background looting (triggered during world rebuilds such as lifts and samosbor). There is not yet a separate slow batch A-Life simulation for rank summaries.
+- Off-floor macro life is represented by cold migration, caravans, contracts, economy/faction state, compact events and bounded Demos social consequences. There is not yet a separate slow batch A-Life simulation for rank summaries.
 
 ## Core Rule
 

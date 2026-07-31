@@ -30,21 +30,15 @@
     "cf:schema": "node scripts/cloudflare-net-setup.mjs --schema-only",
     "cf:dev": "npm run build -- --mode cloudflare && wrangler dev",
     "cf:deploy": "npm run build -- --mode cloudflare && wrangler deploy",
-    "gh-pages:deploy": "rm -rf node_modules/.cache/gh-pages && vite build --base=/ && gh-pages -d dist -b main -r https://github.com/GIGAHRUSH/gigahrush.github.io.git",
     "check": "npm run typecheck && npm run test:unit && npm run content:audit && npm run build",
     "check:full": "npm run check && npm run smoke"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "gh-pages": "^6.3.0",
-    "ts-morph": "^28.0.0",
-    "tsx": "^4.23.0",
+    "tsx": "^4.22.4",
     "typescript": "^5.9.3",
     "vite": "^7.3.3",
     "vite-plugin-singlefile": "2.3.0",
     "wrangler": "^4.92.0"
-  },
-  "dependencies": {
-    "glob": "^13.0.6"
   }
 }
