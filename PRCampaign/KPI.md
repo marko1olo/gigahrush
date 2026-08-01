@@ -36,7 +36,12 @@ Latest Reddit Liminal Space PR preparation: `PRCampaign/PR_94_reddit_liminal_pos
 Latest VK/TG broad suggestion queue generation: `PRCampaign/PR_88_broad_suggestions_queue_2026-06-09.md` on 2026-06-09. Owner indicated that Telegram is open and requested aggressive continuation into suggestion boxes (предложки) for VK, Telegram, and sites, celebrating the recent successful post in GameDev по-русски (`https://vk.com/wall-194760187_44623`). Drafts and target queues for `@KwagaGames_robot`, `RPG Horror Games`, `Инди Спейс`, StopGame Blogs and XGM were prepared. Pending browser subagent execution or manual owner posting (owner offered to login if needed).
 
 | Date       | Source                   | Action/Event                                                                 | Outcome/Reach / Notes                                                                                                     |
+<<<<<<< HEAD
 |------------|--------------------------|------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|
+=======
+| 2026-07-30 | Pikabu Games / GamePush | Deployed and verified live update v51 on Pikabu Games                        | Moderator updated build v51 on Pikabu Games. Rating 3.5/5 (11 reviews), badge "Недавно обновлена", GamePush floor stats added. |
+| 2026-07-27 | Fandom Wiki / itch.io    | Published game "ТЕАТР" & added to Fandom Wiki "The Theater" (Rev 24262)       | Live Wiki: https://secret-files.fandom.com/ru/wiki/The_Theater, Game: https://tenevik.itch.io/theatre                     |
+>>>>>>> 56016948 (docs: update KPI and PR Campaign reports)
 | 2026-06-15 | GamePush Moderation      | Human moderator manually accepted the game for distribution                  | Sandbox tests passed. Owner completed transition to Self-Employed (СМЗ). Awaiting final contract.                           |
 | 2026-06-12 | Reddit 100 Karma Wave    | Executed URL parameter script opening Reddit submission tabs for owner        | Tabs opened for `r/playmygame`, `r/indiegames`, `r/HorrorGaming`, `r/IndieGaming`. Waiting for manual submit.               |
 | 2026-06-12 | TG Mass Outreach Wave 3  | Automated pitch sent to 5 fresh TG contacts                                  | Pitches sent to new targets: `@nightingle1`, `@vhailor`, `@Crunchnp`, `@tproger_sales_bot`, `@Mahooney1`. Waiting for replies. |
