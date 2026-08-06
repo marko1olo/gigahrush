@@ -18,7 +18,7 @@ function drawRow(
   color = '#cbd7d7',
 ): void {
   const labelW = Math.min(82 * sy, w * 0.42);
-  ctx.font = `${7.2 * sy}px monospace`;
+  ctx.font = `${7.2 * sy}px "Press Start 2P", monospace`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillStyle = '#668f91';
@@ -63,7 +63,7 @@ export function drawDemosTabsHeader(
   if (tabs.length === 0) return;
   const gap = 3 * sy;
   const tabW = Math.max(22 * sy, (w - gap * (tabs.length - 1)) / tabs.length);
-  ctx.font = `${7.4 * sy}px monospace`;
+  ctx.font = `${7.4 * sy}px "Press Start 2P", monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   for (let i = 0; i < tabs.length; i++) {
@@ -98,7 +98,7 @@ export function drawDemosProfilePanel(
   const pad = 7 * sx;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${9 * sy}px monospace`;
+  ctx.font = `bold ${9 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = details.dead ? '#d98' : '#25ffd0';
   ctx.fillText(fitText(ctx, opts.title ?? `ПРОФИЛЬ alife:${details.alifeId}`, w - pad * 2), x + pad, y + 6 * sy);
 
@@ -142,7 +142,7 @@ export function drawDemosProfilePanel(
   }
   drawRow(ctx, 'лента', details.lastPostId ? `post:${details.lastPostId}, упоминаний ${details.mentionsRecent}` : `упоминаний ${details.mentionsRecent}`, x + pad, rowY, rowW, sy); rowY += 15 * sy;
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   let chipX = x + pad;
   for (const trait of details.traits.slice(0, 4)) {
     const used = drawChip(ctx, trait.label, chipX, rowY, Math.min(86 * sx, x + w - pad - chipX), sy, details.dead);
@@ -185,7 +185,7 @@ export function drawDemosProfileFeedPanel(
   const pad = 7 * sx;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${8.5 * sy}px monospace`;
+  ctx.font = `bold ${8.5 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#25ffd0';
   ctx.fillText(fitText(ctx, title, w - pad * 2), x + pad, y + 6 * sy);
 
@@ -193,7 +193,7 @@ export function drawDemosProfileFeedPanel(
   const bottom = y + h - 6 * sy;
   const rowW = w - pad * 2;
   if (feed.length === 0) {
-    ctx.font = `${8 * sy}px monospace`;
+    ctx.font = `${8 * sy}px "Press Start 2P", monospace`;
     ctx.fillStyle = '#789';
     ctx.fillText(fitText(ctx, 'Свежих записей нет.', rowW), x + pad, rowY);
     return;
@@ -206,7 +206,7 @@ export function drawDemosProfileFeedPanel(
     if (rowY + rowH > bottom) break;
     ctx.fillStyle = 'rgba(2,18,22,0.72)';
     ctx.fillRect(x + pad, rowY, rowW, rowH);
-    ctx.font = `${7 * sy}px monospace`;
+    ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
     ctx.fillStyle = '#6a9';
     ctx.fillText(fitText(ctx, `post:${entry.postId} ${entry.label}`, rowW - 8 * sx), x + pad + 4 * sx, rowY + 3 * sy);
     ctx.fillStyle = '#d9f1ed';

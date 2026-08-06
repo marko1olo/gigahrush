@@ -241,7 +241,7 @@ function drawCardBack(ctx: CanvasRenderingContext2D, x: number, y: number, w: nu
   for (let xx = left; xx < right; xx += step) ctx.fillRect(xx, top, 1, Math.max(1, bottom - top));
 
   ctx.fillStyle = '#b79851';
-  ctx.font = `bold ${Math.max(6, Math.round(h * 0.16))}px monospace`;
+  ctx.font = `bold ${Math.max(6, Math.round(h * 0.16))}px "Press Start 2P", monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('ГХ', Math.round(x + w * 0.5), Math.round(y + h * 0.52));
@@ -286,7 +286,7 @@ function drawPlayingCard(
   const rank = RANK_LABELS[card.rank];
   const font = Math.max(7, Math.round(h * 0.15));
   ctx.fillStyle = style.primary;
-  ctx.font = `bold ${font}px monospace`;
+  ctx.font = `bold ${font}px "Press Start 2P", monospace`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillText(rank, Math.round(x + 5 * s), Math.round(y + 4 * s));
@@ -381,7 +381,7 @@ function drawTablePairs(ctx: CanvasRenderingContext2D, snapshot: DurakSnapshot, 
 
   if (snapshot.table.length <= 0) {
     ctx.fillStyle = '#4d5752';
-    ctx.font = `${Math.max(8, Math.round(8 * s))}px monospace`;
+    ctx.font = `${Math.max(8, Math.round(8 * s))}px "Press Start 2P", monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('ПУСТО', Math.round(x + w * 0.5), Math.round(y + h * 0.53));
@@ -466,11 +466,11 @@ export function drawDurakInterface(
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillStyle = '#d1aa54';
-  ctx.font = `bold ${10 * sy}px monospace`;
+  ctx.font = `bold ${10 * sy}px "Press Start 2P", monospace`;
   ctx.fillText(fitText(ctx, 'ДУРАК', pw * 0.22), px + pad, headerY);
 
   ctx.fillStyle = '#8d9690';
-  ctx.font = `${7.2 * sy}px monospace`;
+  ctx.font = `${7.2 * sy}px "Press Start 2P", monospace`;
   const turn = snapshot.attacker === 'player' ? 'ВЫ ХОДИТЕ' : `${snapshot.npcName} ХОДИТ`;
   const meta = `СТАВКА ${snapshot.stakeRubles}Р | КОЗЫРЬ ${formatDurakSuit(snapshot.trumpSuit)} | ${turn}`;
   ctx.fillText(fitText(ctx, meta, pw - pad * 2 - 58 * s), px + pad, headerY + 13 * sy);
@@ -488,7 +488,7 @@ export function drawDurakInterface(
     ? `${controlHint('gameMenu')} ЗАКРЫТЬ  ${menuCloseHint()} ВЫЙТИ`
     : `${controlBindingLabel('menuLeft')}/${controlBindingLabel('menuRight')} КАРТА  ${controlHint('gameMenu')} СЫГРАТЬ  ${controlBindingLabel('drop')} ВЗЯТЬ/СТОП  ${menuCloseHint()} СДАТЬСЯ`;
   ctx.fillStyle = '#59615d';
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.fillText(fitText(ctx, action, pw - pad * 2), Math.round(px + pw * 0.5), controlsY);

@@ -64,7 +64,7 @@ export function drawFeedbackMenu(
   ctx.shadowBlur = 10;
   const tj = textJitter(time, 800);
   ctx.fillStyle = `rgba(200,0,0,${flicker(time, 801)})`;
-  ctx.font = `bold ${16 * sy}px monospace`;
+  ctx.font = `bold ${16 * sy}px "Press Start 2P", monospace`;
   ctx.textAlign = 'center';
   ctx.fillText('ОБРАТНАЯ СВЯЗЬ И ТИТРЫ', w / 2 + tj.dx, py + 24 * sy + tj.dy);
   ctx.shadowBlur = 0;
@@ -73,11 +73,11 @@ export function drawFeedbackMenu(
   // Left side - Credits
   ctx.textAlign = 'left';
   ctx.fillStyle = '#8ab';
-  ctx.font = `bold ${11 * sy}px monospace`;
+  ctx.font = `bold ${11 * sy}px "Press Start 2P", monospace`;
   ctx.fillText('Команда (Титры):', px + 24 * _sx, py + 56 * sy);
   
   ctx.fillStyle = '#578';
-  ctx.font = `${9 * sy}px monospace`;
+  ctx.font = `${9 * sy}px "Press Start 2P", monospace`;
   for (let i = 0; i < CREDITS.length; i++) {
     ctx.fillText(CREDITS[i], px + 24 * _sx, py + 72 * sy + i * 14 * sy);
   }
@@ -85,7 +85,7 @@ export function drawFeedbackMenu(
   // Right side - QR Code
   ctx.textAlign = 'right';
   ctx.fillStyle = '#8ab';
-  ctx.font = `bold ${11 * sy}px monospace`;
+  ctx.font = `bold ${11 * sy}px "Press Start 2P", monospace`;
   ctx.fillText('Telegram:', px + pw - 24 * _sx, py + 56 * sy);
 
   const qrSize = QR_CODE.length;
@@ -109,18 +109,18 @@ export function drawFeedbackMenu(
   }
 
   ctx.fillStyle = '#578';
-  ctx.font = `${9 * sy}px monospace`;
+  ctx.font = `${9 * sy}px "Press Start 2P", monospace`;
   ctx.fillText('https://t.me/gigah_rush', px + pw - 24 * _sx, qrY + qrW + 16 * sy);
 
   // Bottom - Thank you message
   ctx.textAlign = 'center';
   ctx.fillStyle = `rgba(0,255,170,${flicker(time, 810)})`;
-  ctx.font = `bold ${10 * sy}px monospace`;
+  ctx.font = `bold ${10 * sy}px "Press Start 2P", monospace`;
   ctx.fillText('Спасибо за то, что играете в гигахрущ!', w / 2, py + ph - 32 * sy);
 
   // Controls
   ctx.fillStyle = '#7a93a0';
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   ctx.fillText(
     fitText(ctx, `${controlBindingLabel('gameMenu')} — открыть ссылки  |  ${menuCloseHint()} — закрыть`, pw - 12 * _sx),
     w / 2,

@@ -25,7 +25,7 @@ export function drawDemosSocialLinksPanel(
   const pad = 7 * sx;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${9 * sy}px monospace`;
+  ctx.font = `bold ${9 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#25ffd0';
   ctx.fillText(fitText(ctx, opts.title ?? 'СВЯЗИ', w - pad * 2), x + pad, y + 6 * sy);
 
@@ -33,7 +33,7 @@ export function drawDemosSocialLinksPanel(
   const maxRowsByHeight = Math.max(0, Math.floor((h - 28 * sy) / rowH));
   const maxRows = Math.min(opts.maxRows ?? 9, maxRowsByHeight);
   if (links.length === 0 || maxRows <= 0) {
-    ctx.font = `${8 * sy}px monospace`;
+    ctx.font = `${8 * sy}px "Press Start 2P", monospace`;
     ctx.fillStyle = '#789';
     ctx.fillText(fitText(ctx, 'Связей в исходящих слотах нет.', w - pad * 2), x + pad, y + 25 * sy);
     return;
@@ -47,7 +47,7 @@ export function drawDemosSocialLinksPanel(
     ctx.strokeStyle = link.dead ? 'rgba(180,70,82,0.28)' : 'rgba(0,140,130,0.22)';
     ctx.strokeRect(x + pad + 0.5, rowY + 0.5, rowW - 1, rowH - 3 * sy - 1);
 
-    ctx.font = `${7.2 * sy}px monospace`;
+    ctx.font = `${7.2 * sy}px "Press Start 2P", monospace`;
     ctx.fillStyle = link.dead ? '#b77' : link.relationColor;
     ctx.fillText(fitText(ctx, link.roleLabel, 50 * sx), x + pad + 5 * sx, rowY + 3 * sy);
 

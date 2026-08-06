@@ -28,11 +28,12 @@ export function drawArenaOverlay(
   drawNeuroPanel(ctx, x, y, panelW, panelH, time, 1500);
 
   ctx.fillStyle = '#9a6';
-  ctx.font = `${10 * s}px monospace`;
+  ctx.font = `${10 * s}px "Press Start 2P", monospace`;
   ctx.fillText('МАСТЕР АРЕНЫ', x + pad + jitter.dx, y + pad + 10 * s + jitter.dy);
 
   drawStaticNoise(ctx, x + pad, y + pad + 16 * s, maxW, 2 * s, time, 0.4);
 
+<<<<<<< HEAD
   const opts = [
     { label: 'Ставки на бой' },
     { label: 'Выйти на арену' },
@@ -43,6 +44,9 @@ export function drawArenaOverlay(
     const selected = i === game.selection;
     const yy = y + pad + 40 * s + i * 20 * s;
     const mj = textJitter(time, 910 + i);
+=======
+  ctx.font = `${8.6 * sy}px "Press Start 2P", monospace`;
+>>>>>>> origin/main
 
     ctx.fillStyle = selected ? '#9a6' : '#665';
     ctx.fillText(`${selected ? '▶ ' : '  '}${opts[i].label}`, x + pad + mj.dx, yy + mj.dy);
@@ -51,7 +55,7 @@ export function drawArenaOverlay(
   drawStaticNoise(ctx, x + pad, y + panelH - pad - 12 * s, maxW, 2 * s, time, 0.2);
 
   ctx.fillStyle = '#565';
-  ctx.font = `${6 * s}px monospace`;
+  ctx.font = `${6 * s}px "Press Start 2P", monospace`;
   const hints = fitText(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} ВЫБОР | ${controlHint('gameMenu')} ПОДТВЕРДИТЬ | ${menuCloseHint()} ВЫХОД`, maxW);
   ctx.fillText(hints, x + pad, y + panelH - pad);
 

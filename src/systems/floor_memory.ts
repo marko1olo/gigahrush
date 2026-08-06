@@ -52,6 +52,9 @@ export interface FloorLiftAnchor {
 
 export interface FloorRouteLiftMirror {
   direction: LiftDirection;
+  /** `anchors[0]` is authored priority: the lift the player actually rode. It is
+   * placed before the rest (which are shuffled) so the return lift always lands
+   * at the player's own departure coordinates. */
   anchors: readonly FloorLiftAnchor[];
 }
 
@@ -61,6 +64,13 @@ export interface FloorRouteLiftLayoutResult {
   placed: number;
   demoted: number;
   mirrored: number;
+  /** Where the ridden lift (`mirror.anchors[0]`) actually landed, and the walkable
+   * cell in front of it. `primaryLiftIdx` differs from the anchor coordinate when
+   * the arrival floor could not carry a lift there; the caller then spawns the
+   * player at `primaryAccessIdx` so they still step out next to the return lift.
+   * Both are -1 when nothing was mirrored. */
+  primaryLiftIdx: number;
+  primaryAccessIdx: number;
 }
 
 export type FloorMemoryGenerationExtras = Record<string, unknown>;
@@ -152,6 +162,11 @@ const DEFAULT_ROUTE_LIFTS_PER_DIRECTION = 16;
 
 const CARDINALS = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
 const ROUTE_LIFT_CONNECTOR_MAX = W;
+const ROUTE_LIFT_MIRROR_RELOCATE_RADIUS = 8;
+// The lift the player rode searches wider than the rest: it is the one whose
+// absence they actually notice, stepping out with no way back.
+const ROUTE_LIFT_MIRROR_PRIMARY_RELOCATE_RADIUS = 24;
+const ROUTE_LIFT_MIRROR_SPAWN_FALLBACK_RADIUS = 96;
 const ROUTE_LIFT_MIN_SPACING = 8;
 const ROUTE_LIFT_MAX_SPACING = 96;
 const ROUTE_LIFT_SPACING_FACTOR = 0.5;
@@ -1266,13 +1281,44 @@ function ensureRouteLiftUsable(
   return { usable: false, changed };
 }
 
+/** Nearest cell around a mirror anchor that can carry a usable lift, searched ring
+ * by ring. The exact anchor coordinate is not always available on the arrival
+ * floor — it can be protected apartment space, or geometry with no reachable
+ * neighbour to open the doors into — and forcing a lift there would produce a
+ * lift walled into solid rock. Landing a few cells over keeps the promise the
+ * player can actually see: step out, and the return lift is right there. */
+function nearestMirrorLiftPlacement(
+  world: World,
+  liftIdx: number,
+  reachable: { cells: Int32Array; count: number; seen: Uint8Array },
+  radius: number,
+): { idx: number; accessIdx: number } | null {
+  const x = liftIdx % W;
+  const y = (liftIdx / W) | 0;
+  for (let r = 1; r <= radius; r++) {
+    let best: { idx: number; accessIdx: number } | null = null;
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+        const idx = world.idx(x + dx, y + dy);
+        const accessIdx = routeLiftPlacementAccess(world, idx, reachable, -1);
+        if (accessIdx < 0) continue;
+        if (!best || idx < best.idx) best = { idx, accessIdx };
+      }
+    }
+    if (best) return best;
+  }
+  return null;
+}
+
 function placeMirroredRouteLift(
   world: World,
   anchor: FloorLiftAnchor,
   direction: LiftDirection,
   reachable: { cells: Int32Array; count: number; seen: Uint8Array },
   floorTex: Tex,
-): boolean {
+  relocateRadius: number,
+): { idx: number; accessIdx: number } | null {
   const liftIdx = world.idx(anchor.liftX, anchor.liftY);
   for (const accessIdx of routeLiftAccessCandidates(world, liftIdx, reachable)) {
     if (!canOccupyRouteLift(world, liftIdx, accessIdx)) continue;
@@ -1282,11 +1328,16 @@ function placeMirroredRouteLift(
     const connected = ensureRouteAccessReachable(world, accessIdx, reachable, floorTex);
     if (connected.connected) {
       setRouteAccessFloor(world, accessIdx, floorTex);
-      return true;
+      return { idx: liftIdx, accessIdx };
     }
     demoteRouteLiftCell(world, liftIdx, floorTex);
   }
-  return false;
+  const fallback = nearestMirrorLiftPlacement(world, liftIdx, reachable, relocateRadius);
+  if (!fallback) return null;
+  setRouteLiftCell(world, fallback.idx, direction);
+  clearAdjacentLiftButtons(world, fallback.idx);
+  setRouteAccessFloor(world, fallback.accessIdx, floorTex);
+  return fallback;
 }
 
 function fillRouteLift(
@@ -1337,20 +1388,39 @@ export function ensureFloorRouteLiftLayout(
     countPerDirection?: number;
     mirror?: FloorRouteLiftMirror;
     floorTex?: Tex;
+    /** Route lift cell that must survive this pass untouched — the lift the player
+     * is riding right now. Without it, departure normalization may redistribute
+     * that exact lift away, and the arrival floor then mirrors a lift set that no
+     * longer contains the player's own coordinates (they arrive away from a lift). */
+    pinnedLiftIdx?: number;
   } = {},
 ): FloorRouteLiftLayoutResult {
   const targetCount = Math.max(0, Math.floor(options.countPerDirection ?? DEFAULT_ROUTE_LIFTS_PER_DIRECTION));
   const expected = new Set(expectedDirections);
   const floorTex = options.floorTex ?? Tex.F_CONCRETE;
+  const pinnedInput = options.pinnedLiftIdx ?? -1;
+  const pinned = Number.isInteger(pinnedInput)
+    && pinnedInput >= 0
+    && pinnedInput < world.cells.length
+    && world.cells[pinnedInput] === Cell.LIFT
+    && world.features[pinnedInput] !== Feature.MACHINE
+    && expected.has(world.liftDir[pinnedInput] as LiftDirection)
+    ? pinnedInput
+    : -1;
+  let pinnedLift = pinned;
+  const demoteLift = (idx: number): boolean =>
+    idx === pinnedLift ? false : demoteRouteLiftCell(world, idx, floorTex);
   let placed = 0;
   let demoted = 0;
   let mirrored = 0;
+  let primaryLiftIdx = -1;
+  let primaryAccessIdx = -1;
   let changed = false;
 
   for (let i = 0; i < world.cells.length; i++) {
     const dir = world.liftDir[i] as LiftDirection;
     if (world.cells[i] === Cell.LIFT && world.features[i] !== Feature.MACHINE && !expected.has(dir)) {
-      if (demoteRouteLiftCell(world, i, floorTex)) {
+      if (demoteLift(i)) {
         demoted++;
         changed = true;
       }
@@ -1364,21 +1434,50 @@ export function ensureFloorRouteLiftLayout(
   }
 
   const mirror = options.mirror && expected.has(options.mirror.direction) ? options.mirror : undefined;
+  const primaryAnchor = mirror?.anchors[0];
+  const primaryAnchorIdx = primaryAnchor ? world.idx(primaryAnchor.liftX, primaryAnchor.liftY) : -1;
   if (mirror) {
     for (const anchor of collectFloorLiftAnchors(world, mirror.direction)) {
-      if (demoteRouteLiftCell(world, anchor.liftIdx, floorTex)) {
+      if (demoteLift(anchor.liftIdx)) {
         demoted++;
         changed = true;
       }
     }
     let reachable = reachableRouteCellsFromPoint(world, spawnX, spawnY);
+<<<<<<< HEAD
     for (const anchor of mirror.anchors.slice(0, targetCount)) {
       if (placeMirroredRouteLift(world, anchor, mirror.direction, reachable, floorTex)) {
         placed++;
         mirrored++;
         changed = true;
         reachable = reachableRouteCellsFromPoint(world, spawnX, spawnY);
+=======
+    // anchors[0] is the lift the player rode: placed first (and never dropped by
+    // the subset slice) so the return lift lands at their arrival coordinates.
+    const rest = shuffleWith(rng, mirror.anchors.slice(1));
+    const orderedAnchors = mirror.anchors.length > 0 ? [mirror.anchors[0], ...rest] : rest;
+    const mirrorAnchors = orderedAnchors.slice(0, targetCount);
+    for (let i = 0; i < mirrorAnchors.length; i++) {
+      const spot = placeMirroredRouteLift(
+        world,
+        mirrorAnchors[i],
+        mirror.direction,
+        reachable,
+        floorTex,
+        i === 0 ? ROUTE_LIFT_MIRROR_PRIMARY_RELOCATE_RADIUS : ROUTE_LIFT_MIRROR_RELOCATE_RADIUS,
+      );
+      if (!spot) continue;
+      placed++;
+      mirrored++;
+      changed = true;
+      if (i === 0) {
+        primaryLiftIdx = spot.idx;
+        primaryAccessIdx = spot.accessIdx;
+        // The ridden lift's return counterpart survives the rest of this pass.
+        if (pinnedLift < 0) pinnedLift = spot.idx;
+>>>>>>> origin/main
       }
+      reachable = reachableRouteCellsFromPoint(world, spawnX, spawnY);
     }
   }
 
@@ -1395,7 +1494,11 @@ export function ensureFloorRouteLiftLayout(
         routeLiftAnchorsNeedRedistribution(world, anchors, spacingTarget)
       )
     ) {
-      demoted += rebuildRouteLiftDirection(world, anchors, floorTex);
+      demoted += rebuildRouteLiftDirection(
+        world,
+        pinnedLift >= 0 ? anchors.filter(anchor => anchor.liftIdx !== pinnedLift) : anchors,
+        floorTex,
+      );
       changed = true;
       reachable = reachableRouteCellsFromPoint(world, spawnX, spawnY);
     }
@@ -1405,7 +1508,7 @@ export function ensureFloorRouteLiftLayout(
       if (usable.usable) {
         if (usable.changed) changed = true;
         reachable = reachableRouteCellsFromPoint(world, spawnX, spawnY);
-      } else if (demoteRouteLiftCell(world, anchor.liftIdx, floorTex)) {
+      } else if (demoteLift(anchor.liftIdx)) {
         demoted++;
         changed = true;
       }
@@ -1415,7 +1518,7 @@ export function ensureFloorRouteLiftLayout(
     while (anchors.length > targetCount) {
       const anchor = anchors.pop();
       if (!anchor) break;
-      if (demoteRouteLiftCell(world, anchor.liftIdx, floorTex)) {
+      if (demoteLift(anchor.liftIdx)) {
         demoted++;
         changed = true;
       }
@@ -1435,6 +1538,26 @@ export function ensureFloorRouteLiftLayout(
     }
   }
 
+  // Last resort: the arrival floor could not carry a lift anywhere near the ridden
+  // coordinates (disconnected geometry). Point the caller at the closest return
+  // lift that does exist, so the player still steps out beside one.
+  if (mirror && primaryLiftIdx < 0 && primaryAnchorIdx >= 0) {
+    const reachable = reachableRouteCellsFromPoint(world, spawnX, spawnY);
+    const ax = primaryAnchorIdx % W;
+    const ay = (primaryAnchorIdx / W) | 0;
+    let bestDist = ROUTE_LIFT_MIRROR_SPAWN_FALLBACK_RADIUS + 1;
+    for (const anchor of collectFloorLiftAnchors(world, mirror.direction)) {
+      const dist = Math.abs(world.delta(ax, anchor.liftX)) + Math.abs(world.delta(ay, anchor.liftY));
+      if (dist >= bestDist) continue;
+      const access = routeLiftAccessCandidates(world, anchor.liftIdx, reachable)
+        .find(idx => reachable.seen[idx] !== 0);
+      if (access === undefined) continue;
+      bestDist = dist;
+      primaryLiftIdx = anchor.liftIdx;
+      primaryAccessIdx = access;
+    }
+  }
+
   if (changed) {
     recomputeWorldZoneLiftFlags(world);
     markRouteLiftLayoutDirty(world);
@@ -1446,6 +1569,8 @@ export function ensureFloorRouteLiftLayout(
     placed,
     demoted,
     mirrored,
+    primaryLiftIdx: primaryLiftIdx >= 0 && world.cells[primaryLiftIdx] === Cell.LIFT ? primaryLiftIdx : -1,
+    primaryAccessIdx: primaryLiftIdx >= 0 && world.cells[primaryLiftIdx] === Cell.LIFT ? primaryAccessIdx : -1,
   };
 }
 

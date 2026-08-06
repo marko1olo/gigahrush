@@ -67,7 +67,7 @@ export function drawNetTerminalGenDenied(
   ctx.shadowColor = 'rgba(255,60,80,0.55)';
   ctx.shadowBlur = 12 * s;
   ctx.fillStyle = '#ff5868';
-  ctx.font = `bold ${13 * s}px monospace`;
+  ctx.font = `bold ${13 * s}px "Press Start 2P", monospace`;
   ctx.fillText(fitText(ctx, status, maxTextW), x + pad + jitter.dx, warnY + jitter.dy);
   ctx.shadowBlur = 0;
   ctx.restore();
@@ -79,7 +79,7 @@ export function drawNetTerminalGenDenied(
   ctx.lineTo(x + panelW - pad, warnY + 21 * s);
   ctx.stroke();
 
-  ctx.font = `${8 * s}px monospace`;
+  ctx.font = `${8 * s}px "Press Start 2P", monospace`;
   let ly = warnY + 33 * s;
   const lineH = 10 * s;
   ctx.fillStyle = '#9fb8bd';
@@ -96,7 +96,7 @@ export function drawNetTerminalGenDenied(
   }
 
   ctx.fillStyle = '#4f6470';
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = `${7 * s}px "Press Start 2P", monospace`;
   const footer = denied.footer ?? `${menuCloseHint()} закрыть  |  нужен НЕТ-ГЕН`;
   ctx.fillText(fitText(ctx, footer, maxTextW), x + pad, y + panelH - 16 * s);
   if (denied.code) {

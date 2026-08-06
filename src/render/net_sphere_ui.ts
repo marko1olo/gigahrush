@@ -76,9 +76,9 @@ export function drawNetSphereMenu(
   ctx.clip();
 
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${12 * s}px monospace`;
+  ctx.font = `bold ${12 * s}px "Press Start 2P", monospace`;
   drawGlitchText(ctx, 'НЕТ-СФЕРА', x + pad, headerY, time, 821, '#63f6ff', 12 * s);
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = `${7 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = net.status === 'online' ? '#7f8' : net.status === 'syncing' ? '#fd6' : '#f86';
   ctx.fillText(net.statusText, x + pad, headerY + 16 * s);
   if (net.busy) {
@@ -92,7 +92,7 @@ export function drawNetSphereMenu(
   ctx.beginPath();
   ctx.rect(leftX, ly - 2 * s, Math.max(1, leftW), Math.max(1, commandY + 22 * s - ly));
   ctx.clip();
-  ctx.font = `${8 * s}px monospace`;
+  ctx.font = `${8 * s}px "Press Start 2P", monospace`;
   statLine(ctx, 'НЕТ-ИМЯ', net.nickname, leftX, ly, leftW, valueOffset, '#d8f6ff', { skipTranslate: true }); ly += 12 * s;
   statLine(ctx, 'НЕТ-ГЕН', net.netGen, leftX, ly, leftW, valueOffset, '#7da3ad'); ly += 10 * s;
   statLine(ctx, 'СЕССИЯ', net.sessionId, leftX, ly, leftW, valueOffset, '#6f8792'); ly += 14 * s;
@@ -142,11 +142,11 @@ export function drawNetSphereMenu(
   ctx.fillStyle = 'rgba(3,18,24,0.58)';
   ctx.fillRect(chatX + 1, chatY + 1, chatW - 2, chatH - 2);
 
-  ctx.font = `${8 * s}px monospace`;
+  ctx.font = `${8 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#9cf';
   ctx.fillText('ТЕРМИНАЛ', chatX + 6 * s, chatY + 5 * s);
   ctx.fillStyle = '#607080';
-  ctx.font = `${6 * s}px monospace`;
+  ctx.font = `${6 * s}px "Press Start 2P", monospace`;
   const scrollHint = net.chat.length > 1
     ? `колесо PgUp/PgDn листать ${Math.min(net.chatScroll, Math.max(0, net.chat.length - 1)) + 1}/${net.chat.length}`
     : 'история пуста';
@@ -155,7 +155,7 @@ export function drawNetSphereMenu(
   const promptH = Math.min(18 * s, Math.max(10 * s, chatH * 0.42));
   const msgTop = chatY + 20 * s;
   const msgBottom = Math.max(msgTop, chatY + chatH - promptH - 4 * s);
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = `${7 * s}px "Press Start 2P", monospace`;
   const compactChat = chatW < 180 * s;
   const messageEnds: number[] = [];
   const vlines: ChatVisualLine[] = [];

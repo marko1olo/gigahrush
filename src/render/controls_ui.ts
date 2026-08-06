@@ -53,7 +53,7 @@ export function drawControlsMenu(
   ctx.textBaseline = 'alphabetic';
   const titleJ = textJitter(time, 1141);
   drawGlitchText(ctx, isButtons ? 'КНОПКИ' : 'ГОРЯЧИЕ КЛАВИШИ', 12 * sx + titleJ.dx, 12 * sy + titleJ.dy, time, 1142, '#6cf', 11 * sy);
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#7a93a0';
   ctx.fillText(
     fitText(ctx, isButtons
@@ -69,7 +69,7 @@ export function drawControlsMenu(
   const keyW = Math.min(150 * sx, w * 0.38);
   const labelW = Math.max(40 * sx, w - x * 2 - groupW - keyW - 12 * sx);
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#5a7080';
   ctx.fillText('РАЗДЕЛ', x + 14 * sx, top - 7 * sy);
   ctx.fillText('ДЕЙСТВИЕ', x + groupW + 18 * sx, top - 7 * sy);
@@ -134,7 +134,7 @@ export function drawControlsMenu(
   }
 
   ctx.fillStyle = capture ? '#fd6' : '#6a828e';
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   ctx.textBaseline = 'alphabetic';
   ctx.fillText(
     capture

@@ -29,16 +29,16 @@ export function drawNetHackOverlay(
 
   ctx.textBaseline = 'top';
   drawGlitchText(ctx, hack.label, x + pad, y + 10 * s, time, 1682, '#63f6ff', 12 * s);
-  ctx.font = `${8 * s}px monospace`;
+  ctx.font = `${8 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#8ca0a8';
   ctx.fillText(fitText(ctx, `Навык ${hack.skill} / сложность ${hack.difficulty}`, maxW), x + pad, y + 38 * s);
 
-  ctx.font = `bold ${15 * s}px monospace`;
+  ctx.font = `bold ${15 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = hack.locked ? '#ff7860' : hack.solved ? '#8f8' : '#63f6ff';
   const status = hack.locked ? 'БЛОКИРОВКА' : hack.solved ? 'ДОСТУП ОТКРЫТ' : `ШАНС ${hack.chancePercent}%`;
   ctx.fillText(fitText(ctx, status, maxW), x + pad + jitter.dx, y + 66 * s + jitter.dy);
 
-  ctx.font = `${8 * s}px monospace`;
+  ctx.font = `${8 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#9fb8bd';
   ctx.fillText(fitText(ctx, `Успех: деньги, архивный доступ, координатный след. Награда ${hack.rewardRubles} руб.`, maxW), x + pad, y + 98 * s);
   ctx.fillStyle = '#b88';
@@ -49,7 +49,7 @@ export function drawNetHackOverlay(
   }
 
   ctx.fillStyle = '#547078';
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = `${7 * s}px "Press Start 2P", monospace`;
   ctx.fillText(fitText(ctx, `${controlHint('gameMenu')} взломать  ${menuCloseHint()} закрыть`, maxW), x + pad, y + panelH - 16 * s);
   ctx.restore();
 }

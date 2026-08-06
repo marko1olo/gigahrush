@@ -159,7 +159,7 @@ function drawLine(
 ): void {
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `${7.5 * sy}px monospace`;
+  ctx.font = `${7.5 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#668f91';
   const labelW = Math.min(84 * sy, w * 0.42);
   ctx.fillText(fitText(ctx, label, labelW), x, y);
@@ -217,7 +217,7 @@ function drawDemosEmptyPanel(
   ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = 'rgba(0,220,190,0.34)';
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = `${8 * sy}px "Press Start 2P", monospace`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillStyle = '#789';
@@ -250,24 +250,24 @@ function drawDemosPostPanel(
   const rendered = renderDemosMarkovPostText(postAsMarkov(post), { routeSpeech: routeDemosSpeech });
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${9 * sy}px monospace`;
+  ctx.font = `bold ${9 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#25ffd0';
   ctx.fillText(fitText(ctx, `post:${post.id}  alife:${post.authorAlifeId}`, rowW), x + pad, rowY);
   rowY += 15 * sy;
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#6a9';
   const parent = post.parentPostId !== undefined ? `  parent:post:${post.parentPostId}` : '';
   ctx.fillText(fitText(ctx, `${Math.floor(post.createdAt)}s${parent}  ${post.privacy}`, rowW), x + pad, rowY);
   rowY += 12 * sy;
 
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = `${8 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#d9f1ed';
   const text = fitText(ctx, rendered.text, rowW);
   ctx.fillText(text, x + pad, rowY);
   rowY += 16 * sy;
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#789';
   const mentions = post.mentionedAlifeIds?.length ? post.mentionedAlifeIds.map(id => `alife:${id}`).join(', ') : 'нет';
   ctx.fillText(fitText(ctx, `упоминания: ${mentions}`, rowW), x + pad, rowY);
@@ -311,12 +311,12 @@ function drawDemosQuestPanel(
   const pad = 7 * sx;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${9 * sy}px monospace`;
+  ctx.font = `bold ${9 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#25ffd0';
   ctx.fillText(fitText(ctx, 'ЗАЯВКИ ДЕМОСА', w - pad * 2), x + pad, y + 6 * sy);
   let rowY = y + 24 * sy;
   const rowW = w - pad * 2;
-  ctx.font = `${7.2 * sy}px monospace`;
+  ctx.font = `${7.2 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#89a';
   ctx.fillText(fitText(ctx, 'Чтобы принять дело, нужно найти человека на этаже и поговорить лично.', rowW), x + pad, rowY);
   rowY += 14 * sy;
@@ -373,7 +373,7 @@ export function drawDemosMenu(
   ctx.fillRect(searchX, searchY, searchW, searchH);
   ctx.strokeStyle = state.demosSearchActive ? 'rgba(40,255,210,0.85)' : 'rgba(0,150,140,0.35)';
   ctx.strokeRect(searchX + 0.5, searchY + 0.5, searchW - 1, searchH - 1);
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = `${8 * sy}px "Press Start 2P", monospace`;
   ctx.textAlign = 'left';
   ctx.fillStyle = '#5e8';
   const cursor = state.demosSearchActive && Math.floor(uiTime * 2) % 2 === 0 ? '_' : '';
@@ -405,11 +405,11 @@ export function drawDemosMenu(
       const infoX = portraitX;
       let y = portraitY + portraitH + 6 * sy;
       const infoW = portraitW;
-      ctx.font = `bold ${8.5 * sy}px monospace`;
+      ctx.font = `bold ${8.5 * sy}px "Press Start 2P", monospace`;
       ctx.textAlign = 'left';
       ctx.fillStyle = p.dead ? '#a77' : '#eff';
       ctx.fillText(fitText(ctx, p.name, infoW), infoX, y); y += 12 * sy;
-      ctx.font = `${7 * sy}px monospace`;
+      ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
       ctx.fillStyle = '#789';
       const ids = [p.idLabel, p.packageIdLabel, p.plotIdLabel].filter((item): item is string => !!item).join(' ');
       ctx.fillText(fitText(ctx, ids, infoW), infoX, y); y += 12 * sy;
@@ -467,7 +467,7 @@ export function drawDemosMenu(
     }
   }
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   ctx.textAlign = 'center';
   ctx.fillStyle = '#7a93a0';
   const searchHint = state.demosSearchActive

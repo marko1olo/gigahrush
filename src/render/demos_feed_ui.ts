@@ -45,11 +45,11 @@ export function drawDemosFeedPanel(
   const pad = 7 * sx;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${9 * sy}px monospace`;
+  ctx.font = `bold ${9 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#25ffd0';
   ctx.fillText(fitText(ctx, opts.title ?? 'ЛЕНТА ДЕМОСА', w - pad * 2), x + pad, y + 6 * sy);
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#587';
   ctx.fillText(`${view.total}/${view.capacity}`, x + w - pad - 40 * sx, y + 7 * sy);
 
@@ -58,7 +58,7 @@ export function drawDemosFeedPanel(
   const bottom = y + h - 6 * sy;
   const rowW = w - pad * 2;
   if (view.posts.length === 0) {
-    ctx.font = `${8 * sy}px monospace`;
+    ctx.font = `${8 * sy}px "Press Start 2P", monospace`;
     ctx.fillStyle = '#789';
     ctx.fillText(fitText(ctx, view.emptyLabel, rowW), rowX, rowY);
     return;
@@ -75,7 +75,7 @@ export function drawDemosFeedPanel(
       ctx.strokeStyle = 'rgba(0,140,130,0.25)';
       ctx.strokeRect(rowX + 0.5, rowY + 0.5, rowW - 1, rowH - 1);
 
-      ctx.font = `${7 * sy}px monospace`;
+      ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
       ctx.fillStyle = '#6a9';
       ctx.fillText(
         fitText(ctx, `post:${post.id}  alife:${post.authorAlifeId}  ${Math.floor(post.createdAt)}s`, rowW - 10 * sx),
@@ -91,7 +91,7 @@ export function drawDemosFeedPanel(
         if (tagX > rowX + rowW - 20 * sx) break;
       }
 
-      ctx.font = `${8 * sy}px monospace`;
+      ctx.font = `${8 * sy}px "Press Start 2P", monospace`;
       ctx.fillStyle = '#d9f1ed';
       let textY = rowY + 27 * sy;
       for (const line of textLines) {
@@ -99,7 +99,7 @@ export function drawDemosFeedPanel(
         textY += 9 * sy;
       }
 
-      ctx.font = `${7 * sy}px monospace`;
+      ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
       for (const reaction of reactions.slice(0, 2)) {
         ctx.fillStyle = reaction.relation < 0 ? '#e99' : '#9dc';
         ctx.fillText(

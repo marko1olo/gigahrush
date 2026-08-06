@@ -65,7 +65,7 @@ body {
   padding: 0;
   overflow: hidden;
   background: #000;
-  font-family: 'Courier New', monospace;
+  font-family: 'Press Start 2P', 'Courier New', monospace;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -82,7 +82,7 @@ canvas {
   z-index: 3;
   pointer-events: none;
   touch-action: none;
-  font-family: 'Courier New', monospace;
+  font-family: 'Press Start 2P', 'Courier New', monospace;
   --mobile-edge-left: max(14px, env(safe-area-inset-left));
   --mobile-edge-right: max(14px, env(safe-area-inset-right));
   --mobile-edge-top: max(10px, env(safe-area-inset-top));

@@ -1,6 +1,11 @@
 import { TITLE_LANGUAGES, type TitleLanguageId, type TitleFlagKind, titleLanguageDef } from '../data/languages';
 import { controlBindingLabel } from '../systems/controls';
 import { fitText } from './ui_text';
+<<<<<<< HEAD
+=======
+import { GAME_BUILD_VERSION } from '../core/version';
+import { drawNeuroPanel, drawStaticNoise } from './hud_fx';
+>>>>>>> origin/main
 
 export type TitleScreenMode = 'language' | 'setup' | 'feedback';
 export type TitleHitField = 'language' | 'name' | 'age' | 'sex' | 'seed' | 'actorCap' | 'addNpc' | 'trailer' | 'start' | 'continue' | 'feedback';
@@ -58,34 +63,40 @@ export function drawTitleScreen(ctx: CanvasRenderingContext2D, options: DrawTitl
   const cy = h / 2;
   const lang = titleLanguageDef(options.languageId);
 
-  ctx.fillStyle = 'rgba(9, 9, 9, 0.65)';
+  const time = typeof performance !== 'undefined' ? performance.now() / 1000 : 0;
+  
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = 'rgba(6, 10, 15, 0.1)';
   ctx.fillRect(0, 0, w, h);
+  drawStaticNoise(ctx, 0, 0, w, h, time, 0.05);
 
   ctx.save();
-  ctx.globalAlpha = 0.18;
-  ctx.fillStyle = '#210006';
-  for (let y = 0; y < h; y += 18 * s) ctx.fillRect(0, y, w, 1);
+  ctx.globalAlpha = 0.15;
+  ctx.fillStyle = '#0a1014';
+  for (let y = 0; y < h; y += 4) {
+    if (y % 8 === 0) ctx.fillRect(0, y, w, 2);
+  }
   ctx.globalAlpha = 1;
   ctx.restore();
 
   ctx.textAlign = 'center';
   ctx.fillStyle = '#c00';
-  ctx.font = `bold ${Math.round(48 * s)}px monospace`;
-  const titleY = options.mode === 'setup' ? cy - (options.setupRows.length > 7 ? 180 : 160) * s : cy - 122 * s;
-  const subtitleY = options.mode === 'setup' ? cy - (options.setupRows.length > 7 ? 138 : 118) * s : cy - 76 * s;
+  ctx.font = `bold ${Math.round(48 * s)}px "Press Start 2P", monospace`;
+  const titleY = options.mode === 'setup' ? cy - (options.setupRows.length > 7 ? 200 : 170) * s : cy - 132 * s;
+  const subtitleY = options.mode === 'setup' ? cy - (options.setupRows.length > 7 ? 150 : 120) * s : cy - 86 * s;
   ctx.fillText(lang.title, cx, titleY);
   ctx.fillStyle = '#666';
-  ctx.font = `${Math.round(16 * s)}px monospace`;
+  ctx.font = `${Math.round(16 * s)}px "Press Start 2P", monospace`;
   ctx.fillText(lang.subtitle, cx, subtitleY);
 
   const hits = options.mode === 'setup'
-    ? drawSetupMenu(ctx, cx, cy - (options.setupRows.length > 7 ? 124 : options.setupRows.length > 5 ? 104 : 48) * s, s, options)
+    ? drawSetupMenu(ctx, cx, cy - (options.setupRows.length > 7 ? 134 : options.setupRows.length > 5 ? 104 : 48) * s, s, options)
     : options.mode === 'language'
       ? drawLanguageMenu(ctx, cx, cy - 44 * s, s, options.languageId)
       : [];
 
   ctx.fillStyle = '#555';
-  ctx.font = `${Math.round(12 * s)}px monospace`;
+  ctx.font = `${Math.round(12 * s)}px "Press Start 2P", monospace`;
   ctx.textAlign = 'center';
   if (options.mode === 'language') {
     if (options.mobile) {
@@ -107,10 +118,17 @@ export function drawTitleScreen(ctx: CanvasRenderingContext2D, options: DrawTitl
   }
 
   ctx.fillStyle = '#705858';
-  ctx.font = `${Math.round(11 * s)}px monospace`;
+  ctx.font = `${Math.round(11 * s)}px "Press Start 2P", monospace`;
   if (options.mode !== 'setup') ctx.fillText(fitText(ctx, lang.languageHint, w * 0.9), cx, h - 12 * s);
 
   ctx.textAlign = 'left';
+<<<<<<< HEAD
+=======
+  ctx.fillStyle = '#557766';
+  ctx.font = `${Math.round(11 * s)}px "Press Start 2P", monospace`;
+  ctx.fillText(GAME_BUILD_VERSION, 12 * s, h - 12 * s);
+
+>>>>>>> origin/main
   if (typeof window !== 'undefined') {
     (window as any).__gigahrushTitleHits = hits;
   }
@@ -129,7 +147,7 @@ function drawLanguageMenu(
   const w = ctx.canvas.width;
   const fieldW = Math.min(w * 0.9, 460 * s);
   ctx.fillStyle = '#888';
-  ctx.font = `${Math.round(16 * s)}px monospace`;
+  ctx.font = `${Math.round(16 * s)}px "Press Start 2P", monospace`;
   ctx.textAlign = 'center';
   ctx.fillText(fitText(ctx, lang.startPrompt, w * 0.9), cx, y + 94 * s);
   hits.push({ field: 'start', x: cx - fieldW / 2, y: y + 68 * s, w: fieldW, h: 40 * s });
@@ -147,24 +165,21 @@ function drawSetupMenu(
   const lang = titleLanguageDef(options.languageId);
   const hits: TitleLanguageHit[] = [];
   const panelW = Math.min(w * 0.92, 560 * s);
-  const rowH = Math.max(24, 28 * s);
-  const gap = Math.max(3, 4 * s);
+  const rowH = Math.max(30, 32 * s);
+  const gap = Math.max(4, 5 * s);
   const panelH = 64 * s + options.setupRows.length * rowH + Math.max(0, options.setupRows.length - 1) * gap + 24 * s;
   const x = cx - panelW / 2;
   const y = top;
 
-  ctx.fillStyle = 'rgba(4,8,10,0.88)';
-  ctx.fillRect(x, y, panelW, panelH);
-  ctx.strokeStyle = '#243b40';
-  ctx.lineWidth = Math.max(1, 1.5 * s);
-  ctx.strokeRect(x + 0.5, y + 0.5, panelW - 1, panelH - 1);
+  const time = typeof performance !== 'undefined' ? performance.now() / 1000 : 0;
+  drawNeuroPanel(ctx, x, y, panelW, panelH, time, 999);
 
   ctx.textAlign = 'center';
   ctx.fillStyle = '#d6b24c';
-  ctx.font = `bold ${Math.round(18 * s)}px monospace`;
+  ctx.font = `bold ${Math.round(18 * s)}px "Press Start 2P", monospace`;
   ctx.fillText(fitText(ctx, lang.setupTitle, panelW - 24 * s), cx, y + 24 * s);
   ctx.fillStyle = '#667';
-  ctx.font = `${Math.round(10 * s)}px monospace`;
+  ctx.font = `${Math.round(10 * s)}px "Press Start 2P", monospace`;
   ctx.fillText(fitText(ctx, lang.setupSubtitle, panelW - 24 * s), cx, y + 40 * s);
 
   let rowY = y + 56 * s;
@@ -177,22 +192,22 @@ function drawSetupMenu(
 
     ctx.textAlign = 'left';
     ctx.fillStyle = selected ? '#d8ffe8' : '#7b9a9a';
-    ctx.font = `bold ${Math.round(11 * s)}px monospace`;
-    ctx.fillText(fitText(ctx, `${selected ? '> ' : '  '}${row.label}`, panelW * 0.4), x + 18 * s, rowY + 13 * s);
+    ctx.font = `bold ${Math.round(11 * s)}px "Press Start 2P", monospace`;
+    ctx.fillText(fitText(ctx, `${selected ? '> ' : '  '}${row.label}`, panelW * 0.4), x + 18 * s, rowY + 14 * s);
 
     const commandRow = row.field === 'start' || row.field === 'addNpc';
     ctx.textAlign = commandRow ? 'center' : 'right';
     ctx.fillStyle = commandRow ? (selected ? '#ffd46a' : '#9a7b44') : (selected ? '#8fffd2' : '#698b88');
-    ctx.font = `${Math.round(11 * s)}px monospace`;
+    ctx.font = `${Math.round(11 * s)}px "Press Start 2P", monospace`;
     const valueMaxW = commandRow ? panelW - 52 * s : panelW * 0.48;
     const valueX = commandRow ? cx : x + panelW - 18 * s;
-    ctx.fillText(fitText(ctx, row.value, valueMaxW), valueX, rowY + 13 * s);
+    ctx.fillText(fitText(ctx, row.value, valueMaxW), valueX, rowY + 14 * s);
 
     if (row.hint) {
       ctx.textAlign = 'left';
       ctx.fillStyle = selected ? '#668' : '#465';
-      ctx.font = `${Math.round(8 * s)}px monospace`;
-      ctx.fillText(fitText(ctx, row.hint, panelW - 40 * s), x + 18 * s, rowY + 24 * s);
+      ctx.font = `${Math.round(8 * s)}px "Press Start 2P", monospace`;
+      ctx.fillText(fitText(ctx, row.hint, panelW - 40 * s), x + 18 * s, rowY + 27 * s);
     }
 
     hits.push({ field: row.field, x: x + 10 * s, y: rowY, w: panelW - 20 * s, h: rowH });
@@ -200,7 +215,7 @@ function drawSetupMenu(
   }
 
   ctx.fillStyle = '#555';
-  ctx.font = `${Math.round(12 * s)}px monospace`;
+  ctx.font = `${Math.round(12 * s)}px "Press Start 2P", monospace`;
   ctx.textAlign = 'center';
   ctx.fillText(fitText(ctx, lang.setupControlHint, w * 0.92), cx, Math.max(y + panelH + 24 * s, w * 0.05 > 40 ? ctx.canvas.height - 30 * s : y + panelH + 24 * s));
 
@@ -225,19 +240,25 @@ function drawLanguageSwitch(
     const def = TITLE_LANGUAGES[i];
     const x = x0 + i * (chipW + gap);
     const active = def.id === activeId;
-    ctx.fillStyle = active ? 'rgba(50,18,18,0.92)' : 'rgba(8,16,18,0.72)';
-    ctx.strokeStyle = active ? '#d6b24c' : '#304a50';
-    ctx.lineWidth = Math.max(1, 1.5 * s);
-    ctx.fillRect(x, y, chipW, chipH);
-    ctx.strokeRect(x + 0.5, y + 0.5, chipW - 1, chipH - 1);
+    const time = typeof performance !== 'undefined' ? performance.now() / 1000 : 0;
+    
+    if (active) {
+      drawNeuroPanel(ctx, x, y, chipW, chipH, time, 10 + i);
+    } else {
+      ctx.fillStyle = 'rgba(8,16,18,0.72)';
+      ctx.fillRect(x, y, chipW, chipH);
+      ctx.strokeStyle = '#304a50';
+      ctx.lineWidth = Math.max(1, 1.5 * s);
+      ctx.strokeRect(x + 0.5, y + 0.5, chipW - 1, chipH - 1);
+    }
 
     drawFlag(ctx, def.flag, x + 7 * s, y + 7 * s, 42 * s, 28 * s);
     ctx.textAlign = 'left';
     ctx.fillStyle = active ? '#ffd46a' : '#86a9ad';
-    ctx.font = `bold ${Math.round(12 * s)}px monospace`;
+    ctx.font = `bold ${Math.round(12 * s)}px "Press Start 2P", monospace`;
     ctx.fillText(def.code, x + 56 * s, y + 18 * s);
     ctx.fillStyle = active ? '#d8c68a' : '#60777a';
-    ctx.font = `${Math.round(9 * s)}px monospace`;
+    ctx.font = `${Math.round(9 * s)}px "Press Start 2P", monospace`;
     ctx.fillText(fitText(ctx, def.name, chipW - 62 * s), x + 56 * s, y + 32 * s);
     hits.push({ id: def.id, x, y, w: chipW, h: chipH });
   }

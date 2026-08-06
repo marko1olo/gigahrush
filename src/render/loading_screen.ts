@@ -65,6 +65,8 @@ export function drawLoadingScreen(
   drawUnifiedLoading(ctx, width, height, now, isFirstLoad, progressStage, progressPct, dots, currentTip);
 }
 
+import { drawNeuroPanel } from './hud_fx';
+
 /**
  * The one unified atmospheric loading screen. Shows the system briefing, controls, survival rules,
  * progress bar and a rotating numbered tip. Used identically for first boot and every subsequent
@@ -82,8 +84,9 @@ function drawUnifiedLoading(
   dots: number,
   currentTip: string,
 ): void {
-  ctx.fillStyle = '#050707';
-  ctx.fillRect(0, 0, width, height);
+  const time = typeof performance !== 'undefined' ? performance.now() / 1000 : now / 1000;
+  
+  drawNeuroPanel(ctx as CanvasRenderingContext2D, 0, 0, width, height, time, 500);
 
   // Subtle terminal border on larger screens
   if (width >= 500 && height >= 400) {
@@ -104,7 +107,7 @@ function drawUnifiedLoading(
 
     // Title
     const titleSize = Math.max(18, Math.min(36, Math.round(height / 24)));
-    ctx.font = `bold ${titleSize}px monospace`;
+    ctx.font = `bold ${titleSize}px "Press Start 2P", monospace`;
     ctx.fillStyle = '#e56a20';
     ctx.textAlign = 'center';
     const titleText = canvasTextGlitch('[ СИСТЕМНАЯ СВОДКА ОТ ПАРТИИ ]', centerX, topTitleY);
@@ -112,13 +115,13 @@ function drawUnifiedLoading(
 
     // Subtitle
     const subSize = Math.max(12, Math.min(20, Math.round(height / 44)));
-    ctx.font = `${subSize}px monospace`;
+    ctx.font = `${subSize}px "Press Start 2P", monospace`;
     ctx.fillStyle = '#bbb';
     ctx.fillText(isFirstLoad ? 'ПРОЦЕДУРНЫЙ СИМУЛЯТОР ВЫЖИВАНИЯ В ГИГАХРУЩЕ' : 'ПЕРЕСБОРКА СЕКТОРА • ДЕРЖИТЕСЬ, ТОВАРИЩ', centerX, topSubY);
 
     // Hazard warning banner
     const warnSize = Math.max(12, Math.min(18, Math.round(height / 48)));
-    ctx.font = `bold ${warnSize}px monospace`;
+    ctx.font = `bold ${warnSize}px "Press Start 2P", monospace`;
     ctx.fillStyle = pulseWarn ? '#ff4433' : '#d03020';
     const warnText = canvasTextGlitch('!!! НЕ ЖДИТЕ ПОЩАДЫ, ТОВАРИЩИ. ВЫ ПРЕДУПРЕЖДЕНЫ !!!', centerX, topWarnY);
     ctx.fillText(warnText, centerX, topWarnY);
@@ -128,7 +131,7 @@ function drawUnifiedLoading(
     const baseText = 'ЗАГРУЗКА';
     const dotsStr = '.'.repeat(dots);
 
-    ctx.font = `${Math.round(height / 22)}px monospace`;
+    ctx.font = `${Math.round(height / 22)}px "Press Start 2P", monospace`;
     ctx.fillStyle = '#aaa';
     ctx.textAlign = 'center';
     const glitchedBase = canvasTextGlitch(baseText, centerX, centerY);
@@ -151,7 +154,7 @@ function drawUnifiedLoading(
 
     if (progressStage) {
       const stageSize = Math.max(12, Math.min(16, Math.round(height / 52)));
-      ctx.font = `${stageSize}px monospace`;
+      ctx.font = `${stageSize}px "Press Start 2P", monospace`;
       ctx.fillStyle = '#779999';
       ctx.textAlign = 'center';
       ctx.fillText(progressStage, centerX, barY + barH + stageSize + 6);
@@ -165,7 +168,7 @@ function drawUnifiedLoading(
     // Left Column: Key bindings
     const leftX = Math.round(width * 0.05);
     ctx.textAlign = 'left';
-    ctx.font = `bold ${colSize + 1}px monospace`;
+    ctx.font = `bold ${colSize + 1}px "Press Start 2P", monospace`;
     ctx.fillStyle = '#44ccaa';
     ctx.fillText('> ОСНОВНЫЕ КЛАВИШИ <', leftX, startY);
 
@@ -184,10 +187,10 @@ function drawUnifiedLoading(
     const descOffset = Math.max(140, Math.round(width * 0.13));
     for (let i = 0; i < leftControls.length; i++) {
       const rowY = startY + (i + 1.4) * lineH;
-      ctx.font = `bold ${colSize}px monospace`;
+      ctx.font = `bold ${colSize}px "Press Start 2P", monospace`;
       ctx.fillStyle = '#ddf0f0';
       ctx.fillText(leftControls[i][0], leftX, rowY);
-      ctx.font = `${colSize}px monospace`;
+      ctx.font = `${colSize}px "Press Start 2P", monospace`;
       ctx.fillStyle = '#88aaaa';
       ctx.fillText(`— ${leftControls[i][1]}`, leftX + descOffset, rowY);
     }
@@ -195,7 +198,7 @@ function drawUnifiedLoading(
     // Right Column: Survival Rules
     const rightX = Math.round(width * 0.52);
     const rightMaxW = width * 0.95 - rightX;
-    ctx.font = `bold ${colSize + 1}px monospace`;
+    ctx.font = `bold ${colSize + 1}px "Press Start 2P", monospace`;
     ctx.fillStyle = '#eeaa22';
     ctx.fillText('> ПРАВИЛА ВЫЖИВАНИЯ <', rightX, startY);
 
@@ -221,19 +224,19 @@ function drawUnifiedLoading(
     const topWarnY = Math.round(height * 0.13);
 
     const titleSize = Math.max(16, Math.min(26, Math.round(width / 18)));
-    ctx.font = `bold ${titleSize}px monospace`;
+    ctx.font = `bold ${titleSize}px "Press Start 2P", monospace`;
     ctx.fillStyle = '#e56a20';
     ctx.textAlign = 'center';
     const titleText = canvasTextGlitch('[ СИСТЕМНАЯ СВОДКА ОТ ПАРТИИ ]', centerX, topTitleY);
     ctx.fillText(titleText, centerX, topTitleY);
 
     const subSize = Math.max(11, Math.min(16, Math.round(width / 32)));
-    ctx.font = `${subSize}px monospace`;
+    ctx.font = `${subSize}px "Press Start 2P", monospace`;
     ctx.fillStyle = '#bbb';
     ctx.fillText(isFirstLoad ? 'БЕЗЖАЛОСТНЫЙ СИМУЛЯТОР В ГИГАХРУЩЕ' : 'ПЕРЕСБОРКА СЕКТОРА • ДЕРЖИТЕСЬ', centerX, topSubY);
 
     const warnSize = Math.max(11, Math.min(15, Math.round(width / 34)));
-    ctx.font = `bold ${warnSize}px monospace`;
+    ctx.font = `bold ${warnSize}px "Press Start 2P", monospace`;
     ctx.fillStyle = pulseWarn ? '#ff4433' : '#d03020';
     ctx.fillText('НЕ ЖДИТЕ ПОЩАДЫ. ВЫ ПРЕДУПРЕЖДЕНЫ.', centerX, topWarnY);
 
@@ -242,7 +245,7 @@ function drawUnifiedLoading(
     const baseText = 'ЗАГРУЗКА';
     const dotsStr = '.'.repeat(dots);
 
-    ctx.font = `${Math.max(16, Math.round(height / 32))}px monospace`;
+    ctx.font = `${Math.max(16, Math.round(height / 32))}px "Press Start 2P", monospace`;
     ctx.fillStyle = '#aaa';
     const glitchedBase = canvasTextGlitch(baseText, centerX, centerY);
     const baseWidth = ctx.measureText(glitchedBase).width;
@@ -264,7 +267,7 @@ function drawUnifiedLoading(
 
     if (progressStage) {
       const stageSize = Math.max(11, Math.round(height / 60));
-      ctx.font = `${stageSize}px monospace`;
+      ctx.font = `${stageSize}px "Press Start 2P", monospace`;
       ctx.fillStyle = '#779999';
       ctx.textAlign = 'center';
       ctx.fillText(progressStage, centerX, barY + barH + stageSize + 6);
@@ -278,7 +281,7 @@ function drawUnifiedLoading(
 
     const startY1 = Math.round(height * 0.33);
     ctx.textAlign = 'left';
-    ctx.font = `bold ${colSize + 1}px monospace`;
+    ctx.font = `bold ${colSize + 1}px "Press Start 2P", monospace`;
     ctx.fillStyle = '#44ccaa';
     ctx.fillText('> ОСНОВНЫЕ КЛАВИШИ <', leftX, startY1);
 
@@ -292,16 +295,16 @@ function drawUnifiedLoading(
 
     for (let i = 0; i < controlsP.length; i++) {
       const rowY = startY1 + (i + 1.4) * lineH;
-      ctx.font = `bold ${colSize}px monospace`;
+      ctx.font = `bold ${colSize}px "Press Start 2P", monospace`;
       ctx.fillStyle = '#ddf0f0';
       ctx.fillText(controlsP[i][0], leftX, rowY);
-      ctx.font = `${colSize}px monospace`;
+      ctx.font = `${colSize}px "Press Start 2P", monospace`;
       ctx.fillStyle = '#88aaaa';
       ctx.fillText(`— ${controlsP[i][1]}`, leftX + descOffset, rowY);
     }
 
     const startY2 = Math.round(height * 0.54);
-    ctx.font = `bold ${colSize + 1}px monospace`;
+    ctx.font = `bold ${colSize + 1}px "Press Start 2P", monospace`;
     ctx.fillStyle = '#eeaa22';
     ctx.fillText('> ПРАВИЛА ВЫЖИВАНИЯ <', leftX, startY2);
 
@@ -340,7 +343,7 @@ function drawNumberedTip(
 ): void {
   if (!currentTip) return;
   const tipSize = Math.max(12, Math.min(20, Math.round(height / 46)));
-  ctx.font = `${tipSize}px monospace`;
+  ctx.font = `${tipSize}px "Press Start 2P", monospace`;
 
   const maxW = width * 0.86;
   const words = currentTip.split(' ');
@@ -382,13 +385,13 @@ function drawTipItem(
   fontSize: number,
   lineH: number,
 ): number {
-  ctx.font = `bold ${fontSize}px monospace`;
+  ctx.font = `bold ${fontSize}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#eeddaa';
   const prefix = `• ${topic}: `;
   ctx.fillText(prefix, x, y);
   const prefixW = ctx.measureText(prefix).width;
 
-  ctx.font = `${fontSize}px monospace`;
+  ctx.font = `${fontSize}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#99aa99';
 
   if (prefixW + ctx.measureText(desc).width <= maxW) {

@@ -22,53 +22,38 @@ function hashByte(n: number): number {
   return n & 255;
 }
 
-interface StaticNoiseCache {
-  canvas: HTMLCanvasElement;
-  ctx: CanvasRenderingContext2D;
-  image: ImageData;
-  w: number;
-  h: number;
-  seed: number;
-}
+const STATIC_NOISE_W = 160;
+const STATIC_NOISE_H = 100;
+const STATIC_NOISE_FRAMES = 8;
+let noiseFrames: HTMLCanvasElement[] | OffscreenCanvas[] | null = null;
 
-const STATIC_NOISE_MAX_W = 160;
-const STATIC_NOISE_MAX_H = 100;
-const STATIC_NOISE_PIXEL_SCALE = 6;
-let staticNoiseCache: StaticNoiseCache | null = null;
-
-function getStaticNoiseCache(w: number, h: number): StaticNoiseCache {
-  if (staticNoiseCache && staticNoiseCache.w === w && staticNoiseCache.h === h) {
-    return staticNoiseCache;
+function initNoiseFrames(): void {
+  if (noiseFrames) return;
+  const hasDoc = typeof document !== 'undefined';
+  const hasOffscreen = typeof OffscreenCanvas !== 'undefined';
+  if (!hasDoc && !hasOffscreen) return;
+  
+  noiseFrames = [];
+  for (let f = 0; f < STATIC_NOISE_FRAMES; f++) {
+    const canvas = hasDoc ? document.createElement('canvas') : new OffscreenCanvas(STATIC_NOISE_W, STATIC_NOISE_H) as any;
+    canvas.width = STATIC_NOISE_W;
+    canvas.height = STATIC_NOISE_H;
+    const ctx = canvas.getContext('2d', { alpha: true }) as CanvasRenderingContext2D;
+    const imgData = ctx.createImageData(STATIC_NOISE_W, STATIC_NOISE_H);
+    const data = imgData.data;
+    const count = STATIC_NOISE_W * STATIC_NOISE_H;
+    const seed = 100 + f * 17;
+    for (let i = 0; i < count; i++) {
+      const v = hashByte(seed * 374761393 + i * 668265263);
+      const di = i << 2;
+      data[di] = v;
+      data[di + 1] = v;
+      data[di + 2] = v;
+      data[di + 3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+    noiseFrames.push(canvas as any);
   }
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const noiseCtx = canvas.getContext('2d', { alpha: true })!;
-  staticNoiseCache = {
-    canvas,
-    ctx: noiseCtx,
-    image: noiseCtx.createImageData(w, h),
-    w,
-    h,
-    seed: -1,
-  };
-  return staticNoiseCache;
-}
-
-function updateStaticNoise(cache: StaticNoiseCache, seed: number): void {
-  if (cache.seed === seed) return;
-  cache.seed = seed;
-  const data = cache.image.data;
-  const count = cache.w * cache.h;
-  for (let i = 0; i < count; i++) {
-    const v = hashByte(seed * 374761393 + i * 668265263);
-    const di = i << 2;
-    data[di] = v;
-    data[di + 1] = v;
-    data[di + 2] = v;
-    data[di + 3] = 255;
-  }
-  cache.ctx.putImageData(cache.image, 0, 0);
 }
 
 /* ── Text jitter: small XY offset that varies over time ───────── *
@@ -93,7 +78,7 @@ export function flicker(time: number, seed: number): number {
   return Math.max(0.5, Math.min(1, base + pulse + glitch));
 }
 
-/* ── Draw neuro-panel background with glitch border ───────────── */
+/* ── Draw VHS-style retro panel background with glitch border ───── */
 export function drawNeuroPanel(
   ctx: CanvasRenderingContext2D,
   x: number, y: number, w: number, h: number,
@@ -101,53 +86,66 @@ export function drawNeuroPanel(
 ): void {
   ctx.save();
 
-  // Main background — dark with subtle cyan tint
-  ctx.fillStyle = 'rgba(2,8,16,0.92)';
+  // Main background — muted dark grey/blue VHS tone
+  ctx.fillStyle = 'rgba(12, 14, 20, 0.95)';
   ctx.fillRect(x, y, w, h);
 
-  // Scanline overlay inside panel
-  const lineH = 2;
-  ctx.fillStyle = 'rgba(0,255,200,0.015)';
+  // VHS Static Noise inside panel
+  drawStaticNoise(ctx, x, y, w, h, time, 0.08);
+
+  // Thick interlace scanlines
+  const lineH = 3;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
   for (let ly = 0; ly < h; ly += lineH * 2) {
     ctx.fillRect(x, y + ly, w, lineH);
   }
 
-  // Horizontal noise lines (rare, procedural)
-  const barSeed = Math.floor(time * 3) + seed;
-  for (let i = 0; i < 3; i++) {
-    const rh = hash2(barSeed, i + seed * 10);
-    if (rh > 0.85) {
-      const ly = y + rh * h;
-      const alpha = (rh - 0.85) * 2;
-      ctx.fillStyle = `rgba(0,220,180,${alpha * 0.08})`;
-      ctx.fillRect(x, ly, w, 1);
-    }
+  // VCR tracking roll (slowly drifting semi-transparent bands)
+  const rollSpeed = 0.3;
+  const rollY = ((time * rollSpeed + seed * 0.1) % 1) * h;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+  ctx.fillRect(x, y + rollY, w, Math.min(20, h * 0.2));
+
+  // Occasional heavy tracking static band
+  const glitchSeed = Math.floor(time * 2) + seed;
+  const rh = hash2(glitchSeed, seed * 10);
+  if (rh > 0.8) {
+    const bandY = hash2(glitchSeed, seed * 11) * h;
+    const bandH = 4 + hash2(glitchSeed, seed * 12) * 10;
+    const boundedBandY = Math.max(0, Math.min(bandY, h - bandH));
+    drawStaticNoise(ctx, x, y + boundedBandY, w, bandH, time, 0.25);
+    // Chromatic glitch shift
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.08)';
+    ctx.fillRect(x, y + boundedBandY, w, bandH);
   }
 
-  // Border — thin glowing lines with occasional breaks
-  ctx.strokeStyle = 'rgba(0,200,180,0.35)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  // VHS Pixelated Chromatic Border
+  ctx.lineWidth = 2; // Thicker pixelated look
+  
+  // Inset border slightly so it's visible even when fullscreen
+  const bx = x + 2;
+  const by = y + 2;
+  const bw = w - 4;
+  const bh = h - 4;
+  
+  // Base white/grey border
+  ctx.strokeStyle = 'rgba(200, 210, 200, 0.6)';
+  ctx.strokeRect(bx, by, bw, bh);
 
-  // Corner accents
-  const cornerLen = Math.min(12, w * 0.1, h * 0.1);
-  ctx.strokeStyle = 'rgba(0,255,220,0.5)';
-  ctx.lineWidth = 1.5;
+  // PS1-style blocky inner corners
+  const cornerLen = Math.min(16, w * 0.1, h * 0.1);
+  ctx.strokeStyle = 'rgba(200, 210, 200, 0.8)';
+  ctx.lineWidth = 3;
+  
+  ctx.beginPath();
   // Top-left
-  ctx.beginPath();
-  ctx.moveTo(x, y + cornerLen); ctx.lineTo(x, y); ctx.lineTo(x + cornerLen, y);
-  ctx.stroke();
+  ctx.moveTo(x + 2, y + 2 + cornerLen); ctx.lineTo(x + 2, y + 2); ctx.lineTo(x + 2 + cornerLen, y + 2);
   // Top-right
-  ctx.beginPath();
-  ctx.moveTo(x + w - cornerLen, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + cornerLen);
-  ctx.stroke();
+  ctx.moveTo(x + w - 2 - cornerLen, y + 2); ctx.lineTo(x + w - 2, y + 2); ctx.lineTo(x + w - 2, y + 2 + cornerLen);
   // Bottom-left
-  ctx.beginPath();
-  ctx.moveTo(x, y + h - cornerLen); ctx.lineTo(x, y + h); ctx.lineTo(x + cornerLen, y + h);
-  ctx.stroke();
+  ctx.moveTo(x + 2, y + h - 2 - cornerLen); ctx.lineTo(x + 2, y + h - 2); ctx.lineTo(x + 2 + cornerLen, y + h - 2);
   // Bottom-right
-  ctx.beginPath();
-  ctx.moveTo(x + w - cornerLen, y + h); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w, y + h - cornerLen);
+  ctx.moveTo(x + w - 2 - cornerLen, y + h - 2); ctx.lineTo(x + w - 2, y + h - 2); ctx.lineTo(x + w - 2, y + h - 2 - cornerLen);
   ctx.stroke();
 
   ctx.restore();
@@ -198,7 +196,7 @@ export function drawHoloBar(
   ctx.restore();
 }
 
-/* ── Draw text with procedural jitter and optional glow ───────── */
+/* ── Draw text with procedural jitter and optional chromatic glow ─ */
 export function drawGlitchText(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -211,8 +209,7 @@ export function drawGlitchText(
   const alpha = flicker(time, seed + 77);
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = color;
-  ctx.font = `${fontSize}px monospace`;
+  ctx.font = `${fontSize}px "Press Start 2P", monospace`;
 
   // Occasional character dropout (1 char replaced with noise)
   const dropIdx = hash2(Math.floor(time * 4), seed) > 0.92
@@ -226,7 +223,16 @@ export function drawGlitchText(
     rendered = text.substring(0, dropIdx) + gc + text.substring(dropIdx + 1);
   }
 
+  // Chromatic Aberration (RGB split)
+  ctx.fillStyle = 'rgba(255, 40, 40, 0.6)';
+  ctx.fillText(rendered, x + j.dx - 1, y + j.dy);
+  
+  ctx.fillStyle = 'rgba(40, 100, 255, 0.6)';
+  ctx.fillText(rendered, x + j.dx + 1, y + j.dy);
+  
+  ctx.fillStyle = color;
   ctx.fillText(rendered, x + j.dx, y + j.dy);
+
   ctx.globalAlpha = 1;
   ctx.restore();
 }
@@ -238,15 +244,16 @@ export function drawStaticNoise(
   time: number, intensity = 0.03,
 ): void {
   if (intensity <= 0 || w <= 0 || h <= 0) return;
-  const noiseW = Math.max(8, Math.min(STATIC_NOISE_MAX_W, Math.ceil(w / STATIC_NOISE_PIXEL_SCALE)));
-  const noiseH = Math.max(8, Math.min(STATIC_NOISE_MAX_H, Math.ceil(h / STATIC_NOISE_PIXEL_SCALE)));
-  const cache = getStaticNoiseCache(noiseW, noiseH);
-  updateStaticNoise(cache, Math.floor(time * 12));
+  initNoiseFrames();
+  if (!noiseFrames) return;
+  
+  const frameIdx = Math.floor(time * 12) % STATIC_NOISE_FRAMES;
+  const frame = noiseFrames[frameIdx];
 
   ctx.save();
   ctx.globalAlpha = intensity;
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(cache.canvas, x, y, w, h);
+  ctx.drawImage(frame as CanvasImageSource, x, y, w, h);
   ctx.restore();
 }
 
@@ -378,13 +385,13 @@ export function drawSeroburmalineNoLookFx(
     const y = h * 0.5 - fontSize * 3.1;
     const pulse = 0.76 + Math.sin(time * 9) * 0.12;
     ctx.textAlign = 'center';
-    ctx.font = `bold ${fontSize}px monospace`;
+    ctx.font = `bold ${fontSize}px "Press Start 2P", monospace`;
     ctx.shadowColor = `rgba(190,110,150,${0.45 * intensity})`;
     ctx.shadowBlur = 8;
     ctx.fillStyle = `rgba(235,205,218,${pulse * intensity})`;
     ctx.fillText(fx.warning, x + (hash2(Math.floor(time * 18), 870) - 0.5) * 2.2, y);
     ctx.shadowBlur = 0;
-    ctx.font = `${Math.max(8, Math.floor(fontSize * 0.62))}px monospace`;
+    ctx.font = `${Math.max(8, Math.floor(fontSize * 0.62))}px "Press Start 2P", monospace`;
     ctx.fillStyle = `rgba(190,215,205,${0.56 * intensity})`;
     ctx.fillText('в сторону / вниз / закрыть', x, y + fontSize * 1.15);
   }
@@ -440,7 +447,7 @@ export function drawSignalRows(
   ctx.clip();
   const textSize = Math.max(6, fontSize);
   const labels = ['ЗВУК', 'КАРТ', 'ЛЮДИ'];
-  ctx.font = `bold ${textSize}px monospace`;
+  ctx.font = `bold ${textSize}px "Press Start 2P", monospace`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   for (let i = 0; i < count; i++) {
@@ -455,13 +462,13 @@ export function drawSignalRows(
     ctx.globalAlpha = 1;
     ctx.fillStyle = color;
     ctx.fillText(labels[i] ?? 'СИГН', x + 7, cy);
-    ctx.font = `${textSize}px monospace`;
+    ctx.font = `${textSize}px "Press Start 2P", monospace`;
     ctx.shadowColor = i === 0 ? color : 'rgba(0,0,0,0)';
     ctx.shadowBlur = i === 0 ? 5 : 0;
     ctx.fillStyle = i === 0 ? '#fff4c2' : '#e4e4e4';
     ctx.fillText(lines[i], x + labelW + 8, cy);
     ctx.shadowBlur = 0;
-    ctx.font = `bold ${textSize}px monospace`;
+    ctx.font = `bold ${textSize}px "Press Start 2P", monospace`;
   }
   ctx.restore();
 }
@@ -508,7 +515,7 @@ export function drawRangedThreatCue(
   ctx.globalAlpha = pulse;
 
   ctx.textAlign = 'center';
-  ctx.font = 'bold 10px monospace';
+  ctx.font = 'bold 10px "Press Start 2P", monospace';
   ctx.shadowColor = cue.color;
   ctx.shadowBlur = 8;
   const arrow = side < -0.2 ? '< ' : side > 0.2 ? ' >' : '';

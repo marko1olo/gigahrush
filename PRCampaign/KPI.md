@@ -20,7 +20,23 @@ The agent has the proven ability to interact with the owner's host Google Chrome
 - For sites with simple inputs (StopGame, PlayGround), the agent MUST write and execute an `osascript` to open the URL, inject JS to focus fields, and use `pbcopy` / `Cmd+V`.
 - For complex modern SPAs like Reddit with deep Shadow DOMs (`shreddit-app`), JavaScript focus/click injections will fail. The agent MUST use direct URL parameter pre-filling: construct a URL like `https://www.reddit.com/r/indiegames/submit?title=ENCODED_TITLE&text=ENCODED_BODY` and execute `open -a "Google Chrome" "URL"`. This relies on the site's native URL parsing and is 100% reliable.
 
-Current date baseline: 2026-06-15.
+**TELETYPE & RICH EDITOR PUBLISHING PIPELINE RULE (Proven 2026-08-02):**
+For rich modern SPA editors like Teletype (`teletype.in`), Medium, Notion, or Substack:
+1. **DO NOT edit `innerHTML` directly in JS:** Modern SPA editors (ProseMirror, Quill, Draft.js) manage an internal state tree (`view.state.doc`). Direct DOM `innerHTML` edits alter screen visuals but fail to update state memory. When the user interacts (typing or drag-and-dropping files), the editor re-renders DOM from state memory and wipes unsynced DOM modifications.
+2. **DO NOT insert raw Base64 data URLs (`data:image/png;base64,...`):** Teletype backend sanitizer strips raw Base64 image strings during publish, reducing post body payload and triggering backend validation errors (`The text is missing or is too short`).
+3. **DO NOT place blockquotes/figures on Line 1:** Teletype validator requires line 1 of post body to be a regular text paragraph (`<p>`). Placing blockquotes or non-text tags on line 1 causes Teletype to mark body as empty (`Your post goes here...`).
+4. **APPLE_SCRIPT ENCODING SAFETY:** Always use `read POSIX file "..." as «class utf8»` or `encodeURIComponent()` in AppleScript JS injections. Reading without explicit UTF-8 forces macOS to read Cyrillic bytes as MacRoman gibberish (`–ú—ã...`).
+5. **GOLDEN TELETYPE PUBLISHING PIPELINE (HTML Preview + Rich Paste):**
+   - **Step A (Preview Generation):** Generate a clean, styled HTML preview file (e.g. `PRCampaign/preview_teletype_article.html`) containing standard semantic tags (`<h1>`, `<h2>`, `<blockquote>`, `<ul>`, `<li>`, `<b>`, `<i>`, `<code>`) and highlighted screenshot placeholder boxes (`📷 [МЕСТО ДЛЯ СКРИНШОТА №...]`).
+   - **Step B (Pasteboard Injection):** Write rich `text/html` payload directly to macOS pasteboard using Swift CLI (`AppKit` `NSPasteboard.general.setString(html, forType: .html)`).
+   - **Step C (Host Browser Preview):** Open `preview_teletype_article.html` in Google Chrome (`open -a "Google Chrome"`).
+   - **Step D (Rich Paste):** User or agent pastes (`Cmd+V`) into Teletype editor (`teletype.in/@tenevik_games/editor`). Because the clipboard contains rich `text/html`, Teletype's ProseMirror parser natively converts all headings, quotes, lists, bold styles, and placeholders into internal document state nodes.
+   - **Step E (Native CDN Image Drop):** User or agent drags local PNG files (`1.png` .. `7.png` from e.g. `/Users/jirnyak/Mirror/screens`) directly onto the placeholder boxes in Teletype editor. Teletype natively uploads images to its CDN (`teletype.in/files/...`) and inserts published image nodes.
+   - **Step F (Publish):** Click **Publish** (`↑`).
+
+Current date baseline: 2026-08-02.
+
+Latest Teletype Publishing Pipeline & Article Pass: `PRCampaign/preview_teletype_article.html` on 2026-08-02. Verified complete Teletype publication workflow for Article 1 ("Мы делаем ГИГАХРУЩ..."). Established the HTML Preview + Rich Paste pipeline, resolving ProseMirror state tree resets, Base64 CDN stripping, Line-1 paragraph validation, and AppleScript UTF-8 encoding rules.
 
 Latest GamePush Sandbox and Moderation acceptance: `PRCampaign/kpi_report_2026-06-15.md` on 2026-06-15. Owner provided chat screenshots showing a human moderator explicitly stating "Здравствуйте, с радостью берем вашу игру" (Hello, we gladly take your game) but requiring a transition from Individual (физлицо) to Self-Employed (Самозанятый) due to economic unviability of individual contracts. Owner also confirmed that the automated GamePush Sandbox tests (`SDK init`, `gameStart`, `progress get`, `progress sync`) passed successfully with the `v21` build after fixing the JS execution stack requirements. Update: Owner confirmed the transition to СМЗ is completed. Next action: Await moderator's final confirmation of tests and the distribution contract.
 
@@ -37,8 +53,12 @@ Latest VK/TG broad suggestion queue generation: `PRCampaign/PR_88_broad_suggesti
 
 | Date       | Source                   | Action/Event                                                                 | Outcome/Reach / Notes                                                                                                     |
 <<<<<<< HEAD
+<<<<<<< HEAD
 |------------|--------------------------|------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|
 =======
+=======
+| 2026-08-02 | Teletype                 | Established HTML Preview Pipeline & Teletype Editor Rule                      | Proven Teletype publishing workflow via local HTML preview (`preview_teletype_article.html`) & rich paste. Documented ProseMirror state sync, base64 CDN stripping rules, and AppleScript UTF-8 encoding requirements. |
+>>>>>>> origin/main
 | 2026-07-30 | Pikabu Games / GamePush | Deployed and verified live update v51 on Pikabu Games                        | Moderator updated build v51 on Pikabu Games. Rating 3.5/5 (11 reviews), badge "Недавно обновлена", GamePush floor stats added. |
 | 2026-07-27 | Fandom Wiki / itch.io    | Published game "ТЕАТР" & added to Fandom Wiki "The Theater" (Rev 24262)       | Live Wiki: https://secret-files.fandom.com/ru/wiki/The_Theater, Game: https://tenevik.itch.io/theatre                     |
 >>>>>>> 56016948 (docs: update KPI and PR Campaign reports)

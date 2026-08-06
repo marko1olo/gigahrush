@@ -175,7 +175,7 @@ function drawObjectiveRow(
     ctx.fillRect(x - 2 * sx, y - sy, maxW + 4 * sx, h + 2 * sy);
   }
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   let lx = x;
   drawLabelCell(ctx, kind.label, lx, y, kindW, h, kind.stroke, kind.fill, kind.text);
   lx += kindW + gap;
@@ -250,7 +250,7 @@ export function drawQuestLog(
   drawNeuroPanel(ctx, px, py, pw, ph, time, 50);
 
   drawGlitchText(ctx, `ЗАДАНИЯ ${controlHint('quests')}`, px + 8 * sx, py + 6 * sy, time, 500, '#6cf', 9 * sy);
-  ctx.font = `${9 * sy}px monospace`;
+  ctx.font = `${9 * sy}px "Press Start 2P", monospace`;
 
   const active = state.quests.filter(q => !q.done);
   const done = state.quests.filter(q => q.done);
@@ -258,12 +258,12 @@ export function drawQuestLog(
 
   if (all.length === 0) {
     ctx.fillStyle = '#9ab';
-    ctx.font = `${8 * sy}px monospace`;
+    ctx.font = `${8 * sy}px "Press Start 2P", monospace`;
     const emptyLine = currentObjective?.line ?? `Нет заданий. Поговорите с жильцами ${controlHint('interact')}.`;
     ctx.fillText(fitText(ctx, emptyLine, pw - 16 * sx), px + 8 * sx, py + 24 * sy);
     // Close hint even when empty — never leave the player without a visible exit.
     ctx.fillStyle = '#7a93a0';
-    ctx.font = `${7 * sy}px monospace`;
+    ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
     ctx.fillText(fitText(ctx, `${menuCloseHint()} закрыть`, pw - 16 * sx), px + 8 * sx, py + ph - 8 * sy);
     return;
   }
@@ -276,7 +276,7 @@ export function drawQuestLog(
 
   // Page indicator
   ctx.fillStyle = '#888';
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   ctx.fillText(`${page + 1} / ${all.length}`, px + pw - 40 * sx, py + 6 * sy);
   if (isActiveQuest) {
     drawLabelCell(ctx, 'АКТИВНО', px + pw - 98 * sx, py + 5 * sy, 50 * sx, 10 * sy, '#8a5c00', '#2a2107', '#ffd21f');
@@ -284,7 +284,7 @@ export function drawQuestLog(
 
   // Quest giver
   ctx.fillStyle = '#8af';
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = `${8 * sy}px "Press Start 2P", monospace`;
   let ly = py + 32 * sy;
   ctx.fillText(fitText(ctx, `От: ${q.giverName ?? '???'}`, maxW), px + 8 * sx, ly);
   ly += 8 * sy;
@@ -294,7 +294,7 @@ export function drawQuestLog(
   const isFailed = q.failed === true;
   const isDone = q.done && !isFailed;
   ctx.fillStyle = isFailed ? '#f66' : isDone ? '#484' : '#dda';
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = `${8 * sy}px "Press Start 2P", monospace`;
 
   // Word-wrapped description
   const prefix = isFailed ? '× ' : isDone ? '✓ ' : '• ';
@@ -327,12 +327,12 @@ export function drawQuestLog(
   if (!q.done && remaining !== undefined && ly < contentBottom) {
     ly += 12 * sy;
     ctx.fillStyle = remaining <= 120 ? '#f66' : remaining <= 360 ? '#fa6' : '#8cf';
-    ctx.font = `${7 * sy}px monospace`;
+    ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
     ctx.fillText(fitText(ctx, `Срок: ${questDeadlineText(q, state.clock.totalMinutes)}`, maxW), px + 8 * sx, ly);
   } else if (isFailed && ly < contentBottom) {
     ly += 12 * sy;
     ctx.fillStyle = '#f66';
-    ctx.font = `${7 * sy}px monospace`;
+    ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
     ctx.fillText(fitText(ctx, failedQuestText(q, state), maxW), px + 8 * sx, ly);
   }
 
@@ -340,7 +340,7 @@ export function drawQuestLog(
   if (routeHint && ly < contentBottom) {
     ly += 12 * sy;
     ctx.fillStyle = '#8cf';
-    ctx.font = `${7 * sy}px monospace`;
+    ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
     ly = drawWrappedText(
       ctx,
       routeHint,
@@ -354,7 +354,7 @@ export function drawQuestLog(
   if (ly < contentBottom) {
     ly += 8 * sy;
     ctx.fillStyle = '#7ad';
-    ctx.font = `${7 * sy}px monospace`;
+    ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
     ctx.fillText(fitText(ctx, `Маршрут: ${floorRunEntryMapLabel(currentFloorRunEntry(state))}`, maxW), px + 8 * sx, ly);
   }
 
@@ -362,13 +362,13 @@ export function drawQuestLog(
   if (rumorLead && ly < py + ph - 28 * sy) {
     ly += 8 * sy;
     ctx.fillStyle = '#d9a';
-    ctx.font = `${7 * sy}px monospace`;
+    ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
     drawWrappedText(ctx, `Слух: ${rumorLead.text}`, px + 8 * sx, ly, maxW, 9 * sy, Math.max(1, Math.floor((contentBottom - ly) / (9 * sy))));
   }
 
   // Bottom hint
   ctx.fillStyle = '#7a93a0';
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   const pageHint = all.length > 1 ? `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} листать` : '';
   const activeHint = isQuestSelectableAsActive(q) ? `${controlHint('gameMenu')} ${isActiveQuest ? 'снять цель' : 'цель на карте'}` : '';
   const hint = [pageHint, activeHint, `${menuCloseHint()} закрыть`].filter(Boolean).join('  |  ');

@@ -28,11 +28,11 @@ export function drawEmergencyPanelMenu(
   ctx.save();
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${12 * sy}px monospace`;
+  ctx.font = `bold ${12 * sy}px "Press Start 2P", monospace`;
   const jitter = textJitter(time, 732);
   drawGlitchText(ctx, fitText(ctx, snap.title, panelW - 16 * sx), x + 8 * sx + jitter.dx, y + 7 * sy + jitter.dy, time, 732, snap.color, 12 * sy);
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = `rgba(180,210,210,${flicker(time, 733)})`;
   ctx.fillText(fitText(ctx, `${snap.subtitle} / ${snap.status}`, panelW - 16 * sx), x + 8 * sx, y + 24 * sy);
 
@@ -47,16 +47,16 @@ export function drawEmergencyPanelMenu(
       ctx.fillRect(ox - 2 * sx, oy - 2 * sy, panelW - 12 * sx, rowH);
     }
     const color = option.enabled ? (selected ? snap.color : '#cfd') : '#667';
-    ctx.font = `${(selected ? 8 : 7) * sy}px monospace`;
+    ctx.font = `${(selected ? 8 : 7) * sy}px "Press Start 2P", monospace`;
     drawGlitchText(ctx, `${selected ? '>' : ' '} ${fitText(ctx, option.label, panelW - 22 * sx)}`, ox, oy, time, 750 + i, color, 8 * sy);
-    ctx.font = `${6 * sy}px monospace`;
+    ctx.font = `${6 * sy}px "Press Start 2P", monospace`;
     ctx.fillStyle = option.enabled ? '#899' : '#755';
     const detail = option.enabled ? option.detail : option.disabledReason ?? option.detail;
     ctx.fillText(fitText(ctx, detail, panelW - 22 * sx), ox + 8 * sx, oy + 10 * sy);
     cy += 22 * sy;
   }
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#8aa';
   ctx.fillText(fitText(ctx, snap.message, panelW - 16 * sx), x + 8 * sx, y + panelH - 17 * sy);
   ctx.fillStyle = '#586';

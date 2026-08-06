@@ -29,16 +29,16 @@ export function drawComputerOverlay(
   ctx.textBaseline = 'top';
   drawGlitchText(ctx, computer.label, x + pad, y + 10 * s, time, 1621, '#7ee8ff', 12 * s);
   ctx.textAlign = 'right';
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = `${7 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#607880';
   ctx.fillText(`${computer.pageIndex + 1}/${computer.pageCount}`, x + panelW - pad, y + 14 * s);
   ctx.textAlign = 'left';
 
-  ctx.font = `bold ${10 * s}px monospace`;
+  ctx.font = `bold ${10 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#d8f7ff';
   ctx.fillText(fitText(ctx, computer.title, maxW), x + pad, y + 38 * s);
 
-  ctx.font = `${8 * s}px monospace`;
+  ctx.font = `${8 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#9fb8bd';
   let ly = y + 58 * s;
   const lineH = 11 * s;
@@ -65,7 +65,7 @@ export function drawComputerOverlay(
     ctx.fillText(fitText(ctx, computer.message, maxW), x + pad, y + panelH - 24 * s);
   }
   ctx.fillStyle = '#547078';
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = `${7 * s}px "Press Start 2P", monospace`;
   ctx.fillText(fitText(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} страницы  ${controlHint('gameMenu')} копия  ${menuCloseHint()} закрыть`, maxW), x + pad, y + panelH - 14 * s);
   ctx.restore();
 }

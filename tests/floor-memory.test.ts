@@ -669,6 +669,141 @@ test('route lift layout forces mirrored anchors by carving bounded access', () =
     true,
   );
 });
+// Round trip of the up/down mirror guarantee: ride a lift down, then ride the
+// same lift back up and arrive at a lift again. The break was on departure —
+// re-normalization redistributed the mirrored lifts (their spacing came from the
+// previous floor), including the one under the player, so the return floor
+// mirrored a set that no longer held the player's own coordinates.
+test('route lift layout pins the ridden lift so the return trip lands on a mirrored lift', () => {
+  const openFloor = (): World => {
+    const world = new World();
+    for (let y = 100; y < 356; y++) {
+      for (let x = 100; x < 356; x++) world.cells[world.idx(x, y)] = Cell.FLOOR;
+    }
+    return world;
+  };
+
+  // Departure floor: 16 DOWN lifts on a tight grid (spacing of a smaller floor).
+  const living = openFloor();
+  for (let i = 0; i < 16; i++) {
+    const idx = living.idx(120 + (i % 4) * 8, 120 + Math.floor(i / 4) * 8);
+    living.cells[idx] = Cell.LIFT;
+    living.liftDir[idx] = LiftDirection.DOWN;
+  }
+  const usedDownIdx = living.idx(120, 120);
+  const downAnchors = collectFloorLiftAnchors(living, LiftDirection.DOWN, 16);
+  assert.equal(downAnchors[0]?.liftIdx, usedDownIdx);
+
+  // Arrival below: the ridden lift is mirrored as the return UP lift next to the
+  // player's carried-over coordinates.
+  const below = openFloor();
+  const arrival = ensureFloorRouteLiftLayout(below, 120.5, 121.5, [LiftDirection.DOWN, LiftDirection.UP], {
+    countPerDirection: 16,
+    mirror: { direction: LiftDirection.UP, anchors: downAnchors },
+  });
+  assert.equal(arrival.mirrored, 16);
+  const usedUpIdx = below.idx(120, 120);
+  assert.equal(below.cells[usedUpIdx], Cell.LIFT);
+  assert.equal(below.liftDir[usedUpIdx], LiftDirection.UP);
+
+  // Departure back up: normalization must not touch the lift being ridden.
+  ensureFloorRouteLiftLayout(below, 120.5, 121.5, [LiftDirection.DOWN, LiftDirection.UP], {
+    countPerDirection: 16,
+    pinnedLiftIdx: usedUpIdx,
+  });
+  assert.equal(below.cells[usedUpIdx], Cell.LIFT);
+  assert.equal(below.liftDir[usedUpIdx], LiftDirection.UP);
+
+  const upAnchors = collectFloorLiftAnchors(below, LiftDirection.UP, 16);
+  const usedAnchor = upAnchors.findIndex(anchor => anchor.liftIdx === usedUpIdx);
+  assert.notEqual(usedAnchor, -1);
+  upAnchors.unshift(upAnchors.splice(usedAnchor, 1)[0]);
+
+  // Return: the regenerated floor above mirrors a DOWN lift back at those coords.
+  const returned = openFloor();
+  const result = ensureFloorRouteLiftLayout(returned, 120.5, 121.5, [LiftDirection.DOWN, LiftDirection.UP], {
+    countPerDirection: 16,
+    mirror: { direction: LiftDirection.DOWN, anchors: upAnchors },
+  });
+  assert.equal(result.down, 16);
+  assert.equal(returned.cells[returned.idx(120, 120)], Cell.LIFT);
+  assert.equal(returned.liftDir[returned.idx(120, 120)], LiftDirection.DOWN);
+});
+
+test('mirrored route lifts keep the ridden anchor when the anchor set exceeds the per-direction cap', () => {
+  const source = new World();
+  const target = new World();
+  for (let y = 100; y < 200; y++) {
+    for (let x = 100; x < 200; x++) {
+      source.cells[source.idx(x, y)] = Cell.FLOOR;
+      target.cells[target.idx(x, y)] = Cell.FLOOR;
+    }
+  }
+  for (let i = 0; i < 6; i++) {
+    const idx = source.idx(110 + i * 6, 110);
+    source.cells[idx] = Cell.LIFT;
+    source.liftDir[idx] = LiftDirection.DOWN;
+  }
+  const anchors = collectFloorLiftAnchors(source, LiftDirection.DOWN, 6);
+  assert.equal(anchors.length, 6);
+
+  // anchors[0] is the ridden lift: it survives the random subset slice.
+  const result = ensureFloorRouteLiftLayout(target, 110.5, 111.5, [LiftDirection.DOWN], {
+    countPerDirection: 2,
+    mirror: { direction: LiftDirection.DOWN, anchors },
+  });
+  assert.equal(result.mirrored >= 1, true);
+  assert.equal(target.cells[target.idx(110, 110)], Cell.LIFT);
+  assert.equal(target.liftDir[target.idx(110, 110)], LiftDirection.DOWN);
+});
+
+// Lifts are samosbor-proof once placed, but that does not license stamping one
+// over protected apartment space — and most anchors that fail are not protected
+// at all, they simply have nothing that can reach them. So the ridden lift
+// relocates to the nearest cell that can actually be entered, and the caller
+// spawns the player at the reported access cell.
+test('mirrored ridden lift relocates instead of overwriting protected apartment cells', () => {
+  const target = new World();
+  for (let y = 100; y < 200; y++) {
+    for (let x = 100; x < 200; x++) target.cells[target.idx(x, y)] = Cell.FLOOR;
+  }
+  // The ridden lift's coordinate lands inside a protected apartment block.
+  for (let y = 118; y <= 122; y++) {
+    for (let x = 118; x <= 122; x++) target.aptMask[target.idx(x, y)] = 1;
+  }
+
+  const source = new World();
+  for (let y = 100; y < 200; y++) {
+    for (let x = 100; x < 200; x++) source.cells[source.idx(x, y)] = Cell.FLOOR;
+  }
+  const riddenIdx = source.idx(120, 120);
+  source.cells[riddenIdx] = Cell.LIFT;
+  source.liftDir[riddenIdx] = LiftDirection.DOWN;
+  const anchors = collectFloorLiftAnchors(source, LiftDirection.DOWN, 16);
+
+  const result = ensureFloorRouteLiftLayout(target, 130.5, 130.5, [LiftDirection.UP], {
+    countPerDirection: 4,
+    mirror: { direction: LiftDirection.UP, anchors },
+  });
+
+  // Protection held.
+  assert.equal(target.cells[target.idx(120, 120)] === Cell.LIFT, false);
+  assert.equal(target.aptMask[target.idx(120, 120)], 1);
+  // The ridden lift still exists, nearby, and the reported access cell is walkable.
+  assert.equal(result.primaryLiftIdx >= 0, true);
+  assert.equal(target.cells[result.primaryLiftIdx], Cell.LIFT);
+  assert.equal(target.liftDir[result.primaryLiftIdx], LiftDirection.UP);
+  const shift = Math.abs(target.delta(120, result.primaryLiftIdx % W))
+    + Math.abs(target.delta(120, (result.primaryLiftIdx / W) | 0));
+  assert.equal(shift <= 48, true);
+  assert.equal(result.primaryAccessIdx >= 0, true);
+  assert.equal(target.cells[result.primaryAccessIdx], Cell.FLOOR);
+  // The access cell touches the lift, so the player steps out right next to it.
+  const adjacent = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) =>
+    target.idx((result.primaryLiftIdx % W) + dx, ((result.primaryLiftIdx / W) | 0) + dy) === result.primaryAccessIdx);
+  assert.equal(adjacent, true);
+});
+
 test('tryBase64ToBytes handles invalid base64 by returning null', () => {
   const originalBuffer = globalThis.Buffer;
   (globalThis as any).Buffer = undefined;

@@ -44,13 +44,13 @@ export function drawFastElevatorOverlay(
   ctx.shadowColor = '#4cf';
   ctx.shadowBlur = 8 * s;
   ctx.fillStyle = '#bff';
-  ctx.font = `bold ${Math.round(14 * s)}px monospace`;
+  ctx.font = `bold ${Math.round(14 * s)}px "Press Start 2P", monospace`;
   ctx.textAlign = 'center';
   ctx.fillText(fitHudText(ctx, 'СКОРОСТНОЙ ЛИФТ', panelW - 16 * s), w * 0.5, y + 16 * s);
 
   ctx.shadowBlur = 0;
   ctx.fillStyle = '#6a8';
-  ctx.font = `${Math.round(8 * s)}px monospace`;
+  ctx.font = `${Math.round(8 * s)}px "Press Start 2P", monospace`;
   ctx.fillText(fitHudText(ctx, 'выбор уровня доступа', panelW - 16 * s), w * 0.5, y + 28 * s);
 
   ctx.strokeStyle = 'rgba(80, 200, 255, 0.3)';
@@ -88,7 +88,7 @@ export function drawFastElevatorOverlay(
       ctx.strokeRect(x + 12 * s + 0.5, rowY - 8 * s + 0.5, panelW - 24 * s - 1, rowH - 1);
     }
 
-    ctx.font = `${Math.round(10 * s)}px monospace`;
+    ctx.font = `${Math.round(10 * s)}px "Press Start 2P", monospace`;
     if (!isUnlocked) {
       ctx.fillStyle = isSelected ? '#a44' : '#644';
       ctx.fillText(fitHudText(ctx, `[НЕДОСТУПНО] Этаж ${floor > 0 ? '+' : ''}${floor}`, panelW - 32 * s), x + 20 * s, rowY);
@@ -105,14 +105,14 @@ export function drawFastElevatorOverlay(
   if (snapshot.message) {
     ctx.textAlign = 'center';
     ctx.fillStyle = snapshot.message.includes('НЕДОСТУПНО') || snapshot.message.includes('уже') ? '#f44' : '#4f8';
-    ctx.font = `${Math.round(8 * s)}px monospace`;
+    ctx.font = `${Math.round(8 * s)}px "Press Start 2P", monospace`;
     ctx.fillText(fitHudText(ctx, snapshot.message, panelW - 24 * s), w * 0.5, y + panelH - 24 * s);
   }
 
   // Footer controls
   ctx.textAlign = 'center';
   ctx.fillStyle = '#577';
-  ctx.font = `${Math.round(7 * s)}px monospace`;
+  ctx.font = `${Math.round(7 * s)}px "Press Start 2P", monospace`;
   ctx.fillText(fitHudText(ctx, `W/S выбор   ${controlHint('gameMenu')} ехать   ${menuCloseHint()} выйти`, panelW - 16 * s), w * 0.5, y + panelH - 8 * s);
 
   ctx.restore();

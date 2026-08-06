@@ -70,13 +70,19 @@ export function drawUiSettingsMenu(
 
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#6cf';
+<<<<<<< HEAD
   ctx.font = `${11 * sy}px monospace`;
   ctx.fillText(view === 'graphics' ? 'НАСТРОЙКИ ГРАФИКИ' : 'НАСТРОЙКИ ИНТЕРФЕЙСА', 12 * sx, 12 * sy);
   ctx.font = `${7 * sy}px monospace`;
+=======
+  ctx.font = `${11 * sy}px "Press Start 2P", monospace`;
+  ctx.fillText(view === 'graphics' ? 'НАСТРОЙКИ ГРАФИКИ' : view === 'audio' ? 'НАСТРОЙКИ АУДИО' : 'НАСТРОЙКИ ИНТЕРФЕЙСА', 12 * sx, 12 * sy);
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
+>>>>>>> origin/main
   ctx.fillStyle = '#577';
   ctx.fillText(
-    fitTextStable(ctx, `${controlHint('uiSettings')} открыть/закрыть  |  ${controlHint('gameMenu')} принять/переключить  |  ${menuCloseHint()} закрыть`, w - 24 * sx),
-    12 * sx,
+    fitTextStable(ctx, `${controlHint('uiSettings')} открыть/закрыть  |  ${controlHint('gameMenu')} принять/переключить  |  ${menuCloseHint()} закрыть`, w - 32 * sx),
+    16 * sx,
     26 * sy,
   );
 
@@ -85,7 +91,7 @@ export function drawUiSettingsMenu(
   const stateW = Math.min(80 * sx, w * 0.24);
   const labelW = Math.max(48 * sx, w - x * 2 - groupW - stateW - 12 * sx);
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#5a7080';
   ctx.fillText('РАЗДЕЛ', x + 14 * sx, top - 7 * sy);
   ctx.fillText(view === 'graphics' ? 'НАСТРОЙКА' : 'ПРЕСЕТ / ЭЛЕМЕНТ', x + groupW + 18 * sx, top - 7 * sy);
@@ -174,14 +180,23 @@ export function drawUiSettingsMenu(
   }
 
   ctx.fillStyle = '#7a93a0';
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   ctx.textBaseline = 'alphabetic';
   ctx.fillText(
     fitTextStable(ctx, view === 'graphics'
+<<<<<<< HEAD
       ? 'ENTER меняет строку; графический сброс не трогает UI-пресет. Контраст карты дублирует легенду.'
       : 'Новичок используется по умолчанию. ENTER переключает UI, автоподбор и мобильный обзор; верхняя строка сбрасывает.',
     w - 24 * sx),
     12 * sx,
+=======
+      ? 'ВЛЕВО/ВПРАВО меняет значение; верхняя строка сбрасывает настройки. Контраст карты дублирует легенду.'
+      : view === 'audio'
+        ? 'ВЛЕВО/ВПРАВО для настройки звука; верхняя строка сбрасывает значения по умолчанию.'
+        : 'Новичок используется по умолчанию. ENTER переключает UI; ВЛЕВО/ВПРАВО для обзора.',
+    w - 32 * sx),
+    16 * sx,
+>>>>>>> origin/main
     h - 10 * sy,
   );
   ctx.textBaseline = prevTextBaseline;

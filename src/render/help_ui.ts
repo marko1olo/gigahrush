@@ -92,10 +92,10 @@ function drawHelpLine(
   lineH: number,
   s: number,
 ): number {
-  ctx.font = `bold ${6.5 * s}px monospace`;
+  ctx.font = `bold ${6.5 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#0fa';
   ctx.fillText(fitTextStable(ctx, line.key, keyW), x, y);
-  ctx.font = `${6.5 * s}px monospace`;
+  ctx.font = `${6.5 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#b9d6d0';
   const lines = wrapTextLines(ctx, line.text, Math.max(24 * s, w - keyW - 6 * s), 2, { stable: true });
   const textX = x + keyW + 6 * s;
@@ -119,7 +119,7 @@ function drawHelpSection(
   const lineH = 8.6 * s;
   const keyW = Math.min(84 * s, Math.max(48 * s, w * 0.34));
   const titleJ = textJitter(time * 0.9, seed);
-  ctx.font = `bold ${8 * s}px monospace`;
+  ctx.font = `bold ${8 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#6cf';
   ctx.fillText(fitTextStable(ctx, section.title, w), x + titleJ.dx, y + titleJ.dy);
   y += 11 * s;
@@ -171,7 +171,7 @@ export function drawHelpMenu(
   ctx.textBaseline = 'alphabetic';
   const titleJ = textJitter(uiTime, 1211);
   drawGlitchText(ctx, 'F1 // HELP', panelX + pad + titleJ.dx, panelY + pad + 11 * s + titleJ.dy, uiTime, 1212, '#0fa', 14 * s);
-  ctx.font = `${6.6 * s}px monospace`;
+  ctx.font = `${6.6 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#789';
   const subtitle = 'одностраничный плакат выживания: клавиши, экраны, HUD и браузерные правила';
   ctx.fillText(fitTextStable(ctx, subtitle, panelW - pad * 2), panelX + pad, panelY + pad + 24 * s);
@@ -186,7 +186,7 @@ export function drawHelpMenu(
     }
   }
 
-  ctx.font = `${6.5 * s}px monospace`;
+  ctx.font = `${6.5 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#7a93a0';
   const footer = `${controlHint('help')} закрыть HELP  |  ${menuCloseHint()} назад  |  ${controlHint('controlsMenu')} все бинды`;
   ctx.fillText(fitTextStable(ctx, footer, panelW - pad * 2), panelX + pad, panelY + panelH - pad);

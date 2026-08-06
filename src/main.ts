@@ -23,7 +23,7 @@ import {
 } from './systems/online_client';
 
 import {
-  W, Cell, DoorState, Tex, RoomType, LiftDirection,
+  W, Cell, DoorState, Feature, Tex, RoomType, LiftDirection,
   type CharacterSex, type Entity, type GameClock, type GameState, type Item, type Needs, type Quest, type RPGStats, type WorldContainer,
   type PlayerDamageSourceKind, type WorldEventPrivacy, type WorldEventSeverity, type PlayerAlife,
   EntityType, Faction, MonsterKind, Occupation, ProjType, QuestType, AIGoal,
@@ -600,8 +600,6 @@ import {
 import { installCanvasLocalization, setCanvasTextGlitchPressure, setLocalizationLanguage } from './systems/localization';
 import {
   ACTIVE_ACTOR_SOFT_LIMIT_STEP,
-  MAX_ACTIVE_ACTOR_SOFT_LIMIT,
-  MIN_ACTIVE_ACTOR_SOFT_LIMIT,
   normalizeActiveActorSoftLimit,
   setActiveActorSoftLimit,
 } from './data/entity_limits';
@@ -649,7 +647,7 @@ const FULL_MAP_RADIUS_DEFAULT = 200;
 const FULL_MAP_RADIUS_MIN = 48;
 const FULL_MAP_RADIUS_MAX = W / 2;
 const FULL_MAP_ZOOM_STEP = 1.18;
-type TitleInputField = Extract<TitleHitField, 'language' | 'name' | 'age' | 'sex' | 'seed' | 'actorCap' | 'addNpc' | 'start' | 'continue' | 'trailer' | 'feedback'>;
+type TitleInputField = Extract<TitleHitField, 'language' | 'name' | 'age' | 'sex' | 'seed' | 'actorCap' | 'trailer' | 'addNpc' | 'start' | 'continue' | 'feedback'>;
 const NPC_INTAKE_ENABLED = Boolean((globalThis as { __GIGAHRUSH_NPC_INTAKE_ENABLED__?: boolean }).__GIGAHRUSH_NPC_INTAKE_ENABLED__);
 const smokeDebug = new URLSearchParams(window.location.search).has('smoke');
 
@@ -669,8 +667,7 @@ function getTitleSetupFields(): readonly TitleInputField[] {
   if (hasValidSaveGame()) fields.push('continue');
   fields.push('start');
   if (NPC_INTAKE_ENABLED) fields.push('addNpc');
-  fields.push('trailer');
-  fields.push('language', 'name', 'age', 'sex', 'seed', 'actorCap', 'feedback');
+  fields.push('language', 'name', 'age', 'sex', 'seed', 'feedback');
   return fields;
 }
 let started = false;
@@ -1794,19 +1791,11 @@ function titleSetupRows(cursorOn: boolean): TitleSetupRowView[] {
     });
   }
   rows.push(
-    { field: 'trailer', label: 'РЕЖИМ ТРЕЙЛЕРА', value: 'ЭТАЖ ' + TRAILER_ZS[titleTrailerFloorIdx], hint: 'Технический демо-режим. Enter: запуск, Влево/Вправо: карта', selected: selected('trailer') },
     { field: 'language', label: lang.setupLanguageLabel, value: titleLanguageDef(titleLanguageId).name, hint: lang.setupLanguageHint, selected: selected('language') },
     { field: 'name', label: lang.nameLabel, value: `${shownName}${nameCursor}`, hint: lang.setupNameHint, selected: selected('name') },
     { field: 'age', label: lang.ageLabel, value: `${shownAge}${ageCursor}`, hint: lang.setupAgeHint, selected: selected('age') },
     { field: 'sex', label: lang.sexLabel, value: shownSex, hint: lang.setupSexHint, selected: selected('sex') },
     { field: 'seed', label: lang.seedLabel, value: `${shownSeed}${seedCursor}`, hint: lang.setupSeedHint, selected: selected('seed') },
-    {
-      field: 'actorCap',
-      label: lang.setupActorCapLabel,
-      value: lang.actorCapValue(titleActiveActorSoftLimit, MIN_ACTIVE_ACTOR_SOFT_LIMIT, MAX_ACTIVE_ACTOR_SOFT_LIMIT),
-      hint: lang.setupActorCapHint,
-      selected: selected('actorCap'),
-    },
     { field: 'feedback', label: 'ОБРАТНАЯ СВЯЗЬ', value: 'ТИТРЫ И ТГ', hint: 'Команда разработчиков и комьюнити', selected: selected('feedback') },
   );
   return rows;
@@ -1952,8 +1941,9 @@ function resize() {
   }
   document.documentElement.style.setProperty('--app-viewport-width', `${cssWidth}px`);
   document.documentElement.style.setProperty('--app-viewport-height', `${cssHeight}px`);
-  const width = cssWidth;
-  const height = cssHeight;
+  const PIXEL_SCALE = 2;
+  const width = Math.max(1, Math.floor(cssWidth / PIXEL_SCALE));
+  const height = Math.max(1, Math.floor(cssHeight / PIXEL_SCALE));
   if (canvas.width !== width) canvas.width = width;
   if (canvas.height !== height) canvas.height = height;
   if (hudCanvas.width !== width) hudCanvas.width = width;
@@ -3165,12 +3155,37 @@ function currentRouteLiftDirections(): LiftDirection[] {
   return floorRunEntryLiftDirections(entry, openRouteGateIds(state));
 }
 
-function ensureCurrentRouteLiftLayout(mirror?: FloorRouteLiftMirror): void {
+function ensureCurrentRouteLiftLayout(mirror?: FloorRouteLiftMirror, pinnedLiftIdx = -1): void {
   if (getActiveFloorInstance(state)) return;
   ensureFloorRouteLiftLayout(world, player.x, player.y, currentRouteLiftDirections(), {
     countPerDirection: ROUTE_LIFTS_PER_DIRECTION,
     mirror,
+    pinnedLiftIdx,
   });
+}
+
+/** The route lift cell the player is riding right now: the look cell first (same
+ * 1.5-cell probe the `E` dispatcher uses to open the lift), then the 3x3 around
+ * them. Departure normalization pins it, and it heads the mirror anchor list, so
+ * the return lift on the next floor lands at the player's arrival coordinates. */
+function playerRouteLiftIdx(direction: LiftDirection): number {
+  const usable = (idx: number): boolean => world.cells[idx] === Cell.LIFT
+    && (world.liftDir[idx] as LiftDirection) === direction
+    && world.features[idx] !== Feature.MACHINE;
+  const lookIdx = world.idx(
+    Math.floor(player.x + Math.cos(player.angle) * 1.5),
+    Math.floor(player.y + Math.sin(player.angle) * 1.5),
+  );
+  if (usable(lookIdx)) return lookIdx;
+  const px = Math.floor(player.x);
+  const py = Math.floor(player.y);
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const idx = world.idx(px + dx, py + dy);
+      if (usable(idx)) return idx;
+    }
+  }
+  return -1;
 }
 
 function prepareEditableFloor(mirror?: FloorRouteLiftMirror, normalizeRouteLifts = true, replayEditorPatch = true): void {
@@ -5377,8 +5392,16 @@ function switchFloor(
   }
   let departureLiftAnchors: FloorLiftAnchor[] = [];
   if (!activeFloorInstance && runEntry) {
-    ensureCurrentRouteLiftLayout();
+    // The lift under the player must survive normalization and lead the mirror
+    // set; otherwise a redistribution pass moves it and the return lift on the
+    // next floor is mirrored somewhere the player never stood.
+    const usedLiftIdx = playerRouteLiftIdx(direction);
+    ensureCurrentRouteLiftLayout(undefined, usedLiftIdx);
     departureLiftAnchors = collectFloorLiftAnchors(world, direction, ROUTE_LIFTS_PER_DIRECTION);
+    const usedAnchor = departureLiftAnchors.findIndex(anchor => anchor.liftIdx === usedLiftIdx);
+    if (usedAnchor > 0) {
+      departureLiftAnchors.unshift(departureLiftAnchors.splice(usedAnchor, 1)[0]);
+    }
   }
 
   // Save player position for same-xy spawn
@@ -5423,15 +5446,27 @@ function switchFloor(
     const routeLiftMirror = !activeFloorInstance && !route.activeInstance && generatedRunEntry && departureLiftAnchors.length > 0
       ? { direction: returnDirection, anchors: departureLiftAnchors }
       : undefined;
+    // When the ridden lift's return counterpart could not land on the departure
+    // coordinates (protected apartment space, or no reachable cell to open into),
+    // it is relocated a few cells over — follow it, or the player steps out of a
+    // lift with no way back.
+    let arrivalX = savedX;
+    let arrivalY = savedY;
     if (!route.activeInstance && !getActiveFloorInstance(state)) {
-      ensureFloorRouteLiftLayout(world, savedX, savedY, currentRouteLiftDirections(), {
+      const layout = ensureFloorRouteLiftLayout(world, savedX, savedY, currentRouteLiftDirections(), {
         countPerDirection: ROUTE_LIFTS_PER_DIRECTION,
         mirror: routeLiftMirror,
       });
+      const anchor = routeLiftMirror?.anchors[0];
+      const anchorIdx = anchor ? world.idx(anchor.liftX, anchor.liftY) : -1;
+      if (layout.primaryAccessIdx >= 0 && layout.primaryLiftIdx !== anchorIdx) {
+        arrivalX = (layout.primaryAccessIdx % W) + 0.5;
+        arrivalY = ((layout.primaryAccessIdx / W) | 0) + 0.5;
+      }
     }
     const spawn = safeSpawnNear(
-      spawnAtDefault ? gen.spawnX : savedX,
-      spawnAtDefault ? gen.spawnY : savedY,
+      spawnAtDefault ? gen.spawnX : arrivalX,
+      spawnAtDefault ? gen.spawnY : arrivalY,
       gen.spawnX,
       gen.spawnY,
     );

@@ -25,9 +25,9 @@ export function drawLogMenu(
 
   // Title
   ctx.fillStyle = '#6cf';
-  ctx.font = `${10 * sy}px monospace`;
+  ctx.font = `${10 * sy}px "Press Start 2P", monospace`;
   ctx.fillText(fitTextStable(ctx, `СТЕНОГРАФИЧЕСКАЯ СВОДКА ${controlHint('log')}`, w - 24 * sx), 12 * sx, 14 * sy);
-  ctx.font = `${10 * sy}px monospace`;
+  ctx.font = `${10 * sy}px "Press Start 2P", monospace`;
 
   // Separator
   ctx.strokeStyle = 'rgba(0,180,160,0.2)';
@@ -39,7 +39,7 @@ export function drawLogMenu(
   const log = state.msgLog;
   if (log.length === 0) {
     ctx.fillStyle = '#8a9';
-    ctx.font = `${8 * sy}px monospace`;
+    ctx.font = `${8 * sy}px "Press Start 2P", monospace`;
     ctx.fillText('Пусто.', 12 * sx, 34 * sy);
     return;
   }
@@ -48,7 +48,7 @@ export function drawLogMenu(
   const topY = 28 * sy;
   const bottomY = h - 18 * sy;
   const maxW = w - 24 * sx;
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = `${8 * sy}px "Press Start 2P", monospace`;
 
   // Pre-compute stamp width for wrapping
   const sampleStamp = '[Д00 00:00 999м]  ';
@@ -111,7 +111,7 @@ export function drawLogMenu(
 
   // Bottom hint
   ctx.fillStyle = '#7a93a0';
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   ctx.fillText(
     fitTextStable(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} листать  |  ${log.length} зап.  |  ${menuCloseHint()} закрыть`, w - 24 * sx),
     12 * sx,

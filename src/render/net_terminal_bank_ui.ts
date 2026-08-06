@@ -51,7 +51,7 @@ export function drawNetTerminalBank(
   ctx.textAlign = 'left';
   drawGlitchText(ctx, 'НЕТ-БАНК', x + pad, y + 10 * s, time, 1241, '#63f6ff', 12 * s);
   ctx.textAlign = 'right';
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = `${7 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#55727a';
   ctx.fillText(
     fitText(ctx, bank.terminalIdx >= 0 ? `IDX ${bank.terminalIdx}` : bank.terminalLabel, 92 * s),
@@ -60,7 +60,7 @@ export function drawNetTerminalBank(
   );
   ctx.textAlign = 'left';
 
-  ctx.font = `${8 * s}px monospace`;
+  ctx.font = `${8 * s}px "Press Start 2P", monospace`;
   let ly = y + 38 * s;
   const lineH = 13 * s;
   drawLine(ctx, x + pad, ly, 'Нал', money(bank.cashRubles), maxTextW, '#d8f0d0');
@@ -80,7 +80,7 @@ export function drawNetTerminalBank(
   ctx.stroke();
 
   const jitter = textJitter(time * 1.5, 1242);
-  ctx.font = `bold ${11 * s}px monospace`;
+  ctx.font = `bold ${11 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = bank.canSubmit ? '#63f6ff' : '#ff8a70';
   ctx.fillText(
     fitText(ctx, `${bank.actionLabel}: ${bank.presetLabel}`, maxTextW),
@@ -88,7 +88,7 @@ export function drawNetTerminalBank(
     actionY + jitter.dy,
   );
 
-  ctx.font = `${8 * s}px monospace`;
+  ctx.font = `${8 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#aab8bd';
   ctx.fillText(fitText(ctx, `Сумма: ${money(bank.amountRubles)}`, maxTextW), x + pad, actionY + 18 * s);
   ctx.fillStyle = bank.canSubmit ? '#6f8' : '#f86';
@@ -100,7 +100,7 @@ export function drawNetTerminalBank(
   }
 
   ctx.fillStyle = '#59717a';
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = `${7 * s}px "Press Start 2P", monospace`;
   ctx.fillText(fitText(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} действие  ${controlBindingLabel('menuLeft')}/${controlBindingLabel('menuRight')} сумма  ${controlHint('gameMenu')} выполнить  ${menuCloseHint()} закрыть`, maxTextW), x + pad, y + panelH - 16 * s);
   ctx.restore();
 }

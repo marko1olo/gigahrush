@@ -55,7 +55,7 @@ function drawRelationMatrix(
 
   ctx.strokeStyle = 'rgba(100,100,100,0.3)';
   ctx.lineWidth = 1;
-  ctx.font = `bold ${labelFontSize}px monospace`;
+  ctx.font = `bold ${labelFontSize}px "Press Start 2P", monospace`;
   for (let c = 0; c < cols; c++) {
     const cx = x + (c + 1) * cellW + cellW / 2;
     const cy = y + cellH / 2;
@@ -70,10 +70,10 @@ function drawRelationMatrix(
     ctx.fillStyle = r === 0 ? '#fff' : '#ccc';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `bold ${labelFontSize}px monospace`;
+    ctx.font = `bold ${labelFontSize}px "Press Start 2P", monospace`;
     ctx.fillText(fitText(ctx, MATRIX_LABELS[r], cellW * 0.95), x + cellW / 2, ry);
 
-    ctx.font = `${fontSize}px monospace`;
+    ctx.font = `${fontSize}px "Press Start 2P", monospace`;
     for (let c = 0; c < cols; c++) {
       const v = getFactionRel(MATRIX_FACTIONS[r], MATRIX_FACTIONS[c]);
       const cx = x + (c + 1) * cellW + cellW / 2;
@@ -117,11 +117,11 @@ function drawFactionSnapshotPanel(
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${9 * sy}px monospace`;
+  ctx.font = `bold ${9 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#0ca';
   ctx.fillText('ТЕРРИТОРИИ И СОБЫТИЯ', x + 6, y + 5);
 
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = `${8 * sy}px "Press Start 2P", monospace`;
   if (!snapshot) {
     ctx.fillStyle = '#777';
     ctx.fillText(fitText(ctx, 'Нет снимка: подождите тик симуляции.', w - 12), x + 6, y + 20 * sy);
@@ -201,7 +201,7 @@ function drawRankRow(
     ctx.fillStyle = 'rgba(30,120,105,0.28)';
     ctx.fillRect(x + 3, y - 1, w - 6, rowH);
   }
-  ctx.font = `${7.5 * sy}px monospace`;
+  ctx.font = `${7.5 * sy}px "Press Start 2P", monospace`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillStyle = entry.player ? '#fff' : '#bbb';
@@ -236,11 +236,11 @@ function drawAlifeRankPanel(
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${9 * sy}px monospace`;
+  ctx.font = `bold ${9 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#0d9';
   ctx.fillText('A-LIFE РЕЙТИНГ ТОП 100', x + 6, y + 5);
 
-  ctx.font = `${7.5 * sy}px monospace`;
+  ctx.font = `${7.5 * sy}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#9ab';
   const self = snapshot.player;
   ctx.fillText(fitText(ctx, `Вы #${self.rank}/${snapshot.totalAlive} score ${self.score} karma ${self.karma}`, w - 12), x + 6, y + 18 * sy);
@@ -282,7 +282,7 @@ export function drawFactionMenu(
   drawNeuroPanel(ctx, 0, 0, w, h, time, 95);
 
   // Title
-  ctx.font = `bold ${12 * sy}px monospace`;
+  ctx.font = `bold ${12 * sy}px "Press Start 2P", monospace`;
   ctx.textAlign = 'center';
   drawGlitchText(ctx, fitText(ctx, 'ОТНОШЕНИЯ И A-LIFE РЕЙТИНГ', w - 16 * sx), w / 2, 20 * sy, time, 950, '#0ca', 12 * sy);
 
@@ -320,7 +320,7 @@ export function drawFactionMenu(
 
   // Hint
   ctx.fillStyle = '#7a93a0';
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = `${8 * sy}px "Press Start 2P", monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.fillText(fitText(ctx, `${menuCloseHint()} закрыть  ↑↓ рейтинг`, w - 16 * sx), w / 2, botY + 2 * sy);

@@ -349,7 +349,7 @@ export function drawHudFinanceCompact(
 
   ctx.save();
   drawNeuroPanel(ctx, x, y, panelW, panelH, time, 280);
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   ctx.textAlign = 'left';
   for (let i = 0; i < lines.length; i++) {
     ctx.fillStyle = lines[i].color;
@@ -377,7 +377,7 @@ export function drawInventoryFinanceBlock(
 
   drawGlitchText(ctx, 'ФИНАНСЫ', x, y, time, 830, '#6f96a4', 6 * sy);
   let cy = y + 8.4 * sy;
-  ctx.font = `${5.8 * sy}px monospace`;
+  ctx.font = `${5.8 * sy}px "Press Start 2P", monospace`;
   for (const line of visible) {
     ctx.fillStyle = line.color;
     ctx.fillText(fitText(ctx, line.text, w), x, cy);

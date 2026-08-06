@@ -33,16 +33,16 @@ export function drawGamblingOverlay(
 
   ctx.textBaseline = 'top';
   drawGlitchText(ctx, game.label, x + pad, y + 10 * s, time, 1552, '#ffd36a', 12 * s);
-  ctx.font = `${8 * s}px monospace`;
+  ctx.font = `${8 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = '#a98';
   ctx.fillText(fitText(ctx, `Наличные: ${rub(game.cashRubles)}`, maxW), x + pad, y + 36 * s);
   ctx.fillText(fitText(ctx, `Предел: ${rub(game.minBet)}-${rub(game.maxBet)}  маржа ${(game.houseEdge * 100).toFixed(1)}%`, maxW), x + pad, y + 50 * s);
 
-  ctx.font = `bold ${14 * s}px monospace`;
+  ctx.font = `bold ${14 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = game.canSubmit ? '#ffd36a' : '#ff7860';
   ctx.fillText(fitText(ctx, `Ставка: ${rub(game.betRubles)}`, maxW), x + pad + jitter.dx, y + 78 * s + jitter.dy);
 
-  ctx.font = `${8 * s}px monospace`;
+  ctx.font = `${8 * s}px "Press Start 2P", monospace`;
   ctx.fillStyle = game.canSubmit ? '#8f8' : '#f86';
   const stakeLine = game.itemStakeName
     ? `${game.itemStakeName}: ставка ${rub(game.itemStakeRubles)}.`
@@ -56,7 +56,7 @@ export function drawGamblingOverlay(
   }
 
   ctx.fillStyle = '#6d6670';
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = `${7 * s}px "Press Start 2P", monospace`;
   ctx.fillText(fitText(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} ставка  ${controlHint('gameMenu')} играть  ${menuCloseHint()} выйти`, maxW), x + pad, y + panelH - 16 * s);
   ctx.restore();
 }

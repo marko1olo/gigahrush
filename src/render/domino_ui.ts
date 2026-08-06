@@ -138,11 +138,11 @@ export function drawDominoInterface(
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillStyle = '#d1aa54';
-  ctx.font = `bold ${10 * sy}px monospace`;
+  ctx.font = `bold ${10 * sy}px "Press Start 2P", monospace`;
   ctx.fillText(fitText(ctx, 'ДОМИНО', pw * 0.24), px + pad, headerY);
 
   ctx.fillStyle = '#8d9690';
-  ctx.font = `${7.2 * sy}px monospace`;
+  ctx.font = `${7.2 * sy}px "Press Start 2P", monospace`;
   const turn = snapshot.phase === 'npc_turn' ? `${snapshot.npcName} ХОДИТ` : snapshot.finished ? resultText(snapshot) : 'ВАШ ХОД';
   ctx.fillText(fitText(ctx, `СТАВКА ${snapshot.stakeRubles}Р | КОРОБКА ${snapshot.boneyardCount} | ${turn}`, pw - pad * 2), px + pad, headerY + 13 * sy);
 
@@ -158,7 +158,7 @@ export function drawDominoInterface(
     ? `${controlHint('gameMenu')} ЗАКРЫТЬ  ${menuCloseHint()} ВЫЙТИ`
     : `${controlBindingLabel('menuLeft')}/${controlBindingLabel('menuRight')} КОСТЬ  ${controlHint('gameMenu')} СЫГРАТЬ/ДОБРАТЬ  ${controlBindingLabel('drop')} КРАЙ  ${menuCloseHint()} СДАТЬСЯ`;
   ctx.fillStyle = '#59615d';
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${7 * sy}px "Press Start 2P", monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.fillText(fitText(ctx, action, pw - pad * 2), Math.round(px + pw * 0.5), controlsY);
