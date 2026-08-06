@@ -14,6 +14,7 @@ import {
   type VisualCellDef,
   type VisualCellSource,
 } from '../data/visual_cell_slots';
+import { resolveFloorMeshDecor } from '../data/floor_mesh_decor';
 
 export interface VisualCellFaceResolution {
   sourceCell: number;
@@ -387,97 +388,19 @@ function collectRoomFloorDecorCandidates(
   return out;
 }
 
-// ── Floor-class decor tables ──────────────────────────────────────
-// Each floor class defines which wall, ceiling and column models it uses.
-// Adding a new class: append a row here and a matching branch in
-// visualDecorCaps if density needs adjustment.
-
-interface FloorDecorClass {
-  wallIds: readonly string[];
-  ceilingIds: readonly string[];
-  columnId: string;
-}
-
-const FLOOR_DECOR_CLASSES: readonly {
-  tags: readonly string[];
-  decor: FloorDecorClass;
-}[] = [
-  // Industrial / maintenance / collectors
-  {
-    tags: ['maintenance', 'collectors', 'industrial', 'pump'],
-    decor: {
-      wallIds: ['pipe_wall_large', 'cable_wall_loose', 'pipe_wall_small', 'pipe_wall_small'],
-      ceilingIds: ['ceiling_pipe_bundle', 'ceiling_cable_bundle'],
-      columnId: 'column_concrete_round',
-    },
-  },
-  // Ministry / bureaucratic
-  {
-    tags: ['ministry', 'bureaucratic', 'paper', 'office'],
-    decor: {
-      wallIds: ['button_panel', 'wall_panel_flat', 'cable_wall_loose', 'wall_panel_flat'],
-      ceilingIds: ['ceiling_light_panel'],
-      columnId: 'column_concrete_square',
-    },
-  },
-  // Residential / kvartiry / living
-  {
-    tags: ['residential', 'kvartiry', 'living', 'public'],
-    decor: {
-      wallIds: ['button_panel', 'wall_panel_flat', 'cable_wall_loose', 'wall_panel_flat'],
-      ceilingIds: ['ceiling_light_panel'],
-      columnId: 'column_concrete_square',
-    },
-  },
-  // Void / protocol
-  {
-    tags: ['void', 'protocol'],
-    decor: {
-      wallIds: ['wall_panel_screen', 'wall_panel_flat', 'wall_panel_flat', 'wall_panel_flat'],
-      ceilingIds: ['ceiling_light_panel'],
-      columnId: 'column_concrete_square',
-    },
-  },
-  // Hell / meat — organic horror
-  {
-    tags: ['hell', 'meat_low', 'gut', 'ritual', 'samosbor', 'meat', 'underhell'],
-    decor: {
-      wallIds: ['organic_wall_ribs', 'organic_wall_veins', 'cable_wall_loose', 'organic_wall_veins'],
-      ceilingIds: ['organic_ceiling_tendrils'],
-      columnId: 'organic_column_bone',
-    },
-  },
-  // Cave / mushroom / living tunnels
-  {
-    tags: ['cave', 'mushroom', 'living_tunnels'],
-    decor: {
-      wallIds: ['cave_wall_protrusion', 'organic_wall_veins', 'cable_wall_loose', 'cave_wall_protrusion'],
-      ceilingIds: ['cave_stalactite', 'organic_ceiling_tendrils'],
-      columnId: 'column_concrete_round',
-    },
-  },
-];
-
-const DEFAULT_FLOOR_DECOR: FloorDecorClass = {
-  wallIds: ['cable_wall_loose'],
-  ceilingIds: ['ceiling_light_panel'],
-  columnId: 'column_concrete_square',
-};
-
-function floorDecorClass(tags: ReadonlySet<string>): FloorDecorClass {
-  for (const entry of FLOOR_DECOR_CLASSES) {
-    if (hasAnyTag(tags, entry.tags)) return entry.decor;
-  }
-  return DEFAULT_FLOOR_DECOR;
-}
+// ── Floor-class decor ─────────────────────────────────────────────
+// The table lives in data/floor_mesh_decor.ts because the render mesh pass
+// resolves from the same rows; keeping a private copy here is what let
+// generation and rendering drift apart (bone columns from generation next to
+// concrete ones from the renderer, in the same room).
 
 function visualWallDecorCode(tags: ReadonlySet<string>, hash: number): number {
-  const decor = floorDecorClass(tags);
+  const decor = resolveFloorMeshDecor(tags);
   return visualCodeForId(decor.wallIds[hash & (decor.wallIds.length - 1)] ?? decor.wallIds[0]);
 }
 
 function visualCeilingDecorCode(tags: ReadonlySet<string>, hash: number): number {
-  const decor = floorDecorClass(tags);
+  const decor = resolveFloorMeshDecor(tags);
   return visualCodeForId(decor.ceilingIds[hash & (decor.ceilingIds.length - 1)] ?? decor.ceilingIds[0]);
 }
 
@@ -656,7 +579,7 @@ function placeColumnVisualDecor(
   }
   candidates.sort((a, b) => b.score - a.score || a.idx - b.idx);
   const tags = new Set(options.tags ?? []);
-  const decor = floorDecorClass(tags);
+  const decor = resolveFloorMeshDecor(tags);
   const code = visualCodeForId(decor.columnId);
   let placed = 0;
   for (const candidate of candidates) {

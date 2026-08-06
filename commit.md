@@ -20,7 +20,8 @@
 1. Собрать и проверить HTML5 upload artifacts: itch.io ZIP, MyIndie RU ZIP-кандидат и Pikabu/GamePush ZIP-кандидат.
 2. Закоммитить проект и отправить коммит в GitHub.
 3. Убедиться, что Cloudflare Worker под аккаунтом `jirnyak` отдает свежую сборку на `https://gigahrush.bileter.workers.dev`.
-4. Обновить или проверить публичные площадки только когда пользователь явно просит upload/publish; обычный `комить` не означает blind-click в itch.io, MyIndie или Pikabu Games.
+4. Убедиться, что GitHub Pages отдает свежую сборку на `https://gigahrush.github.io/`. **Оба деплоя обязательны всегда**, а не по отдельной просьбе.
+5. Обновить или проверить публичные площадки только когда пользователь явно просит upload/publish; обычный `комить` не означает blind-click в itch.io, MyIndie или Pikabu Games.
 
 Не останавливайся после локального коммита. Команда `комить` означает весь релизный цикл ниже.
 
@@ -334,6 +335,7 @@ MyIndie RU использует текущий `itch/gigahrush-itch.zip` как 
 - что `npm run check` прошел или какие проверки были запущены;
 - что Wrangler был под аккаунтом `jirnyak`;
 - что `https://gigahrush.bileter.workers.dev` отвечает свежей сборкой;
+- что `https://gigahrush.github.io/` отвечает свежей сборкой (со свежим `last-modified`, а не просто `200`);
 - если что-то не удалось, точный блокер и последний успешный шаг.
 
 Пример:

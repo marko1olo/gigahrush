@@ -2,6 +2,11 @@ import { hashSeed } from '../core/rand';
 import { FloorLevel } from '../core/types';
 import type { FloorThemeProfile } from './floor_theme_profiles';
 import {
+  DEFAULT_FLOOR_MESH_DECOR,
+  resolveFloorMeshDecor,
+  type FloorMeshDecor,
+} from './floor_mesh_decor';
+import {
   selectVisualCorridorCovering,
   type VisualCorridorCoveringId,
   type VisualCorridorVolumeStyle,
@@ -59,6 +64,8 @@ export interface ResolvedVisualGeometryProfile {
   organicVolumeDetail: number;
   corridorVolumeStyle: VisualCorridorVolumeStyle;
   corridorCoveringId: VisualCorridorCoveringId;
+  /** Per-floor model/column policy shared with generation. */
+  decor: FloorMeshDecor;
   includeVisualSlots: boolean;
   includeFeatures: boolean;
   includeContainers: boolean;
@@ -69,7 +76,9 @@ export interface ResolvedVisualGeometryProfile {
 
 export type VisualGeometryProfile = Omit<ResolvedVisualGeometryProfile, 'key' | 'seed' | 'modulationIds'>;
 
-const MODE_PROFILES: Readonly<Record<VisualGeometryMode, Omit<ResolvedVisualGeometryProfile, 'key' | 'seed' | 'mode'>>> = {
+// `decor` is per-floor, not per-quality-mode, so the mode budgets do not carry it;
+// resolveVisualGeometryProfile attaches it from the floor's theme tags.
+const MODE_PROFILES: Readonly<Record<VisualGeometryMode, Omit<ResolvedVisualGeometryProfile, 'key' | 'seed' | 'mode' | 'decor'>>> = {
   off: {
     enabled: false,
     radius: VISUAL_GEOMETRY_MODE_BUDGETS.off.radius,
@@ -278,6 +287,7 @@ export const EMPTY_RESOLVED_VISUAL_GEOMETRY_PROFILE: ResolvedVisualGeometryProfi
   key: 'geometry:off',
   seed: 0,
   mode: 'off',
+  decor: DEFAULT_FLOOR_MESH_DECOR,
   ...MODE_PROFILES.off,
 };
 
@@ -393,6 +403,7 @@ export function resolveVisualGeometryProfile(
       key,
       seed,
       mode,
+      decor: DEFAULT_FLOOR_MESH_DECOR,
       modulationIds: [],
     };
   }
@@ -427,6 +438,10 @@ export function resolveVisualGeometryProfile(
   const furnitureDetail = clamp01((base.furnitureDetail + (residential ? 0.1 : 0) - (voidish ? 0.2 : 0)) * furnitureDetailMul);
   const ceilingDetail = clamp01((base.ceilingDetail + (industrial ? 0.15 : 0) + (organic ? 0.1 : 0)) * ceilingDetailMul);
   const corridorVolumeStyle = corridorCovering.def.style;
+  // Per-floor mesh decor rides along on the geometry profile: the mesh pass
+  // already receives this object, so the renderer needs no second channel and
+  // no floorKey substring guessing to know which models this floor uses.
+  const decor = resolveFloorMeshDecor(tags);
   const routeRoughness = resolvedInput.floorKey.startsWith('procedural:') ? 0.08 : 0;
   const corridorVolumeDetail = clamp01((base.corridorVolumeDetail + routeRoughness + (industrial ? 0.08 : 0) + (organic ? 0.1 : 0)) * corridorVolumeDetailMul * corridorCovering.def.detailMul);
   const organicVolumeDetail = clamp01((base.organicVolumeDetail + (organic ? 0.28 : 0) + (tags.has('mushroom_mycelium') ? 0.18 : 0)) * organicVolumeDetailMul * corridorCovering.def.organicMul);
@@ -451,6 +466,7 @@ export function resolveVisualGeometryProfile(
     organicVolumeDetail,
     corridorVolumeStyle,
     corridorCoveringId: corridorCovering.def.id,
+    decor,
     modulationIds: [...modulationIds, `corridor_${corridorCovering.ruleId}`],
   };
 }

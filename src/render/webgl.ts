@@ -236,10 +236,16 @@ const float PI = 3.14159265;
 
 // Open-sky march: a ceiling tier at/above SKY_TIER reads as open air (roof deck
 // 14 / street 240), below it as an enclosed volume. Kept in sync with
-// SKY_TIER_THRESHOLD in gen/ceiling_heights.ts. SKY_STEPS is how far the ceiling
-// march traces on open-sky floors before it gives up to sky (tunable for perf).
+// SKY_TIER_THRESHOLD in gen/ceiling_heights.ts.
+//
+// The ceiling march shares MAX_STEPS with the wall march: vertical structure is
+// the same world geometry as the wall under it, so it must reach the same
+// MAX_DIST. It previously had its own budgets (24 open-sky / 16 closed), which
+// cut tall walls and soffits off at ~11-24 cells while the wall below them kept
+// drawing out to 40 — and made open-sky floors silently see further than closed
+// ones. Both marches now terminate on distance (dEnter > MAX_DIST), not on a
+// step count, so there is one draw distance for the whole floor silhouette.
 const float SKY_TIER = 8.0;
-const int SKY_STEPS = 24;
 
 /* ── Helpers ──────────────────────────────────────────────────── */
 
@@ -1422,8 +1428,7 @@ void main() {
         float marchHc = 1.0;
         float rawPrevTier = float(texelFetch(uCeil, ivec2(wrapI(int(floor(uPos.x))), wrapI(int(floor(uPos.y)))), 0).r);
         float prevHc = 1.0 + rawPrevTier * 0.5;
-        for (int cs = 0; cs < SKY_STEPS; cs++) {
-          if (uHasOpenSky == 0 && cs >= 16) break; // closed floors: identical 16-step trace, no sky work
+        for (int cs = 0; cs < MAX_STEPS; cs++) {
           ivec2 mc = ivec2(wrapI(cmx), wrapI(cmy));
           float rawMarchTier = float(texelFetch(uCeil, mc, 0).r);
           marchHc = 1.0 + rawMarchTier * 0.5;

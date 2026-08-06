@@ -34,6 +34,22 @@ export interface VisualCellDef {
   merge: VisualCellMerge;
   priority: number;
   densityCost: number;
+  /**
+   * Structural role: this is a column — a floor-anchored volume that must reach
+   * the ceiling and that occupies its cell against other columns.
+   *
+   * It is deliberately separate from `family`, which is a *material* axis used
+   * for voxel classification and merge compatibility. Overloading `family` with
+   * structural role is what broke columns: `organic_column_bone` is materially
+   * organic, so it could not sit in `family: 'column'` without losing its voxel
+   * representation — and as a result it was absent from every hardcoded column
+   * list in the renderer, never stretched to the ceiling, and never blocked a
+   * second column from being placed in its own cell.
+   *
+   * `zBand: 'fullHeight'` cannot substitute either: machine bodies, apparatus
+   * frames and wall veins also declare it without being columns.
+   */
+  column?: boolean;
 }
 
 export const VISUAL_CELL_DEFS = [
@@ -174,6 +190,7 @@ export const VISUAL_CELL_DEFS = [
     merge: 'cluster',
     priority: 84,
     densityCost: 4,
+    column: true,
   },
   {
     code: 11,
@@ -334,6 +351,7 @@ export const VISUAL_CELL_DEFS = [
     merge: 'none',
     priority: 90,
     densityCost: 4,
+    column: true,
   },
   {
     code: 23,
@@ -442,6 +460,7 @@ export const VISUAL_CELL_DEFS = [
     merge: 'none',
     priority: 90,
     densityCost: 4,
+    column: true,
   },
   {
     code: 31,
@@ -455,6 +474,7 @@ export const VISUAL_CELL_DEFS = [
     merge: 'none',
     priority: 90,
     densityCost: 4,
+    column: true,
   },
   {
     code: 32,
@@ -526,6 +546,18 @@ function buildVisualCellDefMap<K extends 'id' | 'code'>(
 
 export const VISUAL_CELL_DEF_BY_ID = buildVisualCellDefMap('id');
 export const VISUAL_CELL_DEF_BY_CODE = buildVisualCellDefMap('code');
+
+// Every column model, derived from the defs above. The renderer used to carry a
+// hand-written list of three model ids for "stretch to the ceiling" which did
+// not contain `organic_column_bone` — so bone columns never reached the ceiling
+// and stood as stubs on hell floors. Deriving it from `def.column` means a new
+// column model joins the rule by declaring one field.
+export const VISUAL_CELL_COLUMN_MODEL_IDS: ReadonlySet<VisualModelId> = new Set(
+  VISUAL_CELL_DEFS.filter(def => def.column === true).flatMap(def => {
+    if (def.modelId === undefined) return [];
+    return Array.isArray(def.modelId) ? [...def.modelId] : [def.modelId as VisualModelId];
+  }),
+);
 
 export function visualCellDefById(id: string): VisualCellDef | undefined {
   return VISUAL_CELL_DEF_BY_ID.get(id);

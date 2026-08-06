@@ -12,6 +12,8 @@ import {
   type Entity,
   type WorldContainer,
 } from '../../core/types';
+import { DEFAULT_FLOOR_MESH_DECOR, type FloorMeshDecor } from '../../data/floor_mesh_decor';
+import { VISUAL_CELL_COLUMN_MODEL_IDS } from '../../data/visual_cell_slots';
 import {
   EMPTY_VISUAL_CELL_CODE,
   VISUAL_SLOTS_PER_CELL,
@@ -33,7 +35,6 @@ import {
   type VisualCorridorVolumeStyle,
 } from '../../data/visual_corridor_coverings';
 import { VISUAL_GEOMETRY_MODE_BUDGETS } from '../../data/visual_geometry_profiles';
-import type { CameraView } from '../../systems/camera';
 
 export type VisualModelId = string;
 export type MeshGraphicsMode = 'off' | 'low' | 'medium' | 'high';
@@ -90,6 +91,8 @@ export interface MeshSceneProfile {
   corridorCoveringId?: VisualCorridorCoveringId;
   chunkSize?: number;
   maxChunksPerFrame?: number;
+  /** Per-floor model/column policy; falls back to the neutral concrete set. */
+  decor?: FloorMeshDecor;
 }
 
 export interface ResolvedMeshSceneProfile {
@@ -116,19 +119,14 @@ export interface ResolvedMeshSceneProfile {
   corridorCoveringId: VisualCorridorCoveringId;
   chunkSize: number;
   maxChunksPerFrame: number;
+  decor: FloorMeshDecor;
 }
 
-export interface MeshPassContext {
-  world: World;
-  camera: CameraView;
-  floorKey: string;
-  seed: number;
-  time: number;
-  mode?: MeshGraphicsMode;
-  profile?: MeshSceneProfile | null;
-  fogDensity?: number;
-  entities?: readonly Entity[];
-}
+// MeshPassContext is declared once, in ./types. It used to be re-declared here
+// with a different `profile` type, so the same name meant two different shapes
+// depending on which file you were reading.
+import type { MeshPassContext } from './types';
+export type { MeshPassContext };
 
 export interface MeshSceneCollectStats {
   cellsScanned: number;
@@ -162,8 +160,6 @@ export const VISUAL_CELL_CODES = {
   CEILING_LIGHT_PANEL: visualCode('ceiling_light_panel'),
   WALL_PANEL_SCREEN: visualCode('wall_panel_screen'),
   RUBBLE_CHUNK: visualCode('rubble_chunk'),
-  COLUMN_HINT: visualCode('column_hint'),
-  COLUMN_CONCRETE_SQUARE: visualCode('column_concrete_square'),
   FURNITURE_TABLE_HINT: visualCode('furniture_table_hint'),
   FURNITURE_DESK_HINT: visualCode('furniture_desk_hint'),
   FURNITURE_CHAIR_HINT: visualCode('furniture_chair_hint'),
@@ -504,7 +500,7 @@ export function visualSlotVersionForWorld(world: World): number {
 }
 
 export function resolveMeshSceneProfile(context: MeshPassContext): ResolvedMeshSceneProfile {
-  const source = context.profile ?? {};
+  const source: MeshSceneProfile = context.profile ?? {};
   const mode = context.mode ?? 'medium';
   const budget = VISUAL_GEOMETRY_MODE_BUDGETS[mode] ?? VISUAL_GEOMETRY_MODE_BUDGETS.medium;
   const radius = Math.max(0, Math.min(MAX_DRAW, Math.floor(source.radius ?? budget.radius)));
@@ -561,6 +557,7 @@ export function resolveMeshSceneProfile(context: MeshPassContext): ResolvedMeshS
     corridorCoveringId: sourceCoveringId,
     chunkSize: Math.max(4, Math.min(32, Math.floor(source.chunkSize ?? DEFAULT_CHUNK_SIZE))),
     maxChunksPerFrame: Math.max(1, Math.min(64, Math.floor(source.maxChunksPerFrame ?? DEFAULT_MAX_CHUNKS_PER_FRAME))),
+    decor: source.decor ?? DEFAULT_FLOOR_MESH_DECOR,
   };
 }
 
@@ -2026,48 +2023,19 @@ function collectProceduralFloorScatter(
   }
 }
 
-function optionalColumnModelId(floorKey: string): string {
-  if (floorKey.includes('maintenance')) return 'column_concrete_round';
-  return 'column_concrete_square';
-}
-
-function collectOptionalColumnAtCell(context: MeshPassContext, idx: number, x: number, y: number, profile: ResolvedMeshSceneProfile, out: MeshInstance[]): void {
-  const world = context.world;
-  if (!isPassableVisualCell(world, idx) || world.features[idx] !== Feature.NONE || world.containerMap.has(idx) || doorNear(world, x, y)) return;
-  const slots = visualSlotsForWorld(world);
-  if (
-    slots &&
-    (cellHasVisualCode(slots, idx, VISUAL_CELL_CODES.COLUMN_HINT) ||
-      cellHasVisualCode(slots, idx, VISUAL_CELL_CODES.COLUMN_CONCRETE_SQUARE))
-  ) return;
-  const room = roomForCell(world, idx);
-  if (!room || room.type === RoomType.CORRIDOR || room.w < 8 || room.h < 8) return;
-  const local = localRoomCoord(room, x, y);
-  if (!local || local.lx < 2 || local.ly < 2 || local.lx >= room.w - 2 || local.ly >= room.h - 2) return;
-
-  const detail = profile.furnitureDetail;
-  if (detail <= 0) return;
-  const h = mixHash(context.seed, x, y, room.id, 0x6c6f6e);
-  const spacing = context.mode === 'high' ? 5 : 6;
-  const ox = h % spacing;
-  const oy = (h >>> 4) % spacing;
-  if ((local.lx + ox) % spacing !== 0 || (local.ly + oy) % spacing !== 0) return;
-  if (((h >>> 12) & 255) / 255 > detail * 0.62) return;
-
-  const modelId = optionalColumnModelId(context.floorKey);
-  emitInstance(out, {
-    modelId,
-    x: x + 0.5,
-    y: y + 0.5,
-    z: 0,
-    yaw: ((h >>> 20) & 3) * Math.PI * 0.5,
-    scaleX: modelId === 'column_concrete_round' ? 0.82 : 0.72,
-    scaleY: modelId === 'column_concrete_round' ? 0.82 : 0.72,
-    scaleZ: 1,
-    seed: meshInstanceSeed(context.seed, x, y, 0x636f6c, modelId, room.id),
-    flags: MeshInstanceFlag.VisualSlot,
-  });
-}
+// Columns are placed by generation only — there is deliberately no render-side
+// column source here any more.
+//
+// There used to be one: a per-cell hash sprinkled extra columns into any room
+// large enough, choosing the model from a hardcoded `floorKey.includes(...)`
+// guess. It was a second, weaker copy of a system generation already owns
+// properly (`gen/visual_cell_slots.ts` + the placement profiles), and being a
+// copy it could not see any of generation's rules — including the per-route
+// `columnCap`. `data/floor_object_placement.ts` has declared
+// `manhattan_crossroads: { columnCap: 0 }` with the note "suppress interior
+// support columns ... they read as stray pillars in the street", and this fill
+// put them straight back. Every column now comes from a visual slot, so a floor
+// that says it has no columns has none.
 
 function collectOptionalCeilingAtCell(context: MeshPassContext, idx: number, x: number, y: number, profile: ResolvedMeshSceneProfile, out: MeshInstance[]): void {
   const world = context.world;
@@ -2094,9 +2062,13 @@ function collectOptionalCeilingAtCell(context: MeshPassContext, idx: number, x: 
   if (((h >>> 14) & 255) / 255 > detail * 0.72) return;
 
   const axis = openAxis(world, x, y);
-  const industrial = context.floorKey.includes('maintenance') || context.floorKey.includes('industrial');
-  const modelId = industrial
-    ? (((h >>> 22) & 1) ? 'ceiling_pipe_bundle' : 'ceiling_cable_bundle')
+  // Structural beam by default; a floor that runs services overhead uses its own
+  // ceiling models. This used to re-guess "industrial" from the floor key with a
+  // different tag set than the column picker sixty lines above — one knew
+  // 'industrial', the other only 'maintenance'.
+  const decor = profile.decor;
+  const modelId = decor.serviceCeiling && decor.ceilingIds.length > 0
+    ? decor.ceilingIds[(h >>> 22) % decor.ceilingIds.length]
     : 'ceiling_beam';
   emitInstance(out, {
     modelId,
@@ -2127,7 +2099,6 @@ function scanCell(
   collectVisualSlotsAtCell(context, slots, idx, x, y, scope, profile, out, stats);
   if (profile.includeFeatures) collectFeatureAtCell(context, idx, x, y, out);
   if (profile.includeContainers) collectContainersAtCell(context, idx, x, y, out);
-  collectOptionalColumnAtCell(context, idx, x, y, profile, out);
   collectOptionalCeilingAtCell(context, idx, x, y, profile, out);
   collectCorridorVolumeAtCell(context, idx, x, y, profile, out);
   collectBillboardsAtCell(context, idx, out);
@@ -2168,8 +2139,10 @@ export function collectMeshChunk(
   chunkY: number,
   out: MeshInstance[] = [],
   stats?: MeshSceneCollectStats,
+  // Callers that already resolved the profile pass it in rather than smuggling
+  // it back through `context.profile`, which is the geometry profile.
+  profile: ResolvedMeshSceneProfile = resolveMeshSceneProfile(context),
 ): MeshInstance[] {
-  const profile = resolveMeshSceneProfile(context);
   if (!profile.enabled) return out;
   const size = profile.chunkSize;
   const center = cameraCellCenter(context);
@@ -2278,15 +2251,15 @@ function priorityForModel(modelId: string, flags: number): number {
 
 // Full-height models that span floor-to-ceiling and should stretch with a taller
 // ceiling. Ordinary furniture keeps its authored height.
-const CEILING_SPAN_MODELS = new Set<string>(['column_hint', 'column_concrete_square', 'column_concrete_round']);
+// Derived from the visual-cell defs (`def.column`), not hand-listed here.
 
 // Render-only: anchor everything that depends on ceiling height to the single
 // per-cell truth (`cellCeilingHeight`, mirrored by the raycaster). Ceiling-mounted
 // fixtures (lamps, pipe/cable runs) hang from the real plane; full-height columns
 // stretch up to it. Returns false when the instance must be dropped.
-function applyCeilingHeight(world: World, instance: MeshInstance): boolean {
+function applyCeilingHeight(world: World, decor: FloorMeshDecor, instance: MeshInstance): boolean {
   const ceilingMounted = instance.z >= 0.9;
-  const spansToCeiling = CEILING_SPAN_MODELS.has(instance.modelId);
+  const spansToCeiling = VISUAL_CELL_COLUMN_MODEL_IDS.has(instance.modelId);
   if (!ceilingMounted && !spansToCeiling) return true;
 
   const cellX = Math.floor(instance.x);
@@ -2295,9 +2268,12 @@ function applyCeilingHeight(world: World, instance: MeshInstance): boolean {
     // Sky band (open-sky roof lid, street canyon): there is no ceiling plane at
     // any height. Previously these were clamped to the top of the enclosed band,
     // which left lamps and pipe runs floating in mid-air over open streets.
-    // A fixture with nothing to hang from is dropped; a column just stays the
-    // free-standing height it was authored at instead of shooting up as a столб.
-    return !ceilingMounted;
+    // A fixture with nothing to hang from is always dropped. A column is the
+    // floor's call: keeping it "free-standing" means keeping its authored
+    // scaleZ of 1, which reads as a waist-high stub in a street canyon, so the
+    // default is now to drop it rather than to leave pedestals standing around.
+    if (ceilingMounted) return false;
+    return decor.columnWithoutCeiling === 'freestanding';
   }
 
   const ceilZ = cellCeilingHeight(world, cellX, cellY);
@@ -2364,7 +2340,7 @@ export function capMeshInstances(
   let visualSlotMergeCount = 0;
   for (const row of scored) {
     if (out.length >= profile.instanceCap) break;
-    if (!applyCeilingHeight(context.world, row.instance)) continue;
+    if (!applyCeilingHeight(context.world, profile.decor, row.instance)) continue;
     if ((row.instance.flags & MeshInstanceFlag.VisualSlot) !== 0) {
       if (visualSlotCount >= profile.visualSlotInstanceCap) continue;
       if ((row.instance.flags & MeshInstanceFlag.Merged) !== 0) {
@@ -2382,8 +2358,7 @@ export const visualSlotSourceAdapter: MeshSourceAdapter = {
   collect(context, out) {
     const profile = resolveMeshSceneProfile(context);
     if (!profile.enabled || !profile.includeVisualSlots) return;
-    const resolvedContext = { ...context, profile };
-    scanLocalRadiusCells(resolvedContext, { ...profile, includeFeatures: false, includeContainers: false, includeCorridorVolumes: false }, out);
+    scanLocalRadiusCells(context, { ...profile, includeFeatures: false, includeContainers: false, includeCorridorVolumes: false }, out);
   },
 };
 
@@ -2391,8 +2366,7 @@ export const featureSourceAdapter: MeshSourceAdapter = {
   collect(context, out) {
     const profile = resolveMeshSceneProfile(context);
     if (!profile.enabled || !profile.includeFeatures) return;
-    const resolvedContext = { ...context, profile };
-    scanLocalRadiusCells(resolvedContext, { ...profile, includeVisualSlots: false, includeContainers: false, includeCorridorVolumes: false }, out);
+    scanLocalRadiusCells(context, { ...profile, includeVisualSlots: false, includeContainers: false, includeCorridorVolumes: false }, out);
   },
 };
 
@@ -2400,8 +2374,7 @@ export const containerSourceAdapter: MeshSourceAdapter = {
   collect(context, out) {
     const profile = resolveMeshSceneProfile(context);
     if (!profile.enabled || !profile.includeContainers) return;
-    const resolvedContext = { ...context, profile };
-    scanLocalRadiusCells(resolvedContext, { ...profile, includeVisualSlots: false, includeFeatures: false, includeCorridorVolumes: false }, out);
+    scanLocalRadiusCells(context, { ...profile, includeVisualSlots: false, includeFeatures: false, includeCorridorVolumes: false }, out);
   },
 };
 
@@ -2410,13 +2383,12 @@ export function collectMeshSceneWithStats(context: MeshPassContext, out: MeshIns
   const profile = resolveMeshSceneProfile(context);
   const stats = newStats();
   if (!profile.enabled) return { instances: out, stats };
-  const resolvedContext = { ...context, profile };
   const raw: MeshInstance[] = [];
-  scanLocalRadiusCells(resolvedContext, profile, raw, stats);
-  collectProceduralCeilingPipeNetwork(resolvedContext, profile, raw);
-  collectProceduralFloorScatter(resolvedContext, profile, raw);
+  scanLocalRadiusCells(context, profile, raw, stats);
+  collectProceduralCeilingPipeNetwork(context, profile, raw);
+  collectProceduralFloorScatter(context, profile, raw);
   stats.instancesBeforeCap = raw.length;
-  capMeshInstances(resolvedContext, raw, out, profile);
+  capMeshInstances(context, raw, out, profile);
   stats.instancesAfterCap = out.length;
   return { instances: out, stats };
 }

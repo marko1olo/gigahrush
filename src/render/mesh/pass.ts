@@ -70,11 +70,11 @@ function collectMeshInstances(context: MeshPassContext, out: DrawMeshInstance[],
   out.length = 0;
   const scene = collectMeshSceneWithStats(context);
   for (const instance of scene.instances) out.push(drawInstanceFromScene(instance));
-  const chunkArea = Math.max(1, Math.floor(context.profile.chunkSize || 8) ** 2);
+  const chunkArea = Math.max(1, Math.floor(context.profile?.chunkSize || 8) ** 2);
   const chunks = Math.ceil(scene.stats.cellsScanned / chunkArea);
   stats.chunksConsidered = chunks;
   stats.chunksBuilt = chunks;
-  stats.visualSlotBytesScanned = Math.min(context.profile.visualSlotScanCap, scene.stats.visualSlotsRead);
+  stats.visualSlotBytesScanned = Math.min(context.profile?.visualSlotScanCap ?? Number.POSITIVE_INFINITY, scene.stats.visualSlotsRead);
   let mergeOutputs = 0;
   for (const instance of scene.instances) {
     if ((instance.flags & MeshInstanceFlag.Merged) !== 0) mergeOutputs++;
@@ -106,16 +106,11 @@ function classifyVoxelVisualSlot(code: number): VoxelVisualFamily | undefined {
   return def ? voxelFamilyForVisualCell(def.family) : undefined;
 }
 
-function voxelStyleForFloorKey(floorKey: string): VoxelProfile['style'] {
-  if (floorKey.includes('maintenance') || floorKey.includes('industrial')) return 'maintenance';
-  if (floorKey.includes('hell') || floorKey.includes('meat')) return 'hell';
-  if (floorKey.includes('void') || floorKey.includes('dark')) return 'void';
-  return 'concrete';
-}
-
 function collectVoxelMeshes(context: MeshPassContext, out: VoxelChunkMesh[], stats: MeshPassStats): void {
   out.length = 0;
   const profile = context.profile;
+  // No resolved geometry profile means nothing to draw (synthetic/test context).
+  if (!profile) return;
   if (!profile.voxelEnabled || profile.voxelRadius <= 0 || profile.triangleCap <= 0) return;
   const dynamicDrawRadius = context.fogDensity !== undefined && context.fogDensity > 0.0
     ? Math.max(profile.radius, Math.ceil(2.0 / context.fogDensity))
@@ -132,7 +127,7 @@ function collectVoxelMeshes(context: MeshPassContext, out: VoxelChunkMesh[], sta
     maxChunksPerFrame: Math.min(profile.maxChunksPerFrame, context.mode === 'high' ? 2 : 1),
     voxelRadius: Math.max(profile.voxelRadius, meshDrawRadius),
     visualSlotsPerCell: 16,
-    style: voxelStyleForFloorKey(context.floorKey),
+    style: profile.decor.voxelStyle,
   };
   const voxelStats = collectVoxelChunks({
     world: context.world,
@@ -301,9 +296,10 @@ class MeshPass implements MeshPassHandle {
     gl.uniform2f(uniforms.uPlane, planeX, planeY);
     gl.uniform2f(uniforms.uPitchHeight, context.camera.pitch, context.camera.height);
     gl.uniform2f(uniforms.uResolution, 320, 200);
+    const profileRadius = context.profile?.radius ?? 0;
     const dynamicDrawRadius = context.fogDensity !== undefined && context.fogDensity > 0.0
-      ? Math.max(context.profile.radius, Math.ceil(2.0 / context.fogDensity))
-      : context.profile.radius;
+      ? Math.max(profileRadius, Math.ceil(2.0 / context.fogDensity))
+      : profileRadius;
     const meshDrawRadius = Math.max(0, Math.min(MAX_DRAW, Math.floor(dynamicDrawRadius)));
 
     gl.uniform1f(uniforms.uInvDet, invDet);
