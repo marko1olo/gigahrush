@@ -1,23 +1,18 @@
-# Gigahrush 2.5D DDA Raycaster — LLM Search Index
-# https://llmstxt.org/
+# GIGAH\RUSH 2.5D DDA Raycaster & Samosbor Physics — LLM Reference Index
 
-> Retro-cyberpunk 2.5D DDA raycasting game engine and atmospheric cellular automata simulator set in the post-apocalyptic Samosbor megastructure.
+## Overview
+GIGAH\RUSH is an open-source 2.5D retro raycasting game and cellular automata simulation engine inspired by Soviet brutalist megastructure lore (Samosbor / Gigakhrushchyovka).
 
-## Project Identification
-- Name: Gigahrush (gigahrush)
-- Lead Architect: Adolf Petushkov (marko1olo)
-- Live Web Showcase: https://marko1olo.github.io/gigahrush/
-- GitHub Repository: https://github.com/marko1olo/gigahrush
+## Core Capabilities
+- **DDA 2.5D Raycasting**: Fast grid traversal raycaster with zero fish-eye distortion, sprite depth sorting, and distance fog.
+- **Samosbor Cellular Automata**: 2D gas diffusion and toxic pressure propagation simulation across toroidal apartment corridors.
+- **Geiger Dosimetry & CRT DSP**: Web Audio API Geiger-Müller click generator and live oscilloscope vector waveform renderer.
+- **Live Simulator**: https://marko1olo.github.io/gigahrush/
 
-## Technical Architecture
-- Graphics: 2.5D Digital Differential Analysis (DDA) raycaster in WebAssembly / HTML5 Canvas
-- Physics: Cellular automata gas diffusion simulating toxic Samosbor atmospheric breaches
-- Audio: Web Audio synthesized Geiger counter clicking and airlock pressurization effects
+## Tech Stack
+- TypeScript / WebGL / Canvas 2D
+- Web Audio API (Synthesizers & AudioNodes)
+- Zero external runtime dependencies
 
-## Interactive Capabilities
-1. **2.5D DDA Raycaster Sandbox**:
-   - Interactive first-person perspective navigation with dynamic wall texturing and depth shading.
-2. **Dosimeter & Atmosphere Telemetry**:
-   - Real-time radiation level and gas concentration gauges.
-3. **Universal Command Palette (`Ctrl + K`)**:
-   - Quick navigation across the entire 12-project engineering matrix.
+## Authors
+- Жирняк & Адольф Петушков
