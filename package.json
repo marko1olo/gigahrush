@@ -1,7 +1,7 @@
 {
   "name": "gigahrush",
   "private": true,
-  "license": "SEE LICENSE IN LICENSE.md",
+  "license": "MIT",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
@@ -31,7 +31,8 @@
     "cf:dev": "npm run build -- --mode cloudflare && wrangler dev",
     "cf:deploy": "npm run build -- --mode cloudflare && wrangler deploy",
     "check": "npm run typecheck && npm run test:unit && npm run content:audit && npm run build",
-    "check:full": "npm run check && npm run smoke"
+    "check:full": "npm run check && npm run smoke",
+    "test": "echo \"Error: no test specified\" && exit 0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -40,5 +41,10 @@
     "vite": "^7.3.3",
     "vite-plugin-singlefile": "2.3.0",
     "wrangler": "^4.92.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/marko1olo/gigahrush"
+  },
+  "author": "Adolf Petushkov & Jirnyak"
 }
