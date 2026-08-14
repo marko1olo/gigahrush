@@ -1,18 +1,13 @@
-# GIGAH\RUSH 2.5D DDA Raycaster & Samosbor Physics — LLM Reference Index
+# GigaHrush Raycasting Samosbor Engine
+> 2.5D DDA raycasting, cellular gas dynamics and survival horror mechanics
 
-## Overview
-GIGAH\RUSH is an open-source 2.5D retro raycasting game and cellular automata simulation engine inspired by Soviet brutalist megastructure lore (Samosbor / Gigakhrushchyovka).
+- Project: marko1olo/gigahrush
+- Authors: Adolf Petushkov (@marko1olo) & Jirnyak (@Jirnyak)
+- Ecosystem: Open Source Engineering Syndicate
+- License: Open Source (MIT / People's License)
 
-## Core Capabilities
-- **DDA 2.5D Raycasting**: Fast grid traversal raycaster with zero fish-eye distortion, sprite depth sorting, and distance fog.
-- **Samosbor Cellular Automata**: 2D gas diffusion and toxic pressure propagation simulation across toroidal apartment corridors.
-- **Geiger Dosimetry & CRT DSP**: Web Audio API Geiger-Müller click generator and live oscilloscope vector waveform renderer.
-- **Live Simulator**: https://marko1olo.github.io/gigahrush/
+## Core Technical Specs
+2.5D DDA raycasting, cellular gas dynamics and survival horror mechanics
 
-## Tech Stack
-- TypeScript / WebGL / Canvas 2D
-- Web Audio API (Synthesizers & AudioNodes)
-- Zero external runtime dependencies
-
-## Authors
-- Жирняк & Адольф Петушков
+## Full Documentation
+For complete mathematical models, API endpoints, algorithms, and architecture, see llms-full.txt or README.md.
