@@ -1,0 +1,17 @@
+{
+  "name": "Gigahrush 2.5D Raycaster",
+  "short_name": "Gigahrush",
+  "description": "2.5D DDA Raycaster & Samosbor Atmospheric Simulator",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#140a0c",
+  "theme_color": "#e11d48",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
