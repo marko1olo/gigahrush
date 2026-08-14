@@ -533,6 +533,11 @@ src/
 ---
 
 ## 🌫️ Механика Самосбора, Газовая Диффузия и Гермодвери
+<p align="center">
+  <img src="https://raw.githubusercontent.com/marko1olo/gigahrush/main/docs/samosbor_purge.jpg" width="100%" alt="GIGAH\RUSH Liquidators & Samosbor Purge"/>
+</p>
+
+
 
 Самосбор в GIGAH\RUSH — это не заскриптованный таймер, а полноценный симулятор газовой диффузии в реальном времени, просчитываемый на клеточной сетке этажа $128 \times 128$:
 
