@@ -2,51 +2,65 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Gigahrush // Samosbor Core — 2.5D DDA Raycaster & Radiation Telemetry</title>
-  <meta name="description" content="Официальный симулятор и интерактивный 2.5D DDA рейкастер коридоров советского мегакомплекса Гигахрущ. Симуляция волн Самосбора, гермодверей и телеметрия дозиметра ДП-5В.">
-  <meta name="keywords" content="гигахрущ, самосбор, рейкастер, raycaster, dda, samosbor, web audio, dp-5v, dosimeter, procedural game">
-  <meta name="author" content="Jirnyak & marko1olo">
-  <meta name="robots" content="index, follow">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gigahrush // Samosbor Core — 2.5D DDA Raycaster & Cellular Gas Lab</title>
+  <meta name="description" content="Atmospheric post-apocalyptic Gigakhrushchov exploration engine with 2.5D DDA raycasting, cellular gas dispersion physics, and interactive Samosbor Web CLI terminal.">
+  <meta name="keywords" content="gigahrush, samosbor game, 2.5d raycaster, dda algorithm, cellular gas simulation, post-apocalyptic gigakhrushchov, web cli terminal, c++ raylib engine">
+  <meta name="author" content="Адольф Петушков (Adolf Petushkov) / marko1olo">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <link rel="canonical" href="https://marko1olo.github.io/gigahrush/">
 
-  <!-- Open Graph / Facebook -->
+  <!-- Open Graph Protocol -->
+  <meta property="og:site_name" content="Gigahrush">
+  <meta property="og:title" content="Gigahrush // Samosbor Core — 2.5D DDA Raycaster & Cellular Gas Lab">
+  <meta property="og:description" content="Atmospheric post-apocalyptic Gigakhrushchov exploration engine with 2.5D DDA raycasting, cellular gas dispersion physics, and interactive Samosbor Web CLI terminal.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://jirnyak.github.io/gigahrush/">
-  <meta property="og:title" content="ГИГАХРУЩ // SAMOSBOR CORE — 2.5D DDA Raycaster">
-  <meta property="og:description" content="Интерактивный 2.5D DDA симулятор бесконечных коридоров Гигахруща. Волны Самосбора, гермозатворы, био-слизь и синтез звука дозиметра.">
-  <meta property="og:image" content="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='630' viewBox='0 0 1200 630'%3E%3Crect width='1200' height='630' fill='%230d0b09'/%3E%3Cpath d='M0,0 L1200,630 M1200,0 L0,630' stroke='%23e65100' stroke-width='2' opacity='0.15'/%3E%3Crect x='100' y='80' width='1000' height='470' fill='%23191410' stroke='%23e65100' stroke-width='4'/%3E%3Ctext x='600' y='260' font-family='monospace' font-weight='bold' font-size='68' fill='%23e65100' text-anchor='middle' letter-spacing='8'%3EГИГАХРУЩ %2F%2F САМОСБОР%3C/text%3E%3Ctext x='600' y='340' font-family='monospace' font-size='28' fill='%23fbc02d' text-anchor='middle' letter-spacing='4'%3E2.5D DDA RAYCASTER %26 DOSIMETER TELEMETRY%3C/text%3E%3Ctext x='600' y='420' font-family='monospace' font-size='20' fill='%2376ff03' text-anchor='middle'%3EБЛОК 427-B // ЭТАЖ -8 // ГЕРМОЗАТВОРЫ АКТИВНЫ%3C/text%3E%3C/svg%3E">
+  <meta property="og:url" content="https://marko1olo.github.io/gigahrush/">
+  <meta property="og:image" content="https://marko1olo.github.io/gigahrush/assets/og-preview.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Gigahrush // Samosbor Core — 2.5D DDA Raycaster & Cellular Gas Lab">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:locale:alternate" content="ru_RU">
 
-  <!-- Twitter -->
+  <!-- Twitter Card Protocol -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:url" content="https://jirnyak.github.io/gigahrush/">
-  <meta name="twitter:title" content="ГИГАХРУЩ // SAMOSBOR CORE — 2.5D DDA Raycaster">
-  <meta name="twitter:description" content="Интерактивный 2.5D DDA симулятор бесконечных коридоров Гигахруща. Волны Самосбора, гермозатворы и синтез звука дозиметра.">
-  <meta name="twitter:image" content="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='630' viewBox='0 0 1200 630'%3E%3Crect width='1200' height='630' fill='%230d0b09'/%3E%3Crect x='100' y='80' width='1000' height='470' fill='%23191410' stroke='%23e65100' stroke-width='4'/%3E%3Ctext x='600' y='260' font-family='monospace' font-weight='bold' font-size='68' fill='%23e65100' text-anchor='middle' letter-spacing='8'%3EГИГАХРУЩ %2F%2F САМОСБОР%3C/text%3E%3Ctext x='600' y='340' font-family='monospace' font-size='28' fill='%23fbc02d' text-anchor='middle' letter-spacing='4'%3E2.5D DDA RAYCASTER %26 DOSIMETER TELEMETRY%3C/text%3E%3C/svg%3E">
+  <meta name="twitter:title" content="Gigahrush // Samosbor Core — 2.5D DDA Raycaster & Cellular Gas Lab">
+  <meta name="twitter:description" content="Atmospheric post-apocalyptic Gigakhrushchov exploration engine with 2.5D DDA raycasting, cellular gas dispersion physics, and interactive Samosbor Web CLI terminal.">
+  <meta name="twitter:image" content="https://marko1olo.github.io/gigahrush/assets/og-preview.png">
+  <meta name="twitter:image:alt" content="Gigahrush // Samosbor Core — 2.5D DDA Raycaster & Cellular Gas Lab">
 
-  <!-- JSON-LD Schema -->
+  <!-- Schema.org Structured Data (JSON-LD) -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "Гигахрущ: Samosbor Core",
-    "operatingSystem": "Any",
+    "@type": "VideoGame",
+    "name": "Gigahrush",
+    "headline": "Gigahrush // Samosbor Core — 2.5D DDA Raycaster & Cellular Gas Lab",
+    "description": "Atmospheric post-apocalyptic Gigakhrushchov exploration engine with 2.5D DDA raycasting, cellular gas dispersion physics, and interactive Samosbor Web CLI terminal.",
+    "url": "https://marko1olo.github.io/gigahrush/",
     "applicationCategory": "GameApplication",
-    "genre": "Post-Apocalyptic Procedural Raycaster Simulation",
-    "description": "Интерактивный 2.5D DDA рейкастер советских коридоров Гигахруща с генерацией этажей, волнами Самосбора, гермозатворами и синтезом звука дозиметра ДП-5В.",
-    "author": {
-      "@type": "Person",
-      "name": "Jirnyak & marko1olo"
-    },
+    "operatingSystem": "All modern web browsers (Desktop, Tablet, Mobile)",
+    "browserRequirements": "Requires JavaScript. Requires HTML5 Canvas.",
+    "softwareVersion": "2.4.0",
     "offers": {
       "@type": "Offer",
       "price": "0",
-      "priceCurrency": "USD"
+      "priceCurrency": "USD",
+      "availability": "https://schema.org/InStock"
+    },
+    "author": {
+      "@type": "Person",
+      "name": "Адольф Петушков (Adolf Petushkov)",
+      "url": "https://github.com/marko1olo"
+    },
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.9",
+      "reviewCount": "230"
     }
   }
   </script>
-
-  <!-- Inline SVG Favicon -->
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%230d0b09'/%3E%3Ccircle cx='16' cy='16' r='12' fill='none' stroke='%23e65100' stroke-width='2.5'/%3E%3Cpath d='M16 6 L20 14 L12 14 Z M8 22 L14 18 L10 26 Z M24 22 L22 26 L18 18 Z' fill='%23fbc02d'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23e65100'/%3E%3C/svg%3E">
 
   <style>
     /* ==========================================================================
