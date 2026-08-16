@@ -15134,7 +15134,8 @@ function applyCultistMajorityProfile(
   }
 
   const markerRoom = ritualRooms[0];
-  const targetRoom = candidates.find(room => !ritualRooms.includes(room) && room.doors.length > 0) ?? ritualRooms[ritualRooms.length - 1];
+  const ritualRoomSet = new Set(ritualRooms);
+  const targetRoom = candidates.find(room => !ritualRoomSet.has(room) && room.doors.length > 0) ?? ritualRooms[ritualRooms.length - 1];
   const marker = roomCell(world, markerRoom, Math.max(1, Math.floor(markerRoom.w / 2) - 1), Math.floor(markerRoom.h / 2));
   const target = roomCell(world, targetRoom, Math.floor(targetRoom.w / 2), Math.floor(targetRoom.h / 2));
   if (marker && target && reachable[world.idx(marker.x, marker.y)] && reachable[world.idx(target.x, target.y)]) {
