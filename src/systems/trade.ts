@@ -203,6 +203,7 @@ function hasInventoryItems(inventory: readonly Item[] | undefined, items: readon
 
 function removeInventoryItems(inventory: Item[], items: readonly Item[]): boolean {
   if (!hasInventoryItems(inventory, items)) return false;
+  let needsCleanup = false;
   for (const item of items) {
     let remaining = item.count;
     for (let i = inventory.length - 1; i >= 0 && remaining > 0; i--) {
@@ -211,9 +212,20 @@ function removeInventoryItems(inventory: Item[], items: readonly Item[]): boolea
       const taken = Math.min(remaining, slot.count);
       slot.count -= taken;
       remaining -= taken;
-      if (slot.count <= 0) inventory.splice(i, 1);
+      if (slot.count <= 0) needsCleanup = true;
     }
   }
+
+  if (needsCleanup) {
+    let writeIdx = 0;
+    for (let i = 0; i < inventory.length; i++) {
+      if (inventory[i].count > 0) {
+        inventory[writeIdx++] = inventory[i];
+      }
+    }
+    inventory.length = writeIdx;
+  }
+
   return true;
 }
 
