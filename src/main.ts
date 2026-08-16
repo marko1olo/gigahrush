@@ -79,7 +79,7 @@ import { stampUrineTrace } from './systems/urination';
 import { containerMenuGridLayout, craftMenuLayout, fullscreenInventoryLayout, tradeMenuGridLayout } from './render/ui_layout';
 import { updateNeeds } from './systems/needs';
 import { startTutorial } from './systems/tutorial';
-import { updateAI, tryMonsterProjectileStagger, getAiStats, type AiStats } from './systems/ai';
+import { updateAI, tryMonsterProjectileStagger, getAiStats } from './systems/ai';
 import { markNavigationCellsDirty, prewarmNavigationTreeAsync, prewarmBehaviorFlowFields, behaviorFlowFieldCount } from './systems/ai/pathfinding';
 import { createWorkerRegionNextSolver } from './systems/ai/nav_worker_pool';
 import { resolveBreachChargeExplosion } from './systems/breach_charge';
@@ -2886,7 +2886,7 @@ interface SmokeDebugSnapshot {
   floorMemoryCount: number;
   floorMemoryCap: number;
   entityIndex: EntityIndexDebugStats;
-  ai: AiStats;
+  ai: ReturnType<typeof getAiStats>;
   perf: ReturnType<typeof hudPerfDebugSnapshot>;
   tick: number;
   inputFwd: boolean;
