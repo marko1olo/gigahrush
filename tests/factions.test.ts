@@ -7,6 +7,7 @@ import {
   areFactionsHostile,
   isHostile,
   applyFactionRelationDeltas,
+  applyRoomMemoryRelationPenalty,
 } from '../src/systems/factions';
 import { makeTestEntity } from './helpers';
 import { initFactionRelations } from '../src/data/relations';
@@ -92,4 +93,48 @@ test('applyFactionRelationDeltas applies changes to relations', () => {
   const newRel = getFactionRelation(Faction.CITIZEN, Faction.LIQUIDATOR);
 
   assert.equal(newRel, initialRel + 10);
+});
+
+test('applyRoomMemoryRelationPenalty handles undefined or player faction', () => {
+  initFactionRelations();
+  const initialRelUndef = getFactionRelation(Faction.CITIZEN, Faction.PLAYER);
+  const penaltyUndef = applyRoomMemoryRelationPenalty(undefined, 5);
+  assert.equal(penaltyUndef, 0);
+  assert.equal(getFactionRelation(Faction.CITIZEN, Faction.PLAYER), initialRelUndef);
+
+  const initialRelPlayer = getFactionRelation(Faction.PLAYER, Faction.PLAYER);
+  const penaltyPlayer = applyRoomMemoryRelationPenalty(Faction.PLAYER, 5);
+  assert.equal(penaltyPlayer, 0);
+  assert.equal(getFactionRelation(Faction.PLAYER, Faction.PLAYER), initialRelPlayer);
+});
+
+test('applyRoomMemoryRelationPenalty applies -1 penalty for severity < 5', () => {
+  initFactionRelations();
+  const victimFaction = Faction.CITIZEN;
+  const initialRel1 = getFactionRelation(victimFaction, Faction.PLAYER);
+  const initialRel2 = getFactionRelation(Faction.PLAYER, victimFaction);
+
+  const penalty = applyRoomMemoryRelationPenalty(victimFaction, 4);
+
+  assert.equal(penalty, -1);
+  assert.equal(getFactionRelation(victimFaction, Faction.PLAYER), initialRel1 - 1);
+  assert.equal(getFactionRelation(Faction.PLAYER, victimFaction), initialRel2 - 1);
+});
+
+test('applyRoomMemoryRelationPenalty applies -2 penalty for severity >= 5', () => {
+  initFactionRelations();
+  const victimFaction = Faction.LIQUIDATOR;
+  const initialRel1 = getFactionRelation(victimFaction, Faction.PLAYER);
+  const initialRel2 = getFactionRelation(Faction.PLAYER, victimFaction);
+
+  const penalty = applyRoomMemoryRelationPenalty(victimFaction, 5);
+
+  assert.equal(penalty, -2);
+  assert.equal(getFactionRelation(victimFaction, Faction.PLAYER), initialRel1 - 2);
+  assert.equal(getFactionRelation(Faction.PLAYER, victimFaction), initialRel2 - 2);
+
+  // also check severity > 5
+  const penalty2 = applyRoomMemoryRelationPenalty(victimFaction, 10);
+  assert.equal(penalty2, -2);
+  assert.equal(getFactionRelation(victimFaction, Faction.PLAYER), initialRel1 - 4);
 });

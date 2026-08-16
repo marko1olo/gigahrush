@@ -1,12 +1,3 @@
-💡 What:
-- Added `entitiesMap` cache to `PlombContext` and initialized it on demand inside `nearestActiveContextToPlayer` and `handleKillEvent`.
-- Replaced the array `.find()` lookups with `O(1)` Map lookups for the monster.
-- Replaced the array `.find()` for `player` with a simple reverse `for`-loop since it executes significantly faster for dense arrays where finding the single active element earlier provides early breaks.
-
-🎯 Why:
-- The previous implementation iterates through `entities` array iteratively with `find`, which invokes O(n) operation per-context multiple times inside another loop, drastically degrading performance on high entity counts.
-
-📊 Measured Improvement:
-- Unoptimized runtime for nearestActiveContextToPlayer (10k entities, 10k iterations): ~1,000ms
-- Optimized runtime (10k entities, 10k iterations): ~4.8ms
-- Improvement is ~200x speedup for the function.
+🎯 **What:** Added comprehensive unit tests for `applyRoomMemoryRelationPenalty` function in `src/systems/factions.ts`.
+📊 **Coverage:** Covered all code paths: handles `undefined` or `Faction.PLAYER` with no state modification, covers severity less than 5 (returns `-1` and applies mutual penalty), and covers severity greater than or equal to 5 (returns `-2` and applies mutual penalty). Tests also ensure determinism using `initFactionRelations()`.
+✨ **Result:** Test coverage for `src/systems/factions.ts` is improved, safeguarding gameplay logic against unintended regressions.
