@@ -101,7 +101,7 @@ import {
 } from './systems/inventory';
 import { createInput, bindInput } from './input';
 import { createMobileControls, type MobileControls } from './mobile';
-import { createGamepadAdapter, type GamepadAdapter } from './input_gamepad';
+import { createGamepadAdapter } from './input_gamepad';
 import {
   createInputFrame,
   beginInputFrame,
@@ -3464,7 +3464,7 @@ mobileControls = createMobileControls(input, {
   onConfirm: confirmActiveMobileSelection,
   onClose: closeActiveMobileMenu,
 });
-const gamepadAdapter: GamepadAdapter = createGamepadAdapter();
+const gamepadAdapter = createGamepadAdapter();
 const inputFrame: InputFrame = createInputFrame();
 document.addEventListener('pointerlockchange', () => {
   input.mouse.locked = canvasHasPointerLock();
