@@ -503,12 +503,15 @@ function consumeItemStacks(container: WorldContainer, inputItems: readonly ItemS
       const take = Math.min(left, item.count);
       item.count -= take;
       left -= take;
-      if (item.count <= 0) {
-        container.inventory.splice(i, 1);
-        i--;
-      }
     }
   }
+  let write = 0;
+  for (let read = 0; read < container.inventory.length; read++) {
+    if (container.inventory[read].count > 0) {
+      container.inventory[write++] = container.inventory[read];
+    }
+  }
+  container.inventory.length = write;
 }
 
 function consumeInputItems(container: WorldContainer, recipe: FactoryRecipeDef): void {
