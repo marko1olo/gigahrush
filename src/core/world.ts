@@ -511,8 +511,9 @@ export class World {
     const removeFromRoom = (roomId: number): void => {
       const room = roomId >= 0 ? this.rooms[roomId] : undefined;
       if (!room) return;
-      if (room.doors.includes(idx)) {
-        room.doors = room.doors.filter(i => i !== idx);
+      const doorIdx = room.doors.indexOf(idx);
+      if (doorIdx !== -1) {
+        room.doors.splice(doorIdx, 1);
         changed = true;
       }
     };
@@ -524,8 +525,9 @@ export class World {
     for (let i = 0; i < this.rooms.length; i++) {
       const room = this.rooms[i];
       if (!room) continue;
-      if (room.doors.includes(idx)) {
-        room.doors = room.doors.filter(i => i !== idx);
+      const doorIdx = room.doors.indexOf(idx);
+      if (doorIdx !== -1) {
+        room.doors.splice(doorIdx, 1);
         changed = true;
       }
     }
