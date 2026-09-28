@@ -3454,6 +3454,16 @@ function itemTags(defId: string): readonly string[] {
   return ITEMS[defId]?.tags ?? ITEM_TAGS[defId] ?? [];
 }
 
+const itemTagsSetCache = new Map<string, Set<string>>();
+function itemTagsSet(defId: string): Set<string> {
+  let s = itemTagsSetCache.get(defId);
+  if (!s) {
+    s = new Set(itemTags(defId));
+    itemTagsSetCache.set(defId, s);
+  }
+  return s;
+}
+
 function inventoryValue(items: readonly Item[]): number {
   let value = 0;
   for (const item of items) value += (ITEMS[item.defId]?.value ?? 0) * item.count;
@@ -15658,12 +15668,14 @@ function convertDropInventory(drop: Entity, kind: ContainerKind, spec: Procedura
   return inv;
 }
 
+const EMPTY_TAGS_SET = new Set<string>();
+
 function kindForConvertedDrop(drop: Entity, room: Room | undefined, spec: ProceduralFloorSpec): ContainerKind {
   const firstId = drop.inventory?.[0]?.defId;
-  const tags = firstId ? itemTags(firstId) : [];
-  if (tags.includes('medicine') || tags.includes('triage') || firstId === 'bandage' || firstId === 'antifungal_ointment') return ContainerKind.MEDICAL_CABINET;
-  if (tags.includes('tool') || firstId === 'rock_salt' || firstId === 'valve_tag' || firstId === 'filter_receipt') return ContainerKind.TOOL_LOCKER;
-  if (tags.includes('contaminant') || tags.includes('bait_risky') || spec.anomalyId === 'mushroom_mycelium') return ContainerKind.SECRET_STASH;
+  const tags = firstId ? itemTagsSet(firstId) : EMPTY_TAGS_SET;
+  if (tags.has('medicine') || tags.has('triage') || firstId === 'bandage' || firstId === 'antifungal_ointment') return ContainerKind.MEDICAL_CABINET;
+  if (tags.has('tool') || firstId === 'rock_salt' || firstId === 'valve_tag' || firstId === 'filter_receipt') return ContainerKind.TOOL_LOCKER;
+  if (tags.has('contaminant') || tags.has('bait_risky') || spec.anomalyId === 'mushroom_mycelium') return ContainerKind.SECRET_STASH;
   if (room?.type === RoomType.KITCHEN) return ContainerKind.FRIDGE;
   return ContainerKind.EMERGENCY_BOX;
 }
