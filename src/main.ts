@@ -100,7 +100,7 @@ import {
   countAmmo, removeItem, publishPlayerItemEvent, updateInventoryConditions,
 } from './systems/inventory';
 import { createInput, bindInput } from './input';
-import { createMobileControls, type MobileControls } from './mobile';
+import { createMobileControls } from './mobile';
 import { createGamepadAdapter, type GamepadAdapter } from './input_gamepad';
 import {
   createInputFrame,
@@ -685,7 +685,7 @@ let titleInputField: TitleInputField = getTitleSetupFields()[titleSetupSel];
 let titleLanguageId = loadTitleLanguageId();
 let titleActiveActorSoftLimit = loadTitleActiveActorSoftLimit();
 let titleLanguageHits: TitleLanguageHit[] = [];
-let mobileControls: MobileControls | null = null;
+let mobileControls: ReturnType<typeof createMobileControls> | null = null;
 let mobileContextKey = '';
 let mobileCanInteractCache = false;
 let mobileCanInteractProbeAt = Number.NEGATIVE_INFINITY;
